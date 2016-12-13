@@ -132,19 +132,7 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <Content Include="assemblies\assemblylist.txt">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="assemblies\MyApp.BusinessLayer.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="assemblies\MyApp.BusinessLayer.pdb">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="assemblies\MyApp.DataLayer.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="assemblies\MyApp.DataLayer.pdb">
+    <Content Include="client-assemblies\assemblylist.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

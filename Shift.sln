@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Shift.WebJob", "Shift.WebJo
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Shift.DataLayer", "Shift.DataLayer\Shift.DataLayer.csproj", "{4E74E7C7-4EA1-425C-B467-1DB4A5F99A37}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Shift.DataLayer.Redis", "Shift.DataLayer.Redis\Shift.DataLayer.Redis.csproj", "{F43A6D1C-5AEA-470B-8B33-D8ED2C156B86}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -39,6 +41,10 @@ Global
 		{4E74E7C7-4EA1-425C-B467-1DB4A5F99A37}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4E74E7C7-4EA1-425C-B467-1DB4A5F99A37}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4E74E7C7-4EA1-425C-B467-1DB4A5F99A37}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F43A6D1C-5AEA-470B-8B33-D8ED2C156B86}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F43A6D1C-5AEA-470B-8B33-D8ED2C156B86}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F43A6D1C-5AEA-470B-8B33-D8ED2C156B86}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F43A6D1C-5AEA-470B-8B33-D8ED2C156B86}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

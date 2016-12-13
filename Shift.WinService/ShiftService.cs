@@ -30,7 +30,7 @@ namespace Shift.WinService
                 options.MaxRunnableJobs = Convert.ToInt32(ConfigurationManager.AppSettings["MaxRunableJobs"]);
                 options.ProcessID = Convert.ToInt32(ConfigurationManager.AppSettings["ShiftPID"]);
                 options.DBConnectionString = ConfigurationManager.ConnectionStrings["ShiftDBConnection"].ConnectionString;
-                options.RedisConnectionString = ConfigurationManager.AppSettings["RedisConfiguration"];
+                options.CacheConfigurationString = ConfigurationManager.AppSettings["RedisConfiguration"];
 
                 jobServer = new Shift.JobServer(options);
             }

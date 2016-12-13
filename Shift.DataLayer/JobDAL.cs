@@ -19,12 +19,14 @@ namespace Shift.DataLayer
 {
     public class JobDAL
     {
-        private string dbConnection;
-        private RedisCache redisCache;
+        private string connectionString;
+        private IJobCache jobCache;
+        //private IJobDB jobDB;
 
-        public JobDAL(string dbConnection)
+        public JobDAL(string connectionString, IJobCache jobCache)
         {
-            this.dbConnection = dbConnection;
+            this.connectionString = connectionString;
+            this.jobCache = jobCache;
         }
 
         public int? Add(string appID, int? userID, string jobType, [NotNull, InstantHandle]Expression<Action> methodCall)
@@ -79,7 +81,7 @@ namespace Shift.DataLayer
             job.Created = DateTime.Now;
 
             int? jobID = null;
-            using (var connection = new SqlConnection(dbConnection))
+            using (var connection = new SqlConnection(connectionString))
             {
                 jobID = connection.Query<int>(@"INSERT INTO [Job] ([AppID], [UserID], [JobType], [JobName], [InvokeMeta], [Parameters], [Created]) 
                                             VALUES(@AppID, @UserID, @JobType, @JobName, @InvokeMeta, @Parameters, @Created);
@@ -99,7 +101,7 @@ namespace Shift.DataLayer
             if (jobIDs.Count == 0)
                 return 0;
 
-            using (var connection = new SqlConnection(dbConnection))
+            using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
                 var sql = @"UPDATE [Job] 
@@ -122,7 +124,7 @@ namespace Shift.DataLayer
             if (jobIDs.Count == 0)
                 return 0;
 
-            using (var connection = new SqlConnection(dbConnection))
+            using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
                 var sql = @"UPDATE [Job] 
@@ -142,7 +144,7 @@ namespace Shift.DataLayer
             if (jobIDs.Count == 0)
                 return 0;
 
-            using (var connection = new SqlConnection(dbConnection))
+            using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
                 //Get only the NON running jobs
@@ -194,7 +196,7 @@ namespace Shift.DataLayer
                 return 0;
 
             var count = 0;
-            using (var connection = new SqlConnection(dbConnection))
+            using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
                 //Get only the NON running jobs
@@ -235,7 +237,7 @@ namespace Shift.DataLayer
             if (jobIDs.Count == 0)
                 return 0;
 
-            using (var connection = new SqlConnection(dbConnection))
+            using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
                 var sql = @"UPDATE Job 
@@ -249,7 +251,7 @@ namespace Shift.DataLayer
 
         public Job GetJob(int jobID)
         {
-            using (var connection = new SqlConnection(dbConnection))
+            using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
                 var sql = @"SELECT *
@@ -261,7 +263,7 @@ namespace Shift.DataLayer
 
         public JobView GetJobView(int jobID)
         {
-            using (var connection = new SqlConnection(dbConnection))
+            using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
                 var sql = @"SELECT *
@@ -274,7 +276,7 @@ namespace Shift.DataLayer
         public List<Job> GetJobsByCommand(int processID, string command)
         {
             var jobList = new List<Job>();
-            using (var connection = new SqlConnection(dbConnection))
+            using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
                 var sql = @"SELECT * 
@@ -289,7 +291,7 @@ namespace Shift.DataLayer
 
         public JobResult GetJobResult(int jobResultID)
         {
-            using (var connection = new SqlConnection(dbConnection))
+            using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
                 var sql = @"SELECT * 
@@ -308,7 +310,7 @@ namespace Shift.DataLayer
         /// </remarks>
         public JobResult GetJobResult(string externalID)
         {
-            using (var connection = new SqlConnection(dbConnection))
+            using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
                 var sql = @"SELECT *
@@ -327,7 +329,7 @@ namespace Shift.DataLayer
         public List<JobStatusCount> GetJobStatusCount(string appID, int? userID)
         {
             var countList = new List<JobStatusCount>();
-            using (var connection = new SqlConnection(dbConnection))
+            using (var connection = new SqlConnection(connectionString))
             {
                 var sql = "";
                 if (!string.IsNullOrWhiteSpace(appID) && userID != null)
@@ -361,7 +363,7 @@ namespace Shift.DataLayer
         public int SetToRunning(int jobID)
         {
             var count = 0;
-            using (var connection = new SqlConnection(dbConnection))
+            using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
                 var sql = "UPDATE [Job] SET Status = @status, [Start] = @start WHERE JobID = @jobID;";
@@ -374,7 +376,7 @@ namespace Shift.DataLayer
         public int SetError(int jobID, string error)
         {
             var count = 0;
-            using (var connection = new SqlConnection(dbConnection))
+            using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
 
@@ -388,7 +390,7 @@ namespace Shift.DataLayer
         public int SetCompleted(int jobID)
         {
             var count = 0;
-            using (var connection = new SqlConnection(dbConnection))
+            using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
                 var sql = "UPDATE [Job] SET Status = @status, [End] = @end WHERE JobID = @jobID;";
@@ -401,7 +403,7 @@ namespace Shift.DataLayer
         public List<Job> GetJobsByStatus(List<int> jobIDs, string statusSql)
         {
             var jobList = new List<Job>();
-            using (var connection = new SqlConnection(dbConnection))
+            using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
                 var sql = @"SELECT * 
@@ -417,7 +419,7 @@ namespace Shift.DataLayer
         public List<Job> GetJobsByProcessAndStatus(int processID, JobStatus status)
         {
             var jobList = new List<Job>();
-            using (var connection = new SqlConnection(dbConnection))
+            using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
                 var sql = @"SELECT * 
@@ -433,7 +435,7 @@ namespace Shift.DataLayer
         public List<Job> GetJobsByProcess(int processID, List<int> jobIDs)
         {
             var jobList = new List<Job>();
-            using (var connection = new SqlConnection(dbConnection))
+            using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
                 var sql = @"Select j.*
@@ -450,7 +452,7 @@ namespace Shift.DataLayer
         public int CountRunningJobs(int processID)
         {
             var runningCount = 0;
-            using (var connection = new SqlConnection(dbConnection))
+            using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
                 var sql = @"SELECT COUNT(j.JobID) 
@@ -466,7 +468,7 @@ namespace Shift.DataLayer
         public int ClaimJobsToRun(int processID, List<int> jobIDs)
         {
             var count = 0;
-            using (var connection = new SqlConnection(dbConnection))
+            using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
                 var sql = @"UPDATE [Job]
@@ -481,7 +483,7 @@ namespace Shift.DataLayer
         public List<Job> GetJobsToRun(int rowsToGet)
         {
             var jobList = new List<Job>();
-            using (var connection = new SqlConnection(dbConnection))
+            using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
                 var sql = @"SELECT * 
@@ -499,7 +501,7 @@ namespace Shift.DataLayer
         public int SetProgress(int jobID, int? percent, string note, string data)
         {
             var count = 0;
-            using (var connection = new SqlConnection(dbConnection))
+            using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
                 var found = connection.Query<int>("SELECT COUNT(JobID) FROM JobProgress WHERE JobID = @jobID;", new { jobID }).FirstOrDefault(); ;
@@ -529,7 +531,7 @@ namespace Shift.DataLayer
         public int UpdateProgress(int jobID, int? percent, string note, string data)
         {
             var count = 0;
-            using (var connection = new SqlConnection(dbConnection))
+            using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
                 var sql = @"UPDATE [JobProgress] SET [Percent] = @percent, Note = @note, Data = @data 
@@ -543,7 +545,7 @@ namespace Shift.DataLayer
         public int InsertResults(List<JobResult> resultList)
         {
             var count = 0;
-            using (var connection = new SqlConnection(dbConnection))
+            using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
                 count = connection.Execute(@"INSERT INTO [JobResult] (JobID, ExternalID, Name, BinaryContent, ContentType) 
@@ -713,13 +715,8 @@ namespace Shift.DataLayer
         #endregion
 
 
-        #region REDIS
-        public void RedisConnect(string configuration)
-        {
-            redisCache = new RedisCache(configuration);
-        }
-
-        /* Use Redis and DB to return progress */
+        #region Cache
+        /* Use Cache and DB to return progress */
         public JobStatusProgress GetProgress(int jobID)
         {
             var jsProgress = GetCachedProgress(jobID);
@@ -750,55 +747,23 @@ namespace Shift.DataLayer
 
         public JobStatusProgress GetCachedProgress(int jobID)
         {
-            var jsProgress = new JobStatusProgress();
-
-            var redisDB = redisCache.Database;
-            var jobStatusProgressString = redisDB.StringGet(jobID.ToString());
-            if (!string.IsNullOrWhiteSpace(jobStatusProgressString))
-            {
-                jsProgress = JsonConvert.DeserializeObject<JobStatusProgress>(jobStatusProgressString);
-                return jsProgress;
-            }
-
-            return null;
+            return jobCache.GetCachedProgress(jobID);
         }
 
         //Set Cached progress similar to the DB SetProgress()
         public void SetCachedProgress(int jobID, int? percent, string note, string data)
         {
-            var redisDB = redisCache.Database;
-            var jobStatusProgressString = redisDB.StringGet(jobID.ToString());
-
-            var jsProgress = new JobStatusProgress();
-            if (!string.IsNullOrWhiteSpace(jobStatusProgressString))
-            {
-                jsProgress = JsonConvert.DeserializeObject<JobStatusProgress>(jobStatusProgressString);
-            }
-            else
-            {
-                //missing, then setup a new one, always status = running
-                jsProgress.JobID = jobID;
-                jsProgress.Status = JobStatus.Running;
-            }
-            jsProgress.Percent = percent;
-            jsProgress.Note = note;
-            jsProgress.Data = data;
-            jsProgress.Updated = DateTime.Now;
-
-            redisDB.StringSetAsync(jobID.ToString(), JsonConvert.SerializeObject(jsProgress), flags: StackExchange.Redis.CommandFlags.FireAndForget);
+            jobCache.SetCachedProgress(jobID, percent, note, data);
         }
 
         //Set cached progress status
         public void SetCachedProgressStatus(int jobID, JobStatus status)
         {
-            var redisDB = redisCache.Database;
             var jsProgress = GetProgress(jobID);
             if (jsProgress != null && jsProgress.ExistsInDB)
             {
-                //Update running/stop status only if it exists in DB
-                jsProgress.Status = status;
-                jsProgress.Updated = DateTime.Now;
-                redisDB.StringSetAsync(jobID.ToString(), JsonConvert.SerializeObject(jsProgress), flags: StackExchange.Redis.CommandFlags.FireAndForget);
+                //Update CACHE running/stop status only if it exists in DB
+                jobCache.SetCachedProgressStatus(jsProgress, status);
             }
         }
 
@@ -806,12 +771,8 @@ namespace Shift.DataLayer
         //Set cached progress error
         public void SetCachedProgressError(int jobID, string error)
         {
-            var redisDB = redisCache.Database;
             var jsProgress = GetProgress(jobID);
-            jsProgress.Status = JobStatus.Error;
-            jsProgress.Error = error;
-            jsProgress.Updated = DateTime.Now;
-            redisDB.StringSetAsync(jobID.ToString(), JsonConvert.SerializeObject(jsProgress), flags: StackExchange.Redis.CommandFlags.FireAndForget);
+            jobCache.SetCachedProgressError(jsProgress, error);
         }
 
         public void SetCachedProgressStatus(List<int> jobIDs, JobStatus status)
@@ -824,8 +785,7 @@ namespace Shift.DataLayer
 
         public void DeleteCachedProgress(int jobID)
         {
-            var redisDB = redisCache.Database;
-            redisDB.KeyDeleteAsync(jobID.ToString());
+            jobCache.DeleteCachedProgress(jobID);
         }
 
         public void DeleteCachedProgress(List<int> jobIDs)

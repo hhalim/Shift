@@ -5,6 +5,8 @@ using System.Linq.Expressions;
 
 using Shift.Entities;
 using Shift.DataLayer;
+using Autofac;
+using Autofac.Features.ResolveAnything;
 
 [assembly: CLSCompliant(true)]
 namespace Shift
@@ -13,6 +15,8 @@ namespace Shift
     {
         private JobDAL jobDAL = null;
         private Options options = null;
+        private readonly ContainerBuilder builder;
+        private readonly IContainer container;
 
         public JobClient(Options options)
         {
@@ -23,19 +27,32 @@ namespace Shift
 
             if (string.IsNullOrWhiteSpace(options.DBConnectionString))
             {
-                throw new Exception("Error: unable to start without Process Jobs DB connection string.");
+                throw new Exception("Error: unable to start without DB connection string.");
 
             }
 
-            if (string.IsNullOrWhiteSpace(options.RedisConnectionString))
+            if (string.IsNullOrWhiteSpace(options.CacheConfigurationString))
             {
-                throw new Exception("Error: unable to start without Process Jobs Redis connection string.");
+                throw new Exception("Error: unable to start without Cache configuration string.");
 
             }
 
             this.options = options;
-            jobDAL = new JobDAL(options.DBConnectionString);
-            jobDAL.RedisConnect(options.RedisConnectionString);
+
+            builder = new ContainerBuilder();
+            builder.RegisterSource(new AnyConcreteTypeNotAlreadyRegisteredSource());
+            Register.RegisterTypes(builder, options);
+            container = builder.Build();
+            jobDAL = container.Resolve<JobDAL>();
+        }
+
+        public static class Register
+        {
+            public static void RegisterTypes(ContainerBuilder builder, Options options)
+            {
+                builder.RegisterType<DataLayer.Redis.Cache>().As<IJobCache>().WithParameter("configurationString", options.CacheConfigurationString);
+                builder.RegisterType<JobDAL>().As<JobDAL>().WithParameter("connectionString", options.DBConnectionString);
+            }
         }
 
         #region Clients access

@@ -8,17 +8,24 @@ using System.Data.SqlClient;
 using System.Diagnostics;
 using System.Reflection;
 using System.IO;
+using Annotations;
 
 using Newtonsoft.Json;
 using Shift.DataLayer;
 using Shift.Entities;
 
+using Autofac;
+using Autofac.Features.ResolveAnything;
+
 namespace Shift
 {
     public class JobServer
     {
-        private Options options = null;
         private JobDAL jobDAL = null;
+        private Options options = null;
+        private readonly ContainerBuilder builder;
+        private readonly IContainer container;
+
         private Dictionary<int, Thread> threadList = null; //reference to running thread
 
         public JobServer(Options options)
@@ -30,13 +37,13 @@ namespace Shift
 
             if (string.IsNullOrWhiteSpace(options.DBConnectionString))
             {
-                throw new Exception("Error: unable to start without Process Jobs DB connection string.");
+                throw new Exception("Error: unable to start without DB connection string.");
 
             }
 
-            if (string.IsNullOrWhiteSpace(options.RedisConnectionString))
+            if (string.IsNullOrWhiteSpace(options.CacheConfigurationString))
             {
-                throw new Exception("Error: unable to start without Process Jobs Redis connection string.");
+                throw new Exception("Error: unable to start without Cache configuration string.");
 
             }
 
@@ -46,6 +53,20 @@ namespace Shift
             }
 
             this.options = options;
+
+            builder = new ContainerBuilder();
+            builder.RegisterSource(new AnyConcreteTypeNotAlreadyRegisteredSource());
+            Register.RegisterTypes(builder, options);
+            container = builder.Build();
+        }
+
+        public static class Register
+        {
+            public static void RegisterTypes(ContainerBuilder builder, Options options)
+            {
+                builder.RegisterType<DataLayer.Redis.Cache>().As<IJobCache>().WithParameter("configurationString", options.CacheConfigurationString);
+                builder.RegisterType<JobDAL>().As<JobDAL>().WithParameter("connectionString", options.DBConnectionString);
+            }
         }
 
         #region Startup
@@ -53,8 +74,7 @@ namespace Shift
         {
             this.threadList = new Dictionary<int, Thread>();
 
-            jobDAL = new JobDAL(options.DBConnectionString);
-            jobDAL.RedisConnect(options.RedisConnectionString);
+            jobDAL = container.Resolve<JobDAL>();
 
             //OPTIONAL: Load all EXTERNAL DLLs needed by this process
             AppDomain.CurrentDomain.AssemblyResolve += OnAssemblyResolve;

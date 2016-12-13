@@ -42,13 +42,6 @@ namespace Shift.WebJob
 
         public ProcessJobsService()
         {
-            //var processID = ConfigurationManager.AppSettings["JobManagerProcessID"];
-            //if (jobServer == null)
-            //{
-            //    var dbConnection = ConfigurationManager.ConnectionStrings["QueueDBConnection"].ConnectionString;
-            //    jobServer = new ManageJobs(Convert.ToInt32(processID), dbConnection);
-            //}
-
             if (jobServer == null)
             {
                 //Load Assemblies
@@ -56,12 +49,12 @@ namespace Shift.WebJob
                 Console.WriteLine("BaseDirectory: " + baseDir);
 
                 var options = new Shift.Options();
-                options.AssemblyListPath = baseDir + @"\assemblies\assemblylist.txt";
-                options.AssemblyBaseDir = baseDir + @"\assemblies\";
+                options.AssemblyListPath = baseDir + @"\client-assemblies\assemblylist.txt";
+                options.AssemblyBaseDir = baseDir + @"\client-assemblies\";
                 options.MaxRunnableJobs = Convert.ToInt32(ConfigurationManager.AppSettings["MaxRunableJobs"]);
                 options.ProcessID = Convert.ToInt32(ConfigurationManager.AppSettings["ShiftPID"]);
                 options.DBConnectionString = ConfigurationManager.ConnectionStrings["ShiftDBConnection"].ConnectionString;
-                options.RedisConnectionString = ConfigurationManager.AppSettings["RedisConfiguration"];
+                options.CacheConfigurationString = ConfigurationManager.AppSettings["RedisConfiguration"];
 
                 jobServer = new Shift.JobServer(options);
             }

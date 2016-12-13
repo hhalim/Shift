@@ -15,6 +15,6 @@ namespace Shift
         public string AssemblyListPath { get; set; } //Optional
         public string AssemblyBaseDir { get; set; } //Optional
 
-        public string RedisConnectionString { get; set; }
+        public string CacheConfigurationString { get; set; }
     }
 }
