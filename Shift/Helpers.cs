@@ -6,6 +6,8 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Linq.Expressions;
 using System.Runtime.Serialization;
+using Autofac.Core;
+using Autofac;
 
 namespace Shift
 {
@@ -95,6 +97,18 @@ namespace Shift
         public static bool HasDefaultConstructor(this Type t)
         {
             return t.IsValueType || t.GetConstructor(Type.EmptyTypes) != null;
+        }
+
+        //Autofac DI for multiple parameters
+        public static IEnumerable<Parameter> GenerateNamedParameters(IDictionary<string, object> parameters)
+        {
+            var _parameters = new List<Parameter>();
+            foreach (var parameter in parameters)
+            {
+                _parameters.Add(new NamedParameter(parameter.Key, parameter.Value));
+            }
+
+            return _parameters;
         }
     }
 

@@ -16,5 +16,6 @@ namespace Shift
         public string AssemblyBaseDir { get; set; } //Optional
 
         public string CacheConfigurationString { get; set; }
+        public string EncryptionKey { get; set; } //optional, if set, then parameters will be encrypted/decrypted automatically during storage
     }
 }

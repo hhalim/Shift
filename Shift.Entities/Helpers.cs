@@ -17,16 +17,11 @@ namespace Shift.Entities
         // This constant determines the number of iterations for the password bytes generation function.
         private const int DerivationIterations = 1000;
 
-        public static string Encrypt(string plainText)
-        {
-            if (string.IsNullOrWhiteSpace(EncryptionSecret.ParametersKey))
-                return plainText; //don't encrypt
-
-            return Encrypt(plainText, EncryptionSecret.ParametersKey);
-        }
-
         public static string Encrypt(string plainText, string passPhrase)
         {
+            if (string.IsNullOrWhiteSpace(passPhrase))
+                return plainText; //don't encrypt
+
             // Salt and IV is randomly generated each time, but is preprended to encrypted cipher text
             // so that the same Salt and IV values can be used when decrypting.  
             var saltStringBytes = Generate256BitsOfRandomEntropy();
@@ -62,16 +57,11 @@ namespace Shift.Entities
             }
         }
 
-        public static string Decrypt(string cipherText)
-        {
-            if (string.IsNullOrWhiteSpace(EncryptionSecret.ParametersKey))
-                return cipherText; //don't decrypt
-
-            return Decrypt(cipherText, EncryptionSecret.ParametersKey);
-        }
-
         public static string Decrypt(string cipherText, string passPhrase)
         {
+            if (string.IsNullOrWhiteSpace(passPhrase))
+                return cipherText; //don't decrypt
+
             // Get the complete stream of bytes that represent:
             // [32 bytes of Salt] + [32 bytes of IV] + [n bytes of CipherText]
             var cipherTextBytesWithSaltAndIv = Convert.FromBase64String(cipherText);

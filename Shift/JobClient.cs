@@ -51,7 +51,8 @@ namespace Shift
             public static void RegisterTypes(ContainerBuilder builder, Options options)
             {
                 builder.RegisterType<DataLayer.Redis.Cache>().As<IJobCache>().WithParameter("configurationString", options.CacheConfigurationString);
-                builder.RegisterType<JobDAL>().As<JobDAL>().WithParameter("connectionString", options.DBConnectionString);
+                var parameters = Helpers.GenerateNamedParameters(new Dictionary<string, object> { { "connectionString", options.DBConnectionString }, { "encryptionKey", options.EncryptionKey } });
+                builder.RegisterType<JobDAL>().As<JobDAL>().WithParameters(parameters);
             }
         }
 

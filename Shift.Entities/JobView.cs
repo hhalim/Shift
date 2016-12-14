@@ -39,15 +39,6 @@ namespace Shift.Entities
         public string Data { get; set; }
 
         [NotMapped]
-        public string DecryptedParameters
-        {
-            get
-            {
-                return Helpers.Decrypt(Parameters);
-            }
-        }
-
-        [NotMapped]
         [Editable(false)]
         public string StatusLabel { get { return Status.ToString(); } }
     }

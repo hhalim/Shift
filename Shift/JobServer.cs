@@ -65,7 +65,8 @@ namespace Shift
             public static void RegisterTypes(ContainerBuilder builder, Options options)
             {
                 builder.RegisterType<DataLayer.Redis.Cache>().As<IJobCache>().WithParameter("configurationString", options.CacheConfigurationString);
-                builder.RegisterType<JobDAL>().As<JobDAL>().WithParameter("connectionString", options.DBConnectionString);
+                var parameters = Helpers.GenerateNamedParameters(new Dictionary<string, object> { { "connectionString", options.DBConnectionString }, { "encryptionKey", options.EncryptionKey } });
+                builder.RegisterType<JobDAL>().As<JobDAL>().WithParameters(parameters);
             }
         }
 
@@ -213,7 +214,8 @@ namespace Shift
             {
                 try
                 {
-                    CreateThread(row.JobID, row.InvokeMeta, row.DecryptedParameters); //Use the DecryptedParameters, NOT encrypted Parameters
+                    var decryptedParameters = Entities.Helpers.Decrypt(row.Parameters, options.EncryptionKey);
+                    CreateThread(row.JobID, row.InvokeMeta, decryptedParameters); //Use the DecryptedParameters, NOT encrypted Parameters
                 }
                 catch (Exception exc)
                 {

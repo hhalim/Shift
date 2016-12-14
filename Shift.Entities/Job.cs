@@ -26,15 +26,6 @@ namespace Shift.Entities
 
         public DateTime? Created { get; set; }
 
-        [NotMapped]
-        public string DecryptedParameters
-        {
-            get
-            {
-                return Helpers.Decrypt(Parameters);
-            }
-        }
-
         [Editable(false)]
         public string StatusLabel { get { return Status.ToString(); } }
     }

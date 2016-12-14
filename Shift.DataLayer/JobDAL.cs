@@ -21,12 +21,13 @@ namespace Shift.DataLayer
     {
         private string connectionString;
         private IJobCache jobCache;
-        //private IJobDB jobDB;
+        private string encryptionKey;
 
-        public JobDAL(string connectionString, IJobCache jobCache)
+        public JobDAL(string connectionString, IJobCache jobCache, string encryptionKey)
         {
             this.connectionString = connectionString;
             this.jobCache = jobCache;
+            this.encryptionKey = encryptionKey;
         }
 
         public int? Add(string appID, int? userID, string jobType, [NotNull, InstantHandle]Expression<Action> methodCall)
@@ -77,7 +78,7 @@ namespace Shift.DataLayer
             job.JobType = jobType;
             job.JobName = string.IsNullOrWhiteSpace(jobName) ? type.Name + "." + methodInfo.Name : jobName;
             job.InvokeMeta = JsonConvert.SerializeObject(invokeMeta, SerializerSettings.Settings);
-            job.Parameters = Helpers.Encrypt(JsonConvert.SerializeObject(SerializeArguments(args), SerializerSettings.Settings)); //ENCRYPT it!!!
+            job.Parameters = Helpers.Encrypt(JsonConvert.SerializeObject(SerializeArguments(args), SerializerSettings.Settings), encryptionKey); //ENCRYPT it!!!
             job.Created = DateTime.Now;
 
             int? jobID = null;
