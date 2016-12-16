@@ -12,7 +12,9 @@ namespace Shift
         public int ProcessID { get; set; }
         public string DBConnectionString { get; set; }
 
+        //A list of DLLs to reference and load, one DLL per line. If no full path is set, then define the base path in AssemblyBaseDir
         public string AssemblyListPath { get; set; } //Optional
+        //Defines the base directory for the DLLs inside AssemblyListPath file, DO NOT use if full path is already included in the list file.
         public string AssemblyBaseDir { get; set; } //Optional
 
         public string CacheConfigurationString { get; set; }

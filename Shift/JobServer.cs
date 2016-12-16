@@ -1,4 +1,8 @@
-﻿using System;
+﻿//
+// This software is distributed WITHOUT ANY WARRANTY and also without the implied warranty of merchantability, capability, or fitness for any particular purposes.
+//
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -8,7 +12,6 @@ using System.Data.SqlClient;
 using System.Diagnostics;
 using System.Reflection;
 using System.IO;
-using Annotations;
 
 using Newtonsoft.Json;
 using Shift.DataLayer;
@@ -28,6 +31,11 @@ namespace Shift
 
         private Dictionary<int, Thread> threadList = null; //reference to running thread
 
+        ///<summary>
+        ///Initializes a new instance of JobServer class, injects data layer with connection and configuration strings.
+        ///</summary>
+        ///<param name="options">Setup the database connection string, cache configuration, etc.</param>
+        ///
         public JobServer(Options options)
         {
             if (options == null)
@@ -60,7 +68,7 @@ namespace Shift
             container = builder.Build();
         }
 
-        public static class Register
+        private static class Register
         {
             public static void RegisterTypes(ContainerBuilder builder, Options options)
             {
@@ -71,6 +79,11 @@ namespace Shift
         }
 
         #region Startup
+        /// <summary>
+        /// Start the server.
+        /// Instantiate the data layer and loads all the referenced assemblies defined in the assembly list text file 
+        /// in Options.AssemblyListPath and Options.AssemblyBaseDir
+        /// </summary>
         public void Start()
         {
             this.threadList = new Dictionary<int, Thread>();
@@ -173,7 +186,9 @@ namespace Shift
         #region Server Run and Manage jobs
         //The region that primarily manage and run/stop/cleanup jobs that were added in the DB table by the clients
 
-        //Use the maxRunnableJobs to pick a list of jobs
+        /// <summary>
+        /// Pick up jobs from storage and run them.
+        /// </summary>
         public void StartJobs()
         {
             using (var connection = new SqlConnection(options.DBConnectionString))
@@ -196,6 +211,11 @@ namespace Shift
             }
         }
 
+        /// <summary>
+        /// Pick up specific jobs from storage and run them.
+        /// </summary>
+        /// 
+        ///<param name="jobIDs">List of job IDs to run.</param>
         public void StartJobs(List<int> jobIDs)
         {
             //Try to start the selected jobs, ignoring MaxRunableJobs
@@ -400,7 +420,12 @@ namespace Shift
             }); //Delay delete to allow realtime GetCachedProgress not hitting DB right away.
         }
 
-        //Cancel Jobs for jobs with the ProcessID or no owner
+        /// <summary>
+        /// Stops jobs.
+        /// Only jobs marked with "STOP" command will be acted on.
+        /// This uses Thread.Abort.
+        /// No clean up is possible when thread is aborted.
+        /// </summary>
         public void StopJobs()
         {
             var jobList = jobDAL.GetJobsByCommand(options.ProcessID, JobCommand.Stop);
@@ -428,6 +453,12 @@ namespace Shift
 
         //Stop if running and then delete jobs
         //Useful for UI that closes window or Cancel job
+        /// <summary>
+        /// Stops jobs and then delete them.
+        /// Only jobs marked with "STOPDELETE" command will be acted on.
+        /// This uses Thread.Abort.
+        /// No clean up is possible when thread is aborted.
+        /// </summary>
         public void StopDeleteJobs()
         {
             var jobList = jobDAL.GetJobsByCommand(options.ProcessID, JobCommand.StopDelete);
@@ -456,9 +487,9 @@ namespace Shift
 
         /// <summary>
         /// Cleanup and synchronize running jobs and jobs table.
-        /// Cases:
-        /// Job is marked as Running in DB table, but there is no actual thread running (Zombie Job).
-        /// Thread reference still in memory, but actual process is: stopped, error, completed.
+        /// Cases for cleanup:
+        /// * Job is marked as "RUNNING" in DB table, but there is no actual running thread in the related server process (Zombie Job).
+        /// * Thread reference still in memory, but actual process is: stopped, error, completed.
         /// </summary>
         public void CleanUp()
         {
@@ -523,4 +554,4 @@ namespace Shift
         }
         #endregion
     }
-    }
+}

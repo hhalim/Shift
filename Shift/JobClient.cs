@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using Annotations;
 using System.Linq.Expressions;
 
 using Shift.Entities;
@@ -18,6 +17,15 @@ namespace Shift
         private readonly ContainerBuilder builder;
         private readonly IContainer container;
 
+        ///<summary>
+        /// Initializes a new instance of JobClient class, injects data layer with connection and configuration strings.
+        /// Only three options are used for the client:
+        /// * DBConnectionString
+        /// * CacheConfigurationString
+        /// * EncryptionKey (optional)
+        ///</summary>
+        ///<param name="options">Setup the database connection string, cache configuration.</param>
+        ///
         public JobClient(Options options)
         {
             if (options == null)
@@ -46,7 +54,7 @@ namespace Shift
             jobDAL = container.Resolve<JobDAL>();
         }
 
-        public static class Register
+        private static class Register
         {
             public static void RegisterTypes(ContainerBuilder builder, Options options)
             {
@@ -66,7 +74,7 @@ namespace Shift
         /// </summary>
         /// <paramref name="methodCall"/> expression body 
         /// <returns>The jobID of the added job.</returns>
-        public int? Add(string appID, int userID, string jobType, [NotNull, InstantHandle]Expression<Action> methodCall)
+        public int? Add(string appID, int userID, string jobType, Expression<Action> methodCall)
         {
             return jobDAL.Add(appID, userID, jobType, null, methodCall);
         }
@@ -78,73 +86,125 @@ namespace Shift
         /// </summary>
         /// <paramref name="methodCall"/> expression body 
         /// <returns>The jobID of the added job.</returns>
-        public int? Add(string appID, int userID, string jobType, string jobName, [NotNull, InstantHandle]Expression<Action> methodCall)
+        public int? Add(string appID, int userID, string jobType, string jobName, Expression<Action> methodCall)
         {
             return jobDAL.Add(appID, userID, jobType, jobName, methodCall);
         }
 
-        // Cancel only for running or not started jobs.
+        ///<summary>
+        /// Sets "STOP" command to already running or not running jobs.
+        ///</summary>
+        ///<returns>Number of affected jobs.</returns>
         public int SetCommandStop(List<int> jobIDs)
         {
             if (jobIDs == null || jobIDs.Count == 0)
-                return -1;
+                return 0;
 
             return jobDAL.SetCommandStop(jobIDs);
         }
 
+        ///<summary>
+        /// Sets "STOPDELETE" command to already running or not running jobs.
+        ///</summary>
+        ///<returns>Number of affected jobs.</returns>
         public int SetCommandStopDelete(List<int> jobIDs)
         {
             if (jobIDs == null || jobIDs.Count == 0)
-                return -1;
+                return 0;
 
             return jobDAL.SetCommandStopDelete(jobIDs);
         }
 
+        ///<summary>
+        /// Gets the job instance based on a unique job ID.
+        ///</summary>
+        ///<param name="jobID"></param>
+        ///<returns>Job</returns>
         public Job GetJob(int jobID)
         {
             return jobDAL.GetJob(jobID);
         }
 
+        ///<summary>
+        /// Gets the job instance with progress info based on a unique job ID.
+        ///</summary>
+        ///<param name="jobID"></param>
+        ///<returns>JobView</returns>
         public JobView GetJobView(int jobID)
         {
             return jobDAL.GetJobView(jobID);
         }
-        
-        //Reset Jobs
+
+        ///<summary>
+        /// Resets non running jobs. Jobs will be ready for another run after a successful reset.
+        ///</summary>
+        ///<param name="jobIDs">List of job IDs.</param>
+        ///<returns>Number of affected jobs.</returns>
         public int ResetJobs(List<int> jobIDs)
         {
             jobDAL.DeleteCachedProgress(jobIDs);
             return jobDAL.Reset(jobIDs);
         }
 
-        //Delete Jobs
+        ///<summary>
+        /// Deletes non running jobs. 
+        ///</summary>
+        ///<param name="jobIDs">List of job IDs.</param>
+        ///<returns>Number of affected jobs.</returns>
         public int DeleteJobs(List<int> jobIDs)
         {
             jobDAL.DeleteCachedProgress(jobIDs);
             return jobDAL.Delete(jobIDs);
         }
 
+        ///<summary>
+        /// Gets the job result instance that contains a blob binary data.
+        ///</summary>
+        ///<param name="jobResultID"></param>
+        ///<returns>JobResult</returns>
         public JobResult GetJobResult(int jobResultID)
         {
             return jobDAL.GetJobResult(jobResultID);
         }
 
+        ///<summary>
+        /// Gets the job result instance using unique external GUID.
+        ///</summary>
+        ///<param name="jobResultID"></param>
+        ///<returns>JobResult</returns>
         public JobResult GetJobResult(string externalID)
         {
             return jobDAL.GetJobResult(externalID);
         }
 
+        ///<summary>
+        /// Return counts of all job statuses (running, not running, completed, stopped, with errors).
+        /// Useful for UI reporting of job statuses.
+        ///</summary>
+        ///<param name="appID">Application ID for multi-tenant app. Optional.</param>
+        ///<param name="userID">User ID. Optional.</param>
+        ///<returns>Collection of JobStatusCount</returns>
         public List<JobStatusCount> GetJobStatusCount(string appID, int? userID)
         {
             return jobDAL.GetJobStatusCount(appID, userID);
         }
 
-        //Use Redis and DB to get the job's progress
+        ///<summary>
+        /// Gets the current progress of job.
+        /// Try to retrieve progress from cache first and then from DB if not available.
+        ///</summary>
+        ///<param name="jobID"></param>
+        ///<returns>JobStatusProgress</returns>
         public JobStatusProgress GetProgress(int jobID)
         {
             return jobDAL.GetProgress(jobID);
         }
 
+        ///<summary>
+        /// Gets the current progress of job from cache only.
+        ///</summary>
+        ///<param name="jobID"></param>
+        ///<returns>JobStatusProgress</returns>
         public JobStatusProgress GetCachedProgress(int jobID)
         {
             return jobDAL.GetCachedProgress(jobID);

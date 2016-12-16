@@ -70,7 +70,6 @@
     <Compile Include="JobType.cs" />
     <Compile Include="JobView.cs" />
     <Compile Include="ProgressInfo.cs" />
-    <Compile Include="Properties\Annotations.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

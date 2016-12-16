@@ -8,7 +8,6 @@ using System.Data.SqlClient;
 using System.Globalization;
 using System.Linq.Expressions;
 using System.Reflection;
-using Annotations;
 
 using Newtonsoft.Json;
 using Shift.Common;
@@ -30,12 +29,12 @@ namespace Shift.DataLayer
             this.encryptionKey = encryptionKey;
         }
 
-        public int? Add(string appID, int? userID, string jobType, [NotNull, InstantHandle]Expression<Action> methodCall)
+        public int? Add(string appID, int? userID, string jobType, Expression<Action> methodCall)
         {
             return Add(appID, userID, jobType, null, methodCall);
         }
 
-        public int? Add(string appID, int? userID, string jobType, string jobName, [NotNull, InstantHandle]Expression<Action> methodCall)
+        public int? Add(string appID, int? userID, string jobType, string jobName, Expression<Action> methodCall)
         {
             if (methodCall == null)
                 throw new ArgumentNullException("methodCall");
@@ -61,7 +60,7 @@ namespace Shift.DataLayer
             }
 
             var methodInfo = callExpression.Method;
-            var args = GetExpressionValues(callExpression.Arguments);
+            var args = callExpression.Arguments.Select(GetExpressionValue).ToArray();
 
             if (type == null) throw new ArgumentNullException("type");
             if (methodInfo == null) throw new ArgumentNullException("method");
@@ -561,11 +560,11 @@ namespace Shift.DataLayer
         #region Helpers
         private static void Validate(
              Type type,
-             [InvokerParameterName] string typeParameterName,
+             string typeParameterName,
              MethodInfo method,
-             [InvokerParameterName] string methodParameterName,
+             string methodParameterName,
              int argumentCount,
-             [InvokerParameterName] string argumentParameterName
+             string argumentParameterName
             )
         {
             if (!method.IsPublic)
@@ -618,11 +617,6 @@ namespace Shift.DataLayer
                     throw new NotSupportedException("Parameters, passed by reference, are not supported: there is no guarantee that specified method will be invoked inside the same process.");
                 }
             }
-        }
-
-        private static object[] GetExpressionValues(IEnumerable<Expression> expressions)
-        {
-            return expressions.Select(GetExpressionValue).ToArray();
         }
 
         private static object GetExpressionValue(Expression expression)
