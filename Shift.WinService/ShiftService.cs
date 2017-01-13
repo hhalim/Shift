@@ -31,7 +31,7 @@ namespace Shift.WinService
                 options.ProcessID = Convert.ToInt32(ConfigurationManager.AppSettings["ShiftPID"]);
                 options.DBConnectionString = ConfigurationManager.ConnectionStrings["ShiftDBConnection"].ConnectionString;
                 options.CacheConfigurationString = ConfigurationManager.AppSettings["RedisConfiguration"];
-                //options.EncryptionKey = ConfigurationManager.AppSettings["ShiftEncryptionParametersKey"];
+                options.EncryptionKey = ConfigurationManager.AppSettings["ShiftEncryptionParametersKey"];
 
                 jobServer = new Shift.JobServer(options);
             }

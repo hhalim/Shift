@@ -16,7 +16,7 @@ namespace Shift.Entities
         public string JobType { get; set; }
         public string JobName { get; set; }
         public string InvokeMeta { get; set; }
-        public string Parameters { get; set; } //always encrypted
+        public string Parameters { get; set; } 
         public string Command { get; set; }
         public JobStatus? Status { get; set; }
         public string Error { get; set; }

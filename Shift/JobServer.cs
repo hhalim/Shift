@@ -205,9 +205,9 @@ namespace Shift
                 var rowsToGet = options.MaxRunnableJobs - runningCount;
 
                 var jobList = jobDAL.GetJobsToRun(rowsToGet);
-                jobDAL.ClaimJobsToRun(options.ProcessID, jobList.Select(p => p.JobID).ToList());
+                var claimedJobs = jobDAL.ClaimJobsToRun(options.ProcessID, jobList);
 
-                StartJobs(jobList);
+                RunJobs(claimedJobs);
             }
         }
 
@@ -220,14 +220,15 @@ namespace Shift
         {
             //Try to start the selected jobs, ignoring MaxRunableJobs
             var jobList = jobDAL.GetJobsByStatus(jobIDs, "Status IS NULL");
-            jobDAL.ClaimJobsToRun(options.ProcessID, jobList.Select(p => p.JobID).ToList());
+            var claimedJobs = jobDAL.ClaimJobsToRun(options.ProcessID, jobList);
 
-            StartJobs(jobList);
+            RunJobs(claimedJobs);
         }
 
-        protected void StartJobs(List<Job> jobList)
+        //Finally Run the Jobs
+        protected void RunJobs(IEnumerable<Job> jobList)
         {
-            if (jobList.Count == 0)
+            if (jobList.Count() == 0)
                 return;
 
             foreach (var row in jobList)
@@ -293,7 +294,7 @@ namespace Shift
                 threadList.Remove(jobID);
             }
             threadList.Add(jobID, thread); //Keep track of running thread
-            thread.Name = "ProcessJobs Thread " + thread.ManagedThreadId;
+            thread.Name = "Shift Thread " + thread.ManagedThreadId;
             thread.IsBackground = true; //keep the main process running https://msdn.microsoft.com/en-us/library/system.threading.thread.isbackground
 
             thread.Start();
@@ -306,7 +307,7 @@ namespace Shift
             jobDAL.SetCachedProgress(jobID, null, null, null);
 
             var start = DateTime.Now;
-            var updateTs = new TimeSpan(0, 0, 10); //configure?
+            var updateTs = options.ProgressDBInterval ?? new TimeSpan(0, 0, 10); //default to 10 sec interval for updating DB
 
             var progress = new SynchronousProgress<ProgressInfo>(progressInfo =>
             {
@@ -375,7 +376,6 @@ namespace Shift
             return progress;
         }
 
-        // RUN the Job
         private void RunJob(int jobID, MethodInfo methodInfo, string parameters, object instance)
         {
             try
@@ -493,12 +493,10 @@ namespace Shift
         /// </summary>
         public void CleanUp()
         {
-            var jobList = new List<Job>();
-
             // For Running jobs, mark as error if no reference in threadList.
             // DB record is marked as Status = Running but NO thread in threadList (crashed, aborted, etc) => Mark as error and add error message
             // If not in threadList, it's a rogue thread or crashed, better to mark as error and restart.
-            jobList = jobDAL.GetJobsByProcessAndStatus(options.ProcessID, JobStatus.Running);
+            var jobList = jobDAL.GetJobsByProcessAndStatus(options.ProcessID, JobStatus.Running);
             foreach (var job in jobList)
             {
                 if (!threadList.ContainsKey(job.JobID))

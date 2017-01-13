@@ -184,7 +184,7 @@ namespace Shift
         ///<param name="appID">Application ID for multi-tenant app. Optional.</param>
         ///<param name="userID">User ID. Optional.</param>
         ///<returns>Collection of JobStatusCount</returns>
-        public List<JobStatusCount> GetJobStatusCount(string appID, int? userID)
+        public IList<JobStatusCount> GetJobStatusCount(string appID, int? userID)
         {
             return jobDAL.GetJobStatusCount(appID, userID);
         }

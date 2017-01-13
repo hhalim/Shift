@@ -1,6 +1,6 @@
 ﻿{
   "$schema": "http://schemastore.org/schemas/json/webjob-publish-settings.json",
-  "webJobName": "ProcessJobs-WebJob",
+  "webJobName": "Shift-WebJob",
   "startTime": null,
   "endTime": null,
   "jobRecurrenceFrequency": null,
