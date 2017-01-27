@@ -49,10 +49,9 @@ namespace Shift
 
             }
 
-            if (string.IsNullOrWhiteSpace(options.CacheConfigurationString))
+            if (options.UseCache && string.IsNullOrWhiteSpace(options.CacheConfigurationString))
             {
                 throw new Exception("Error: unable to start without Cache configuration string.");
-
             }
 
             if (options.MaxRunnableJobs <= 0)
@@ -64,18 +63,8 @@ namespace Shift
 
             builder = new ContainerBuilder();
             builder.RegisterSource(new AnyConcreteTypeNotAlreadyRegisteredSource());
-            Register.RegisterTypes(builder, options);
+            RegisterAssembly.RegisterTypes(builder, options);
             container = builder.Build();
-        }
-
-        private static class Register
-        {
-            public static void RegisterTypes(ContainerBuilder builder, Options options)
-            {
-                builder.RegisterType<DataLayer.Redis.Cache>().As<IJobCache>().WithParameter("configurationString", options.CacheConfigurationString);
-                var parameters = Helpers.GenerateNamedParameters(new Dictionary<string, object> { { "connectionString", options.DBConnectionString }, { "encryptionKey", options.EncryptionKey } });
-                builder.RegisterType<JobDAL>().As<JobDAL>().WithParameters(parameters);
-            }
         }
 
         #region Startup

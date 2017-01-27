@@ -13,7 +13,7 @@ namespace Shift
     public class JobClient
     {
         private JobDAL jobDAL = null;
-        private Options options = null;
+        public Options options = null;
         private readonly ContainerBuilder builder;
         private readonly IContainer container;
 
@@ -39,29 +39,18 @@ namespace Shift
 
             }
 
-            if (string.IsNullOrWhiteSpace(options.CacheConfigurationString))
+            if (options.UseCache && string.IsNullOrWhiteSpace(options.CacheConfigurationString))
             {
                 throw new Exception("Error: unable to start without Cache configuration string.");
-
             }
 
             this.options = options;
 
             builder = new ContainerBuilder();
             builder.RegisterSource(new AnyConcreteTypeNotAlreadyRegisteredSource());
-            Register.RegisterTypes(builder, options);
+            RegisterAssembly.RegisterTypes(builder, options);
             container = builder.Build();
             jobDAL = container.Resolve<JobDAL>();
-        }
-
-        private static class Register
-        {
-            public static void RegisterTypes(ContainerBuilder builder, Options options)
-            {
-                builder.RegisterType<DataLayer.Redis.Cache>().As<IJobCache>().WithParameter("configurationString", options.CacheConfigurationString);
-                var parameters = Helpers.GenerateNamedParameters(new Dictionary<string, object> { { "connectionString", options.DBConnectionString }, { "encryptionKey", options.EncryptionKey } });
-                builder.RegisterType<JobDAL>().As<JobDAL>().WithParameters(parameters);
-            }
         }
 
         #region Clients access

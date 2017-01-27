@@ -22,6 +22,13 @@ namespace Shift.DataLayer
         private IJobCache jobCache;
         private string encryptionKey;
 
+        public JobDAL(string connectionString, string encryptionKey)
+        {
+            this.connectionString = connectionString;
+            this.jobCache = null;
+            this.encryptionKey = encryptionKey;
+        }
+
         public JobDAL(string connectionString, IJobCache jobCache, string encryptionKey)
         {
             this.connectionString = connectionString;
@@ -718,7 +725,6 @@ namespace Shift.DataLayer
 
         #endregion
 
-
         #region Cache
         /* Use Cache and DB to return progress */
         public JobStatusProgress GetProgress(int jobID)
@@ -751,18 +757,25 @@ namespace Shift.DataLayer
 
         public JobStatusProgress GetCachedProgress(int jobID)
         {
+            if (jobCache == null)
+                return null;
             return jobCache.GetCachedProgress(jobID);
         }
 
         //Set Cached progress similar to the DB SetProgress()
         public void SetCachedProgress(int jobID, int? percent, string note, string data)
         {
+            if (jobCache == null)
+                return;
             jobCache.SetCachedProgress(jobID, percent, note, data);
         }
 
         //Set cached progress status
         public void SetCachedProgressStatus(int jobID, JobStatus status)
         {
+            if (jobCache == null)
+                return;
+
             var jsProgress = GetProgress(jobID);
             if (jsProgress != null && jsProgress.ExistsInDB)
             {
@@ -771,29 +784,41 @@ namespace Shift.DataLayer
             }
         }
 
-
-        //Set cached progress error
-        public void SetCachedProgressError(int jobID, string error)
-        {
-            var jsProgress = GetProgress(jobID);
-            jobCache.SetCachedProgressError(jsProgress, error);
-        }
-
         public void SetCachedProgressStatus(IEnumerable<int> jobIDs, JobStatus status)
         {
-            foreach(var jobID in jobIDs)
+            if (jobCache == null)
+                return;
+
+            foreach (var jobID in jobIDs)
             {
                 SetCachedProgressStatus(jobID, status);
             }
         }
 
+        //Set cached progress error
+        public void SetCachedProgressError(int jobID, string error)
+        {
+            if (jobCache == null)
+                return;
+
+            var jsProgress = GetProgress(jobID);
+            jobCache.SetCachedProgressError(jsProgress, error);
+        }
+
+
         public void DeleteCachedProgress(int jobID)
         {
+            if (jobCache == null)
+                return;
+
             jobCache.DeleteCachedProgress(jobID);
         }
 
         public void DeleteCachedProgress(IEnumerable<int> jobIDs)
         {
+            if (jobCache == null)
+                return;
+
             foreach (var jobID in jobIDs)
             {
                 DeleteCachedProgress(jobID);
