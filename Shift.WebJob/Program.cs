@@ -47,11 +47,11 @@ namespace Shift.WebJob
 
             var options = new Shift.Options();
             options.AssemblyListPath = baseDir + @"\client-assemblies\assemblylist.txt";
-            options.AssemblyBaseDir = baseDir + @"\client-assemblies\";
+            options.AssemblyBaseDir = baseDir + @"\client-assemblies\"; //drop DLL dependencies for jobs here
             options.MaxRunnableJobs = Convert.ToInt32(ConfigurationManager.AppSettings["MaxRunableJobs"]);
             options.ProcessID = Convert.ToInt32(ConfigurationManager.AppSettings["ShiftPID"]);
             options.DBConnectionString = ConfigurationManager.ConnectionStrings["ShiftDBConnection"].ConnectionString;
-            options.UseCache = true;
+            options.UseCache = Convert.ToBoolean(ConfigurationManager.AppSettings["UseCache"]);
             options.CacheConfigurationString = ConfigurationManager.AppSettings["RedisConfiguration"];
             options.EncryptionKey = ConfigurationManager.AppSettings["ShiftEncryptionParametersKey"]; //optional
 
@@ -66,7 +66,7 @@ namespace Shift.WebJob
                 var maxRunableJobs = Convert.ToInt32(ConfigurationManager.AppSettings["MaxRunableJobs"]);
                 _timer = new Timer();
                 _timer.Enabled = true;
-                _timer.Interval = Convert.ToDouble(5000);
+                _timer.Interval = Convert.ToDouble(ConfigurationManager.AppSettings["TimerInterval"]);
                 _timer.Elapsed += (sender, e) => {
                     ExecuteCommands();
                     jobServer.StartJobs();

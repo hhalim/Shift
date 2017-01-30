@@ -8,20 +8,20 @@ Shift background or long running jobs into reliable and durable workers out of t
 - Optional detailed progress tracking for each running jobs.
 - Scale out with multiple shift managers to run large number of jobs.
 - Optional encryption for serialized data.
-- Run Shift Manager in your own .NET apps, Azure WebJob, or Windows services. 
+- Run Shift Server in your own .NET apps, Azure WebJobs, or Windows services. 
 
 **Shift Client**
-The client add jobs and send commands to stop, delete, reset jobs, and force run.
+The client component allows clieat apps to add jobs and send commands to Shift server to stop, delete, reset, and run jobs.
 
 
-**Shift Manager**
-The manager component is part that executes commands from clients and run jobs. The manager is a simple .NET library and needs to run inside another app, Azure WebJob, or Windows service. When the manager runs a job, it creates one worker thread process per job. The manager tracks start/end date and time, commands from client, and processes clean-up. 
+**Shift Server**
+The server component gathers available jobs and executes commands from clients. The server is a simple .NET library and needs to run inside a container app, Azure WebJob, or Windows service. 
 
-Each job can have these status:
-- No status, ready to run
+Job status:
+- None, ready to run
 - Running
 - Stopped
 - Completed
 - Error
 
-Two runnable server apps are provided to get you up and running quickly. The Shift.WinService is the standalone windows service component, multiple Shift.WinService services can be installed in the same server. The Shift.WebJob is the Azure WebJob component that can be easily deployed to Azure cloud environment, multiple web jobs can also be deployed.
+Two runnable server apps projects are included as quick start templates. The Shift.WinService is the standalone Windows service server component, multiple services can be installed in the same server. The Shift.WebJob is the Azure WebJob component that can be easily deployed to Azure cloud environment, multiple web jobs can also be deployed. If you're using Azure, it is highly recommended to locate the Azure SQL and Azure Redis within the same region as the Shift web jobs.
