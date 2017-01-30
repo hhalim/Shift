@@ -30,7 +30,7 @@ namespace Shift.WinService
                 options.MaxRunnableJobs = Convert.ToInt32(ConfigurationManager.AppSettings["MaxRunableJobs"]);
                 options.ProcessID = Convert.ToInt32(ConfigurationManager.AppSettings["ShiftPID"]);
                 options.DBConnectionString = ConfigurationManager.ConnectionStrings["ShiftDBConnection"].ConnectionString;
-                options.UseCache = true;
+                options.UseCache = Convert.ToBoolean(ConfigurationManager.AppSettings["UseCache"]);
                 options.CacheConfigurationString = ConfigurationManager.AppSettings["RedisConfiguration"];
                 options.EncryptionKey = ConfigurationManager.AppSettings["ShiftEncryptionParametersKey"];
 
