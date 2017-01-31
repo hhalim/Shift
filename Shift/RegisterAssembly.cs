@@ -10,12 +10,12 @@ namespace Shift
 {
     public static class RegisterAssembly
     {
-        public static void RegisterTypes(ContainerBuilder builder, Options options)
+        public static void RegisterTypes(ContainerBuilder builder, string dbConnectionString, bool useCache, string cacheConfigurationString, string encryptionKey)
         {
-            var parameters = Helpers.GenerateNamedParameters(new Dictionary<string, object> { { "connectionString", options.DBConnectionString }, { "encryptionKey", options.EncryptionKey } });
-            if (options.UseCache)
+            var parameters = Helpers.GenerateNamedParameters(new Dictionary<string, object> { { "connectionString", dbConnectionString }, { "encryptionKey", encryptionKey } });
+            if (useCache)
             {
-                builder.RegisterType<DataLayer.Redis.Cache>().As<IJobCache>().WithParameter("configurationString", options.CacheConfigurationString);
+                builder.RegisterType<DataLayer.Redis.Cache>().As<IJobCache>().WithParameter("configurationString", cacheConfigurationString);
                 builder.RegisterType<JobDAL>().As<JobDAL>().WithParameters(parameters);
             }
             else

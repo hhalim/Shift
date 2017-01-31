@@ -10,8 +10,6 @@ namespace Shift.WinService
 {
     partial class ShiftService : ServiceBase
     {
-        private Timer _timer = null;
-        private Timer _timer2 = null;
         private static JobServer jobServer;
 
         public ShiftService()
@@ -21,29 +19,30 @@ namespace Shift.WinService
             var processID = ConfigurationManager.AppSettings["ShiftPID"];
 
             if (string.IsNullOrWhiteSpace(processID))
-                throw new IndexOutOfRangeException("Configuration for AppSettings collection does not contain the ShiftPID key.");
+                throw new IndexOutOfRangeException("Configuration for ShiftPID is missing or invalid.");
 
             if (jobServer == null)
             {
-                var options = new Shift.Options();
-                options.AssemblyListPath = ConfigurationManager.AppSettings["AssemblyListPath"];
-                options.MaxRunnableJobs = Convert.ToInt32(ConfigurationManager.AppSettings["MaxRunableJobs"]);
-                options.ProcessID = Convert.ToInt32(ConfigurationManager.AppSettings["ShiftPID"]);
-                options.DBConnectionString = ConfigurationManager.ConnectionStrings["ShiftDBConnection"].ConnectionString;
-                options.UseCache = Convert.ToBoolean(ConfigurationManager.AppSettings["UseCache"]);
-                options.CacheConfigurationString = ConfigurationManager.AppSettings["RedisConfiguration"];
-                options.EncryptionKey = ConfigurationManager.AppSettings["ShiftEncryptionParametersKey"];
+                var config = new Shift.ServerConfig();
+                config.AssemblyListPath = ConfigurationManager.AppSettings["AssemblyListPath"];
+                config.MaxRunnableJobs = Convert.ToInt32(ConfigurationManager.AppSettings["MaxRunableJobs"]);
+                config.ProcessID = ConfigurationManager.AppSettings["ShiftPID"];
+                config.DBConnectionString = ConfigurationManager.ConnectionStrings["ShiftDBConnection"].ConnectionString;
+                config.UseCache = Convert.ToBoolean(ConfigurationManager.AppSettings["UseCache"]);
+                config.CacheConfigurationString = ConfigurationManager.AppSettings["RedisConfiguration"];
+                config.EncryptionKey = ConfigurationManager.AppSettings["ShiftEncryptionParametersKey"];
 
-                jobServer = new Shift.JobServer(options);
+                //options.ServerTimerInterval = 5000; //optional: default every 5 sec for getting jobs ready to run and run them
+                //options.ServerTimerInterval2 = 10000; //optional: default every 10 sec for server CleanUp()
+
+                jobServer = new Shift.JobServer(config);
             }
 
-            this.ServiceName = appServiceName + (string.IsNullOrWhiteSpace(processID) ? "" : " " + processID);
+            this.ServiceName = appServiceName;
         }
 
         protected override void OnStart(string[] args)
         {
-            jobServer.Start(); //start server
-
             if (Array.Find<string>(args, s=> s == "-debug") == "-debug")
             {
                 StartWithNoTimer();
@@ -56,11 +55,7 @@ namespace Shift.WinService
 
         protected override void OnStop()
         {
-            if (_timer != null && _timer2 != null)
-            {
-                _timer.Close();
-                _timer2.Close();
-            }
+            jobServer.StopServer();
         }
 
         //This is for debugging OnStart and OnStop as Console App
@@ -75,20 +70,7 @@ namespace Shift.WinService
         {
             try
             {
-                _timer = new Timer();
-                _timer.Enabled = true;
-                _timer.Interval = Convert.ToDouble(ConfigurationManager.AppSettings["TimerInterval"]);
-                _timer.Elapsed += (sender, e) => {
-                    ExecuteCommands();
-                    jobServer.StartJobs();
-                };
-
-                _timer2 = new Timer();
-                _timer2.Enabled = true;
-                _timer2.Interval = Convert.ToDouble(ConfigurationManager.AppSettings["CleanUpTimerInterval"]);
-                _timer2.Elapsed += (sender, e) => {
-                    jobServer.CleanUp();
-                };
+                jobServer.RunServer();
             }
             catch (Exception ex)
             {
@@ -106,8 +88,9 @@ namespace Shift.WinService
         {
             try
             {
-                ExecuteCommands();
-                jobServer.StartJobs();
+                jobServer.StopJobs();
+                jobServer.StopDeleteJobs();
+                jobServer.RunJobs();
 
                 jobServer.CleanUp();
             }
@@ -121,13 +104,6 @@ namespace Shift.WinService
                 throw;
             }
         }
-
-        protected void ExecuteCommands()
-        {
-            jobServer.StopJobs();
-            jobServer.StopDeleteJobs();
-        }
-
 
     }
 }

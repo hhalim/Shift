@@ -25,55 +25,63 @@ namespace Shift
     public class JobServer
     {
         private JobDAL jobDAL = null;
-        private Options options = null;
+        private ServerConfig config = null;
         private readonly ContainerBuilder builder;
         private readonly IContainer container;
+        private static System.Timers.Timer timer = null;
+        private static System.Timers.Timer timer2 = null;
 
         private Dictionary<int, Thread> threadList = null; //reference to running thread
 
         ///<summary>
         ///Initializes a new instance of JobServer class, injects data layer with connection and configuration strings.
         ///</summary>
-        ///<param name="options">Setup the database connection string, cache configuration, etc.</param>
+        ///<param name="config">Setup the database connection string, cache configuration, etc.</param>
         ///
-        public JobServer(Options options)
+        public JobServer(ServerConfig config)
         {
-            if (options == null)
+            if (config == null)
             {
-                throw new Exception("Unable to start with no options.");
+                throw new Exception("Unable to create with no configuration.");
             }
 
-            if (string.IsNullOrWhiteSpace(options.DBConnectionString))
+            if (string.IsNullOrWhiteSpace(config.ProcessID))
             {
-                throw new Exception("Error: unable to start without DB connection string.");
+                throw new Exception("Unable to create with no ProcessID.");
+            }
+
+            if (string.IsNullOrWhiteSpace(config.DBConnectionString))
+            {
+                throw new Exception("Error: unable to create without DB connection string.");
 
             }
 
-            if (options.UseCache && string.IsNullOrWhiteSpace(options.CacheConfigurationString))
+            if (config.UseCache && string.IsNullOrWhiteSpace(config.CacheConfigurationString))
             {
-                throw new Exception("Error: unable to start without Cache configuration string.");
+                throw new Exception("Error: unable to create without Cache configuration string.");
             }
 
-            if (options.MaxRunnableJobs <= 0)
+            if (config.MaxRunnableJobs <= 0)
             {
-                options.MaxRunnableJobs = 100;
+                config.MaxRunnableJobs = 100;
             }
 
-            this.options = options;
+            this.config = config;
 
             builder = new ContainerBuilder();
             builder.RegisterSource(new AnyConcreteTypeNotAlreadyRegisteredSource());
-            RegisterAssembly.RegisterTypes(builder, options);
+            RegisterAssembly.RegisterTypes(builder, config.DBConnectionString, config.UseCache, config.CacheConfigurationString, config.EncryptionKey);
             container = builder.Build();
+
+            Initialize();
         }
 
         #region Startup
         /// <summary>
-        /// Start the server.
         /// Instantiate the data layer and loads all the referenced assemblies defined in the assembly list text file 
         /// in Options.AssemblyListPath and Options.AssemblyBaseDir
         /// </summary>
-        public void Start()
+        private void Initialize()
         {
             this.threadList = new Dictionary<int, Thread>();
 
@@ -81,7 +89,7 @@ namespace Shift
 
             //OPTIONAL: Load all EXTERNAL DLLs needed by this process
             AppDomain.CurrentDomain.AssemblyResolve += OnAssemblyResolve;
-            LoadAssemblies(options.AssemblyListPath, options.AssemblyBaseDir);
+            LoadAssemblies(config.AssemblyListPath, config.AssemblyBaseDir);
         }
 
         //Load all assemblies in specified text list
@@ -176,26 +184,78 @@ namespace Shift
         //The region that primarily manage and run/stop/cleanup jobs that were added in the DB table by the clients
 
         /// <summary>
+        /// Run jobs server in a scheduled timer interval.
+        /// </summary>
+        public void RunServer()
+        {
+            // If some jobs are marked as running in DB, but not actually running in threads/processes, 
+            // then the RunJobs won't run when running jobs DB count is >= MaxRunnableJob
+            // So, always do a CleanUp first to flag as error for jobs marked in DB as running but no associated running threads.
+            CleanUp();
+
+            if (timer == null && timer2 == null)
+            {
+                timer = new System.Timers.Timer();
+                timer.Interval = config.ServerTimerInterval;
+                timer.Elapsed += (sender, e) => {
+                    StopJobs();
+                    StopDeleteJobs();
+                    RunJobs();
+                };
+
+                timer2 = new System.Timers.Timer();
+                timer2.Interval = config.ServerTimerInterval2;
+                timer2.Elapsed += (sender, e) => {
+                    CleanUp();
+                };
+            }
+
+            timer.Start();
+            timer2.Start();
+        }
+
+        /// <summary>
+        /// Stop running jobs server.
+        /// </summary>
+        public void StopServer()
+        {
+            //Stop timers
+            if (timer != null && timer2 != null)
+            {
+                timer.Close();
+                timer2.Close();
+            }
+
+            //Stop all running Jobs
+            var runningJobsList = jobDAL.GetJobsByProcessAndStatus(config.ProcessID, JobStatus.Running);
+            if(runningJobsList.Count() > 0)
+            {
+                jobDAL.SetCommandStop(runningJobsList.Select(x => x.JobID).ToList());
+                StopJobs();
+            }
+        }
+
+        /// <summary>
         /// Pick up jobs from storage and run them.
         /// </summary>
-        public void StartJobs()
+        public void RunJobs()
         {
-            using (var connection = new SqlConnection(options.DBConnectionString))
+            using (var connection = new SqlConnection(config.DBConnectionString))
             {
                 connection.Open();
+                //Get RUN-NOW jobs
+                var claimedRunnowJobs = jobDAL.ClaimRunNowJobs(config.ProcessID);
+                RunJobs(claimedRunnowJobs);
 
                 //Check max jobs count
-                var runningCount = jobDAL.CountRunningJobs(options.ProcessID);
-                if (runningCount >= options.MaxRunnableJobs)
+                var runningCount = jobDAL.CountRunningJobs(config.ProcessID);
+                if (runningCount >= config.MaxRunnableJobs)
                 {
                     return;
                 }
 
-                var rowsToGet = options.MaxRunnableJobs - runningCount;
-
-                var jobList = jobDAL.GetJobsToRun(rowsToGet);
-                var claimedJobs = jobDAL.ClaimJobsToRun(options.ProcessID, jobList);
-
+                var rowsToGet = config.MaxRunnableJobs - runningCount;
+                var claimedJobs = jobDAL.ClaimJobsToRun(config.ProcessID, rowsToGet);
                 RunJobs(claimedJobs);
             }
         }
@@ -205,11 +265,11 @@ namespace Shift
         /// </summary>
         /// 
         ///<param name="jobIDs">List of job IDs to run.</param>
-        public void StartJobs(List<int> jobIDs)
+        public void RunJobs(IEnumerable<int> jobIDs)
         {
             //Try to start the selected jobs, ignoring MaxRunableJobs
             var jobList = jobDAL.GetJobsByStatus(jobIDs, "Status IS NULL");
-            var claimedJobs = jobDAL.ClaimJobsToRun(options.ProcessID, jobList);
+            var claimedJobs = jobDAL.ClaimJobsToRun(config.ProcessID, jobList);
 
             RunJobs(claimedJobs);
         }
@@ -224,7 +284,7 @@ namespace Shift
             {
                 try
                 {
-                    var decryptedParameters = Entities.Helpers.Decrypt(row.Parameters, options.EncryptionKey);
+                    var decryptedParameters = Entities.Helpers.Decrypt(row.Parameters, config.EncryptionKey);
                     CreateThread(row.JobID, row.InvokeMeta, decryptedParameters); //Use the DecryptedParameters, NOT encrypted Parameters
                 }
                 catch (Exception exc)
@@ -296,7 +356,7 @@ namespace Shift
             jobDAL.SetCachedProgress(jobID, null, null, null);
 
             var start = DateTime.Now;
-            var updateTs = options.ProgressDBInterval ?? new TimeSpan(0, 0, 10); //default to 10 sec interval for updating DB
+            var updateTs = config.ProgressDBInterval ?? new TimeSpan(0, 0, 10); //default to 10 sec interval for updating DB
 
             var progress = new SynchronousProgress<ProgressInfo>(progressInfo =>
             {
@@ -406,7 +466,7 @@ namespace Shift
             var rsTask = Task.Delay(60000).ContinueWith(_ =>
             {
                 jobDAL.DeleteCachedProgress(jobID);
-            }); //Delay delete to allow realtime GetCachedProgress not hitting DB right away.
+            }); //Delay delete to allow real time GetCachedProgress not hitting DB right away.
         }
 
         /// <summary>
@@ -417,7 +477,7 @@ namespace Shift
         /// </summary>
         public void StopJobs()
         {
-            var jobList = jobDAL.GetJobsByCommand(options.ProcessID, JobCommand.Stop);
+            var jobList = jobDAL.GetJobsByCommand(config.ProcessID, JobCommand.Stop);
 
             //abort running threads
             if (threadList.Count > 0)
@@ -444,13 +504,13 @@ namespace Shift
         //Useful for UI that closes window or Cancel job
         /// <summary>
         /// Stops jobs and then delete them.
-        /// Only jobs marked with "STOPDELETE" command will be acted on.
+        /// Only jobs marked with "STOP-DELETE" command will be acted on.
         /// This uses Thread.Abort.
         /// No clean up is possible when thread is aborted.
         /// </summary>
         public void StopDeleteJobs()
         {
-            var jobList = jobDAL.GetJobsByCommand(options.ProcessID, JobCommand.StopDelete);
+            var jobList = jobDAL.GetJobsByCommand(config.ProcessID, JobCommand.StopDelete);
 
             //abort running threads
             if (threadList.Count > 0)
@@ -485,7 +545,7 @@ namespace Shift
             // For Running jobs, mark as error if no reference in threadList.
             // DB record is marked as Status = Running but NO thread in threadList (crashed, aborted, etc) => Mark as error and add error message
             // If not in threadList, it's a rogue thread or crashed, better to mark as error and restart.
-            var jobList = jobDAL.GetJobsByProcessAndStatus(options.ProcessID, JobStatus.Running);
+            var jobList = jobDAL.GetJobsByProcessAndStatus(config.ProcessID, JobStatus.Running);
             foreach (var job in jobList)
             {
                 if (!threadList.ContainsKey(job.JobID))
@@ -503,7 +563,7 @@ namespace Shift
                 // It's possible that threadList still exists for DELETED jobs, so remove from threadList.
                 // If thread reference still in list, but actual process is: stopped, error, completed. => Remove from list, no need to keep track of them anymore.
                 var jobIDs = new List<int>();
-                jobList = jobDAL.GetJobsByProcess(options.ProcessID, threadList.Keys.ToList());
+                jobList = jobDAL.GetJobsByProcess(config.ProcessID, threadList.Keys.ToList());
 
                 //Remove Deleted jobs from threadList
                 jobIDs = jobList.Select(j => j.JobID).ToList();

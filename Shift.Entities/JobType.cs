@@ -3,7 +3,6 @@ namespace Shift.Entities
 {
     public static class JobType
     {
-        public const string ReturnsPrint = "returns.print";
-        public const string ReturnsLoad = "returns.load";
+        //public const string MyCustomType = "my-custom-type";
     }
 }

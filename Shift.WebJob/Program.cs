@@ -36,8 +36,6 @@ namespace Shift.WebJob
 
     public class ShiftService
     {
-        private Timer _timer = null;
-        private Timer _timer2 = null;
         private static JobServer jobServer; //only one server per WebJob
 
         public ShiftService()
@@ -45,17 +43,20 @@ namespace Shift.WebJob
             var baseDir = AppDomain.CurrentDomain.BaseDirectory;
             //Console.WriteLine("BaseDirectory: " + baseDir);
 
-            var options = new Shift.Options();
-            options.AssemblyListPath = baseDir + @"\client-assemblies\assemblylist.txt";
-            options.AssemblyBaseDir = baseDir + @"\client-assemblies\"; //drop DLL dependencies for jobs here
-            options.MaxRunnableJobs = Convert.ToInt32(ConfigurationManager.AppSettings["MaxRunableJobs"]);
-            options.ProcessID = Convert.ToInt32(ConfigurationManager.AppSettings["ShiftPID"]);
-            options.DBConnectionString = ConfigurationManager.ConnectionStrings["ShiftDBConnection"].ConnectionString;
-            options.UseCache = Convert.ToBoolean(ConfigurationManager.AppSettings["UseCache"]);
-            options.CacheConfigurationString = ConfigurationManager.AppSettings["RedisConfiguration"];
-            options.EncryptionKey = ConfigurationManager.AppSettings["ShiftEncryptionParametersKey"]; //optional
+            var config = new Shift.ServerConfig();
+            config.AssemblyListPath = baseDir + @"\client-assemblies\assemblylist.txt";
+            config.AssemblyBaseDir = baseDir + @"\client-assemblies\"; //drop DLL dependencies for jobs here
+            config.MaxRunnableJobs = Convert.ToInt32(ConfigurationManager.AppSettings["MaxRunableJobs"]);
+            config.ProcessID = ConfigurationManager.AppSettings["ShiftPID"];
+            config.DBConnectionString = ConfigurationManager.ConnectionStrings["ShiftDBConnection"].ConnectionString;
+            config.UseCache = Convert.ToBoolean(ConfigurationManager.AppSettings["UseCache"]);
+            config.CacheConfigurationString = ConfigurationManager.AppSettings["RedisConfiguration"];
+            config.EncryptionKey = ConfigurationManager.AppSettings["ShiftEncryptionParametersKey"]; //optional
 
-            jobServer = new Shift.JobServer(options);
+            //options.ServerTimerInterval = 5000; //optional: default every 5 sec for getting jobs ready to run and run them
+            //options.ServerTimerInterval2 = 10000; //optional: default every 10 sec for server CleanUp()
+
+            jobServer = new Shift.JobServer(config);
 
         }
 
@@ -63,25 +64,8 @@ namespace Shift.WebJob
         {
             try
             {
-                var maxRunableJobs = Convert.ToInt32(ConfigurationManager.AppSettings["MaxRunableJobs"]);
-                _timer = new Timer();
-                _timer.Enabled = true;
-                _timer.Interval = Convert.ToDouble(ConfigurationManager.AppSettings["TimerInterval"]);
-                _timer.Elapsed += (sender, e) => {
-                    ExecuteCommands();
-                    jobServer.StartJobs();
-
-                    //Console.WriteLine("StartJobs");
-                };
-
-                _timer2 = new Timer();
-                _timer2.Enabled = true;
-                _timer2.Interval = Convert.ToDouble(ConfigurationManager.AppSettings["CleanUpTimerInterval"]);
-                _timer2.Elapsed += (sender, e) => {
-                    jobServer.CleanUp();
-                    //Console.WriteLine("CleanUp");
-                };
-                }
+                jobServer.RunServer();
+            }
             catch (Exception ex)
             {
                 throw;
@@ -91,18 +75,7 @@ namespace Shift.WebJob
 
         public void Stop()
         {
-            if (_timer != null && _timer2 != null)
-            {
-                _timer.Close();
-                _timer2.Close();
-            }
+            jobServer.StopServer();
         }
-
-        protected void ExecuteCommands()
-        {
-            jobServer.StopJobs();
-            jobServer.StopDeleteJobs();
-        }
-
     }
 }
