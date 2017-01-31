@@ -13,7 +13,7 @@ namespace Shift
     public class JobClient
     {
         private JobDAL jobDAL = null;
-        public Options options = null;
+        public ClientConfig config = null;
         private readonly ContainerBuilder builder;
         private readonly IContainer container;
 
@@ -21,34 +21,37 @@ namespace Shift
         /// Initializes a new instance of JobClient class, injects data layer with connection and configuration strings.
         /// Only three options are used for the client:
         /// * DBConnectionString
+        /// * UseCache
         /// * CacheConfigurationString
         /// * EncryptionKey (optional)
+        /// 
+        /// If UseCache is true, the CacheConfigurationString is required, if false, then it is optional.
         ///</summary>
-        ///<param name="options">Setup the database connection string, cache configuration.</param>
+        ///<param name="config">Setup the database connection string, cache configuration.</param>
         ///
-        public JobClient(Options options)
+        public JobClient(ClientConfig config)
         {
-            if (options == null)
+            if (config == null)
             {
-                throw new Exception("Unable to start with no options.");
+                throw new Exception("Unable to start with no configuration.");
             }
 
-            if (string.IsNullOrWhiteSpace(options.DBConnectionString))
+            if (string.IsNullOrWhiteSpace(config.DBConnectionString))
             {
                 throw new Exception("Error: unable to start without DB connection string.");
 
             }
 
-            if (options.UseCache && string.IsNullOrWhiteSpace(options.CacheConfigurationString))
+            if (config.UseCache && string.IsNullOrWhiteSpace(config.CacheConfigurationString))
             {
                 throw new Exception("Error: unable to start without Cache configuration string.");
             }
 
-            this.options = options;
+            this.config = config;
 
             builder = new ContainerBuilder();
             builder.RegisterSource(new AnyConcreteTypeNotAlreadyRegisteredSource());
-            RegisterAssembly.RegisterTypes(builder, options);
+            RegisterAssembly.RegisterTypes(builder, config.DBConnectionString, config.UseCache, config.CacheConfigurationString, config.EncryptionKey);
             container = builder.Build();
             jobDAL = container.Resolve<JobDAL>();
         }
@@ -58,12 +61,38 @@ namespace Shift
 
         /// <summary>
         /// Add a method and parameters into the job table.
+        /// Reference parameters and out (ref and out) are not supported.
+        /// </summary>
+        /// <param name="methodCall">Expression body for method call </param>
+        /// <returns>The jobID of the added job.</returns>
+        public int? Add(Expression<Action> methodCall)
+        {
+            return jobDAL.Add(null, null, null, null, methodCall);
+        }
+
+        /// <summary>
+        /// Add a method and parameters into the job table.
+        /// Reference parameters and out (ref and out) are not supported.
+        /// </summary>
+        /// <param name="appID">Client application ID</param>
+        /// <param name="methodCall">Expression body for method call </param>
+        /// <returns>The jobID of the added job.</returns>
+        public int? Add(string appID, Expression<Action> methodCall)
+        {
+            return jobDAL.Add(appID, null, null, null, methodCall);
+        }
+
+        /// <summary>
+        /// Add a method and parameters into the job table.
         /// Job name defaults to class.method name.
         /// Reference parameters and out (ref and out) are not supported.
         /// </summary>
-        /// <paramref name="methodCall"/> expression body 
+        /// <param name="appID">Client application ID</param>
+        /// <param name="userID">User ID</param>
+        /// <param name="jobType">Job type category/group</param>
+        /// <param name="methodCall">Expression body for method call </param>
         /// <returns>The jobID of the added job.</returns>
-        public int? Add(string appID, int userID, string jobType, Expression<Action> methodCall)
+        public int? Add(string appID, string userID, string jobType, Expression<Action> methodCall)
         {
             return jobDAL.Add(appID, userID, jobType, null, methodCall);
         }
@@ -73,18 +102,22 @@ namespace Shift
         /// Job name defaults to class.method name.
         /// Reference parameters and out (ref and out) are not supported.
         /// </summary>
-        /// <paramref name="methodCall"/> expression body 
+        /// <param name="appID">Client application ID</param>
+        /// <param name="userID">User ID</param>
+        /// <param name="jobType">Job type category/group</param>
+        /// <param name="jobName">Name for this job</param>
+        /// <param name="methodCall">Expression body for method call </param>
         /// <returns>The jobID of the added job.</returns>
-        public int? Add(string appID, int userID, string jobType, string jobName, Expression<Action> methodCall)
+        public int? Add(string appID, string userID, string jobType, string jobName, Expression<Action> methodCall)
         {
             return jobDAL.Add(appID, userID, jobType, jobName, methodCall);
         }
 
         ///<summary>
-        /// Sets "STOP" command to already running or not running jobs.
+        /// Sets "stop" command to already running or not running jobs.
         ///</summary>
         ///<returns>Number of affected jobs.</returns>
-        public int SetCommandStop(List<int> jobIDs)
+        public int SetCommandStop(IList<int> jobIDs)
         {
             if (jobIDs == null || jobIDs.Count == 0)
                 return 0;
@@ -93,15 +126,27 @@ namespace Shift
         }
 
         ///<summary>
-        /// Sets "STOPDELETE" command to already running or not running jobs.
+        /// Sets "stop-delete" command to already running or not running jobs.
         ///</summary>
         ///<returns>Number of affected jobs.</returns>
-        public int SetCommandStopDelete(List<int> jobIDs)
+        public int SetCommandStopDelete(IList<int> jobIDs)
         {
             if (jobIDs == null || jobIDs.Count == 0)
                 return 0;
 
             return jobDAL.SetCommandStopDelete(jobIDs);
+        }
+
+        ///<summary>
+        /// Sets "run-now" command to not running jobs.
+        ///</summary>
+        ///<returns>Number of affected jobs.</returns>
+        public int SetCommandRunNow(IList<int> jobIDs)
+        {
+            if (jobIDs == null || jobIDs.Count == 0)
+                return 0;
+
+            return jobDAL.SetCommandRunNow(jobIDs);
         }
 
         ///<summary>
@@ -127,10 +172,13 @@ namespace Shift
         ///<summary>
         /// Resets non running jobs. Jobs will be ready for another run after a successful reset.
         ///</summary>
-        ///<param name="jobIDs">List of job IDs.</param>
+        ///<param name="jobIDs">Job IDs collection.</param>
         ///<returns>Number of affected jobs.</returns>
-        public int ResetJobs(List<int> jobIDs)
+        public int ResetJobs(IList<int> jobIDs)
         {
+            if (jobIDs == null || jobIDs.Count == 0)
+                return 0;
+
             jobDAL.DeleteCachedProgress(jobIDs);
             return jobDAL.Reset(jobIDs);
         }
@@ -138,10 +186,13 @@ namespace Shift
         ///<summary>
         /// Deletes non running jobs. 
         ///</summary>
-        ///<param name="jobIDs">List of job IDs.</param>
+        ///<param name="jobIDs">Job IDs collection.</param>
         ///<returns>Number of affected jobs.</returns>
-        public int DeleteJobs(List<int> jobIDs)
+        public int DeleteJobs(IList<int> jobIDs)
         {
+            if (jobIDs == null || jobIDs.Count == 0)
+                return 0;
+
             jobDAL.DeleteCachedProgress(jobIDs);
             return jobDAL.Delete(jobIDs);
         }
@@ -170,10 +221,10 @@ namespace Shift
         /// Return counts of all job statuses (running, not running, completed, stopped, with errors).
         /// Useful for UI reporting of job statuses.
         ///</summary>
-        ///<param name="appID">Application ID for multi-tenant app. Optional.</param>
-        ///<param name="userID">User ID. Optional.</param>
+        ///<param name="appID">Client application ID, optional</param>
+        ///<param name="userID">User ID, optional.</param>
         ///<returns>Collection of JobStatusCount</returns>
-        public IList<JobStatusCount> GetJobStatusCount(string appID, int? userID)
+        public IList<JobStatusCount> GetJobStatusCount(string appID, string userID)
         {
             return jobDAL.GetJobStatusCount(appID, userID);
         }

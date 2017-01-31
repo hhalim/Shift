@@ -1,2 +1,2 @@
 ﻿# Assemblies will be dynamically loaded by Shift Server on startup
-C:\Users\hhalim\Documents\Visual Studio 2015\Projects\Shift\Shift.WinService\client-assemblies\Shift.Demo.Jobs.dll
+Shift.Demo.Jobs.dll

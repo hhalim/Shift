@@ -19,8 +19,8 @@ namespace Shift.Entities
         public int JobID { get; set; } //PrimaryKey
 
         public string AppID { get; set; }
-        public int? UserID { get; set; }
-        public int? ProcessID { get; set; }
+        public string UserID { get; set; }
+        public string ProcessID { get; set; }
         public string JobType { get; set; }
         public string JobName { get; set; }
         public string InvokeMeta { get; set; }

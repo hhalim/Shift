@@ -36,12 +36,17 @@ namespace Shift.DataLayer
             this.encryptionKey = encryptionKey;
         }
 
-        public int? Add(string appID, int? userID, string jobType, Expression<Action> methodCall)
+        public int? Add(string appID, Expression<Action> methodCall)
+        {
+            return Add(appID, null, null, null, methodCall);
+        }
+
+        public int? Add(string appID, string userID, string jobType, Expression<Action> methodCall)
         {
             return Add(appID, userID, jobType, null, methodCall);
         }
 
-        public int? Add(string appID, int? userID, string jobType, string jobName, Expression<Action> methodCall)
+        public int? Add(string appID, string userID, string jobType, string jobName, Expression<Action> methodCall)
         {
             if (methodCall == null)
                 throw new ArgumentNullException("methodCall");
@@ -80,7 +85,7 @@ namespace Shift.DataLayer
             //Save InvokeMeta and args
             var job = new Job();
             job.AppID = appID;
-            job.UserID = (userID == null || userID == 0 ? null : userID);
+            job.UserID = userID;
             job.JobType = jobType;
             job.JobName = string.IsNullOrWhiteSpace(jobName) ? type.Name + "." + methodInfo.Name : jobName;
             job.InvokeMeta = JsonConvert.SerializeObject(invokeMeta, SerializerSettings.Settings);
@@ -103,9 +108,9 @@ namespace Shift.DataLayer
         /// </summary>
         /// <remarks>
         /// </remarks>
-        public int SetCommandStop(IEnumerable<int> jobIDs)
+        public int SetCommandStop(IList<int> jobIDs)
         {
-            if (jobIDs.Count() == 0)
+            if (jobIDs.Count == 0)
                 return 0;
 
             using (var connection = new SqlConnection(connectionString))
@@ -126,9 +131,9 @@ namespace Shift.DataLayer
         /// </summary>
         /// <remarks>
         /// </remarks>
-        public int SetCommandStopDelete(IEnumerable<int> jobIDs)
+        public int SetCommandStopDelete(IList<int> jobIDs)
         {
-            if (jobIDs.Count() == 0)
+            if (jobIDs.Count == 0)
                 return 0;
 
             using (var connection = new SqlConnection(connectionString))
@@ -143,12 +148,35 @@ namespace Shift.DataLayer
             }
         }
 
+        /// <summary>
+        /// Set the Command field to run-now, only works for non-running and no status jobs.
+        /// </summary>
+        /// <remarks>
+        /// </remarks>
+        public int SetCommandRunNow(IList<int> jobIDs)
+        {
+            if (jobIDs.Count == 0)
+                return 0;
+
+            using (var connection = new SqlConnection(connectionString))
+            {
+                connection.Open();
+                var sql = @"UPDATE [Job] 
+                            SET 
+                            Command = @command 
+                            WHERE JobID IN @ids 
+                            AND Status IS NULL;
+                            ";
+                return connection.Execute(sql, new { command = JobCommand.RunNow, ids = jobIDs.ToArray() });
+            }
+        }
+
         /*
         * Reset Job data for Non-running jobs
         */
-        public int Reset(IEnumerable<int> jobIDs)
+        public int Reset(IList<int> jobIDs)
         {
-            if (jobIDs.Count() == 0)
+            if (jobIDs.Count == 0)
                 return 0;
 
             using (var connection = new SqlConnection(connectionString))
@@ -197,9 +225,9 @@ namespace Shift.DataLayer
         /*
         * Delete Jobs and all children for Non-running jobs
         */
-        public int Delete(IEnumerable<int> jobIDs)
+        public int Delete(IList<int> jobIDs)
         {
-            if (jobIDs.Count() == 0)
+            if (jobIDs.Count == 0)
                 return 0;
 
             var count = 0;
@@ -239,9 +267,9 @@ namespace Shift.DataLayer
             return count;
         }
 
-        public int SetToStopped(IEnumerable<int> jobIDs)
+        public int SetToStopped(IList<int> jobIDs)
         {
-            if (jobIDs.Count() == 0)
+            if (jobIDs.Count == 0)
                 return 0;
 
             using (var connection = new SqlConnection(connectionString))
@@ -280,7 +308,7 @@ namespace Shift.DataLayer
             }
         }
 
-        public IList<Job> GetJobsByCommand(int processID, string command)
+        public IList<Job> GetJobsByCommand(string processID, string command)
         {
             var jobList = new List<Job>();
             using (var connection = new SqlConnection(connectionString))
@@ -331,26 +359,35 @@ namespace Shift.DataLayer
 
         /* 
         Get Job Status Count based on appID and/or userID 
-        Can not get just by userID, because there might be similar userID for different sites (appID).
+        Can not get just by userID, because there might be similar userID for different apps (appID).
         */
-        public IList<JobStatusCount> GetJobStatusCount(string appID, int? userID)
+        public IList<JobStatusCount> GetJobStatusCount(string appID, string userID)
         {
             var countList = new List<JobStatusCount>();
             using (var connection = new SqlConnection(connectionString))
             {
                 var sql = "";
-                if (!string.IsNullOrWhiteSpace(appID) && userID != null)
+                if (!string.IsNullOrWhiteSpace(appID) && !string.IsNullOrWhiteSpace(userID))
                 {
                     sql = @"SELECT [Status], Count([Status]) [Count], sum(case when [Status] IS null then 1 else 0 end) NullCount
                           FROM [Job]
                           WHERE [AppID] = @appID AND [UserID] = @userID
                           GROUP BY [Status]; ";
                 }
-                else if (!string.IsNullOrWhiteSpace(appID) && userID == null)
+                else if (!string.IsNullOrWhiteSpace(appID) && string.IsNullOrWhiteSpace(userID)) //appID not null, userID is null
                 {
                     sql = @"SELECT [Status], Count([Status]) [Count], sum(case when [Status] IS null then 1 else 0 end) NullCount
                           FROM [Job]
                           WHERE [AppID] = @appID
+                          GROUP BY [Status]; ";
+                }
+                else if (string.IsNullOrWhiteSpace(appID) && !string.IsNullOrWhiteSpace(userID)) //appID is null, userID not null
+                {
+                    //This works okay for single tenant/app, but for multi-tenant, there can be multiple UserID for the different apps
+                    //Works okay for multi tenant apps with GUID for UserID
+                    sql = @"SELECT [Status], Count([Status]) [Count], sum(case when [Status] IS null then 1 else 0 end) NullCount
+                          FROM [Job]
+                          WHERE [UserID] = @userID
                           GROUP BY [Status]; ";
                 }
                 else
@@ -423,7 +460,7 @@ namespace Shift.DataLayer
             return jobList;
         }
 
-        public IList<Job> GetJobsByProcessAndStatus(int processID, JobStatus status)
+        public IList<Job> GetJobsByProcessAndStatus(string processID, JobStatus status)
         {
             var jobList = new List<Job>();
             using (var connection = new SqlConnection(connectionString))
@@ -431,7 +468,7 @@ namespace Shift.DataLayer
                 connection.Open();
                 var sql = @"SELECT * 
                             FROM Job j
-                            WHERE (j.ProcessID = @processID OR j.ProcessID IS NULL)
+                            WHERE j.ProcessID = @processID
                             AND j.Status = @status; ";
                 jobList = connection.Query<Job>(sql, new { processID, status }).ToList();
             }
@@ -439,7 +476,7 @@ namespace Shift.DataLayer
             return jobList;
         }
 
-        public IList<Job> GetJobsByProcess(int processID, IEnumerable<int> jobIDs)
+        public IList<Job> GetJobsByProcess(string processID, IEnumerable<int> jobIDs)
         {
             var jobList = new List<Job>();
             using (var connection = new SqlConnection(connectionString))
@@ -456,7 +493,7 @@ namespace Shift.DataLayer
             return jobList;
         }
 
-        public int CountRunningJobs(int processID)
+        public int CountRunningJobs(string processID)
         {
             var runningCount = 0;
             using (var connection = new SqlConnection(connectionString))
@@ -466,14 +503,20 @@ namespace Shift.DataLayer
                             FROM Job j
                             WHERE j.Status = @status 
                             AND j.ProcessID = @processID; ";
-                runningCount = connection.Query<int>(sql, new { status = JobStatus.Running, ProcessID = processID }).FirstOrDefault();
+                runningCount = connection.Query<int>(sql, new { status = JobStatus.Running, processID }).FirstOrDefault();
             }
 
             return runningCount;
         }
 
+        public IList<Job> ClaimJobsToRun(string processID, int rowsToGet)
+        {
+            var jobList = GetJobsToRun(rowsToGet);
+            return ClaimJobsToRun(processID, jobList);
+        }
+
         //Use Optimistic Concurrency, don't claim if it's already running
-        public IList<Job> ClaimJobsToRun(int processID, IEnumerable<Job> jobList)
+        public IList<Job> ClaimJobsToRun(string processID, IEnumerable<Job> jobList)
         {
             var claimedJobs = new List<Job>();
             using (var connection = new SqlConnection(connectionString))
@@ -485,7 +528,7 @@ namespace Shift.DataLayer
                                 SET ProcessID = @processID 
                                 WHERE Status IS NULL 
                                 AND [jobID] = @jobID; ";
-                    var count = connection.Execute(sql, new { processID, jobID = job.JobID });
+                    var count = connection.Execute(sql, new { processID, job.JobID });
 
                     if (count > 0) //successful update
                         claimedJobs.Add(job);
@@ -496,7 +539,7 @@ namespace Shift.DataLayer
         }
 
         //Get an X amount of jobs ready to run, don't get it if it's already claimed by other processes.
-        public IList<Job> GetJobsToRun(int rowsToGet)
+        private IList<Job> GetJobsToRun(int rowsToGet)
         {
             var jobList = new List<Job>();
             using (var connection = new SqlConnection(connectionString))
@@ -504,11 +547,62 @@ namespace Shift.DataLayer
                 connection.Open();
                 var sql = @"SELECT * 
                             FROM Job j
-                            WHERE j.Status IS NULL AND j.ProcessID IS NULL
+                            WHERE j.Status IS NULL 
+                            AND j.ProcessID IS NULL
                             ORDER BY j.Created, j.JobID 
                             OFFSET 0 ROWS FETCH NEXT @rowsToGet ROWS ONLY; ";
                 jobList = connection.Query<Job>(sql, new { rowsToGet }).ToList();
 
+            }
+
+            return jobList;
+        }
+
+        public IList<Job> ClaimRunNowJobs(string processID)
+        {
+            var jobList = GetRunNowJobs();
+            return ClaimRunNowJobs(processID, jobList);
+        }
+
+        //Use Optimistic Concurrency, don't claim if it's already running
+        public IList<Job> ClaimRunNowJobs(string processID, IEnumerable<Job> jobList)
+        {
+            var claimedJobs = new List<Job>();
+            using (var connection = new SqlConnection(connectionString))
+            {
+                connection.Open();
+
+                foreach (var job in jobList)
+                {
+                    var sql = @"UPDATE [Job]
+                                SET ProcessID = @processID, Command = null
+                                WHERE Status IS NULL 
+                                AND Command = @command
+                                AND [jobID] = @jobID; ";
+                    var count = connection.Execute(sql, new { processID, command = JobCommand.RunNow, job.JobID });
+
+                    if (count > 0) //successful update
+                        claimedJobs.Add(job);
+                }
+            }
+
+            return claimedJobs; //it's possible to return less than passed jobIDs, since multiple Shift server might run and already claimed the job(s)
+        }
+
+        //Get all jobs with 'run-now' command, don't get it if it's already claimed by other processes.
+        private IList<Job> GetRunNowJobs()
+        {
+            var jobList = new List<Job>();
+            using (var connection = new SqlConnection(connectionString))
+            {
+                connection.Open();
+                var sql = @"SELECT * 
+                            FROM Job j
+                            WHERE j.Status IS NULL 
+                            AND j.ProcessID IS NULL
+                            AND Command = @command
+                            ORDER BY j.Created, j.JobID; ";
+                jobList = connection.Query<Job>(sql, new { command = JobCommand.RunNow }).ToList();
             }
 
             return jobList;

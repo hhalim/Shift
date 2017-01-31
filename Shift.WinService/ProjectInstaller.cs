@@ -33,19 +33,15 @@ namespace ShiftWinService
         {
             var service = Assembly.GetAssembly(typeof(ProjectInstaller));
             var config = ConfigurationManager.OpenExeConfiguration(service.Location);
-            if (config.AppSettings.Settings["ServiceName"] != null)
-            {
-                var serviceName = config.AppSettings.Settings["ServiceName"].Value;
-                var processID = config.AppSettings.Settings["ShiftPID"].Value;
-                if (string.IsNullOrWhiteSpace(processID))
-                    throw new IndexOutOfRangeException("Configuration for AppSettings collection does not contain the ShiftPID key.");
+            var serviceName = config.AppSettings.Settings["ServiceName"].Value;
+            var processID = config.AppSettings.Settings["ShiftPID"].Value;
+            if (string.IsNullOrWhiteSpace(serviceName))
+                throw new IndexOutOfRangeException("Configuration for ServiceName is missing or invalid.");
 
-                return serviceName + (string.IsNullOrWhiteSpace(processID) ? "" : " " + processID);
-            }
-            else
-            {
-                throw new IndexOutOfRangeException("Configuration for AppSettings collection does not contain the ServiceName key.");
-            }
+            if (string.IsNullOrWhiteSpace(processID))
+                throw new IndexOutOfRangeException("Configuration for ShiftPID is missing or invalid.");
+
+            return serviceName;
         }
 
         private void serviceProcessInstaller_AfterInstall(object sender, InstallEventArgs e)
