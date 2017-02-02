@@ -7,10 +7,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Shift", "Shift\Shift.csproj
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Shift.Entities", "Shift.Entities\Shift.Entities.csproj", "{1A8A0E83-4815-40E8-8CA5-B12D25A768F4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Shift.WinService", "Shift.WinService\Shift.WinService.csproj", "{D9803609-172F-4540-978A-B770FE8B9E74}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Shift.WebJob", "Shift.WebJob\Shift.WebJob.csproj", "{D3CB5ED7-24E5-491B-A20C-86DF056A5BA5}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Shift.DataLayer", "Shift.DataLayer\Shift.DataLayer.csproj", "{4E74E7C7-4EA1-425C-B467-1DB4A5F99A37}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Shift.DataLayer.Redis", "Shift.DataLayer.Redis\Shift.DataLayer.Redis.csproj", "{F43A6D1C-5AEA-470B-8B33-D8ED2C156B86}"
@@ -29,14 +25,6 @@ Global
 		{1A8A0E83-4815-40E8-8CA5-B12D25A768F4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1A8A0E83-4815-40E8-8CA5-B12D25A768F4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1A8A0E83-4815-40E8-8CA5-B12D25A768F4}.Release|Any CPU.Build.0 = Release|Any CPU
-		{D9803609-172F-4540-978A-B770FE8B9E74}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{D9803609-172F-4540-978A-B770FE8B9E74}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{D9803609-172F-4540-978A-B770FE8B9E74}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{D9803609-172F-4540-978A-B770FE8B9E74}.Release|Any CPU.Build.0 = Release|Any CPU
-		{D3CB5ED7-24E5-491B-A20C-86DF056A5BA5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{D3CB5ED7-24E5-491B-A20C-86DF056A5BA5}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{D3CB5ED7-24E5-491B-A20C-86DF056A5BA5}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{D3CB5ED7-24E5-491B-A20C-86DF056A5BA5}.Release|Any CPU.Build.0 = Release|Any CPU
 		{4E74E7C7-4EA1-425C-B467-1DB4A5F99A37}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{4E74E7C7-4EA1-425C-B467-1DB4A5F99A37}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4E74E7C7-4EA1-425C-B467-1DB4A5F99A37}.Release|Any CPU.ActiveCfg = Release|Any CPU
