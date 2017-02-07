@@ -25,11 +25,6 @@ namespace Shift
         //Shift.Demo.*.dll
         public string AssemblyListPath { get; set; } //Optional
 
-        //Defines the base directory for the DLLs inside AssemblyListPath file
-        //REQUIRED if full path is NOT included in the list file DLL
-        //DO NOT use if full path is already included in the list file.
-        public string AssemblyBaseDir { get; set; } //Optional
-
         //if false, the progress update depends on ProgressDBInterval time to update the DB
         public bool UseCache { get; set; } = false;
         public string CacheConfigurationString { get; set; } //required if UseCache == true
