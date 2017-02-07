@@ -8,6 +8,7 @@ using System.Linq.Expressions;
 using System.Runtime.Serialization;
 using Autofac.Core;
 using Autofac;
+using System.IO;
 
 namespace Shift
 {
@@ -109,6 +110,21 @@ namespace Shift
             }
 
             return _parameters;
+        }
+
+        //Use BaseDirectory, not CurrentDirectory
+        public static string NormalizePath(string filePath)
+        {
+            //Use the current assembly location instead of relative working directory (System.Environment.CurrentDirectory)
+            //The windows service is using C:\Windows\system32 for Environment.CurrentDirectory
+            //http://stackoverflow.com/a/23661766/2437862
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+
+            //Normalize the current path http://stackoverflow.com/a/27786368/2437862
+            var relativeToBase = Path.Combine(baseDir, filePath);
+            var normalizedPath = Path.GetFullPath(relativeToBase);
+
+            return normalizedPath;
         }
     }
 
