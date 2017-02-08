@@ -2,9 +2,9 @@
 Shift background or long running jobs into reliable and durable workers out of the client app process. Shift enables your app to easily run long running jobs in physically separate infrastructures. 
 
 **Features:**
-- Reliable and durable background / long running jobs.
+- Reliable and durable background and long running jobs.
 - Out of band processing of long running jobs. 
-- Ability to stop, reset, and restart long running jobs.
+- Ability to stops, resets, and restarts long running jobs.
 - Optional detailed progress tracking for each running jobs.
 - Scale out with multiple shift servers to run large number of jobs.
 - Optional encryption for serialized data.
