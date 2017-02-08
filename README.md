@@ -11,6 +11,7 @@ Shift background or long running jobs into reliable and durable workers out of t
 - Run Shift Server in your own .NET apps, Azure WebJobs, or Windows services. 
 
 **Shift Client**
+
 The client component allows client apps to add jobs and send commands to Shift server to stop, delete, reset, and run jobs.
 
 Adding jobs are as easy as using Linq lambda expression.
@@ -27,6 +28,7 @@ var jobID = jobClient.Add("Shift.Demo.Client", () => job.Start("Hello World", pr
 ```
 
 **Shift Server**
+
 The server component gathers available jobs and executes commands from clients. The server is a simple .NET library and needs to run inside a container app, Azure WebJob, or Windows service. 
 
 Two runnable server apps projects are included as quick start templates. 
