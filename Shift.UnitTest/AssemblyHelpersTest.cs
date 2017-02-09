@@ -13,7 +13,6 @@ namespace Shift.UnitTest
         [TestMethod]
         public void GetFullPathTest1()
         {
-            var currentDir = Directory.GetCurrentDirectory();
             var linePath = @"C:\mydll\test.dll"; //full path
 
             string directory, filename;
@@ -28,15 +27,15 @@ namespace Shift.UnitTest
         [TestMethod]
         public void GetFullPathTest2()
         {
-            var currentDir = Directory.GetCurrentDirectory();
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory; 
             var linePath = @"test.dll"; 
 
             string directory, filename;
             var newLinePath = ConvertToFullPath(linePath, out directory, out filename);
 
             Assert.AreEqual(filename, "test.dll");
-            Assert.AreEqual(directory, currentDir);
-            Assert.AreEqual(newLinePath, CleanPath(currentDir + "\\" + linePath));
+            Assert.AreEqual(directory, baseDir);
+            Assert.AreEqual(newLinePath, CleanPath(baseDir + "\\" + linePath));
         }
 
         [TestMethod]
@@ -56,7 +55,7 @@ namespace Shift.UnitTest
         [TestMethod]
         public void GetFullPathTest4()
         {
-            var currentDir = Directory.GetCurrentDirectory();
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
             var rootPath = Path.GetFullPath("\\");  // C:\
             var linePath = @".\test.dll"; 
 
@@ -64,8 +63,8 @@ namespace Shift.UnitTest
             var newLinePath = ConvertToFullPath(linePath, out directory, out filename);
 
             Assert.AreEqual(filename, "test.dll");
-            Assert.AreEqual(directory, currentDir);
-            Assert.AreEqual(newLinePath, CleanPath(currentDir + @"\test.dll"));
+            Assert.AreEqual(directory, baseDir);
+            Assert.AreEqual(newLinePath, CleanPath(baseDir + @"\test.dll"));
         }
 
         [TestMethod]
@@ -99,29 +98,74 @@ namespace Shift.UnitTest
         [TestMethod]
         public void GetFullPathTest7()
         {
-            var currentDir = Directory.GetCurrentDirectory();
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
             var linePath = @"test*.dll";
 
             string directory, filename;
             var newLinePath = ConvertToFullPath(linePath, out directory, out filename);
 
             Assert.AreEqual(filename, "test*.dll");
-            Assert.AreEqual(directory, currentDir);
-            Assert.AreEqual(newLinePath, CleanPath(currentDir + "\\" + linePath));
+            Assert.AreEqual(directory, baseDir);
+            Assert.AreEqual(newLinePath, CleanPath(baseDir + "\\" + linePath));
         }
 
         [TestMethod]
         public void GetFullPathTest8()
         {
-            var currentDir = Directory.GetCurrentDirectory();
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
             var linePath = @"mydll\test*";
 
             string directory, filename;
             var newLinePath = ConvertToFullPath(linePath, out directory, out filename);
 
             Assert.AreEqual(filename, "test*");
-            Assert.AreEqual(directory, CleanPath(currentDir + @"\mydll"));
-            Assert.AreEqual(newLinePath, CleanPath(currentDir + "\\" + linePath));
+            Assert.AreEqual(directory, CleanPath(baseDir + @"\mydll"));
+            Assert.AreEqual(newLinePath, CleanPath(baseDir + "\\" + linePath));
+        }
+
+        //Test folder only, no filename
+        [TestMethod]
+        public void GetFullPathTest9()
+        {
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            var folder = "mydll\\";
+
+            var newPath = ConvertToFullPath(folder);
+
+            Assert.AreEqual(newPath, CleanPath(baseDir + "\\" + folder));
+        }
+
+        [TestMethod]
+        public void GetFullPathTest10()
+        {
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            var folder = "libs\\mydll";
+
+            var newPath = ConvertToFullPath(folder);
+
+            Assert.AreEqual(newPath, CleanPath(baseDir + "\\" + folder));
+        }
+
+        [TestMethod]
+        public void GetFullPathTest11()
+        {
+            var rootPath = Path.GetFullPath("\\");  // C:\
+            var folder = @"\mydll";
+
+            var newPath = ConvertToFullPath(folder);
+
+            Assert.AreEqual(newPath, CleanPath(rootPath + "\\" + folder)); // C:\mydll
+        }
+
+        [TestMethod]
+        public void GetFullPathTest12()
+        {
+            var upOneDir = Path.GetFullPath("..");  //one folder up
+            var folder = @"..\mydll";
+
+            var newPath = ConvertToFullPath(folder);
+
+            Assert.AreEqual(newPath, CleanPath(upOneDir + @"\mydll"));
         }
     }
 }

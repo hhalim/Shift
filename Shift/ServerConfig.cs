@@ -18,12 +18,9 @@ namespace Shift
         //Maximum jobs to run for each server
         public int MaxRunnableJobs { get; set; } = 100;
 
-        //A list of DLLs to reference and load, one DLL per line. If no full path is set, then define the base path in AssemblyBaseDir
-        //DO NOT mix full path and no full path DLLs, must be consistent
-        //Example:
-        //Shift.Demo.Jobs.dll
-        //Shift.Demo.*.dll
+        //Points to a text file with list of DLLs to load, one DLL per line. 
         public string AssemblyListPath { get; set; } //Optional
+        public string AssemblyFolder { get; set; } //Optional
 
         //if false, the progress update depends on ProgressDBInterval time to update the DB
         public bool UseCache { get; set; } = false;

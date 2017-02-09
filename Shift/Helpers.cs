@@ -113,7 +113,7 @@ namespace Shift
         }
 
         //Use BaseDirectory, not CurrentDirectory
-        public static string NormalizePath(string filePath)
+        public static string NormalizePath(string path)
         {
             //Use the current assembly location instead of relative working directory (System.Environment.CurrentDirectory)
             //The windows service is using C:\Windows\system32 for Environment.CurrentDirectory
@@ -121,7 +121,7 @@ namespace Shift
             var baseDir = AppDomain.CurrentDomain.BaseDirectory;
 
             //Normalize the current path http://stackoverflow.com/a/27786368/2437862
-            var relativeToBase = Path.Combine(baseDir, filePath);
+            var relativeToBase = Path.Combine(baseDir, path);
             var normalizedPath = Path.GetFullPath(relativeToBase);
 
             return normalizedPath;

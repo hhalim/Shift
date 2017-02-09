@@ -89,7 +89,7 @@ namespace Shift
 
             //OPTIONAL: Load all EXTERNAL DLLs needed by this process
             AppDomain.CurrentDomain.AssemblyResolve += AssemblyHelpers.OnAssemblyResolve;
-            AssemblyHelpers.LoadAssemblies(config.AssemblyListPath);
+            AssemblyHelpers.LoadAssemblies(config.AssemblyFolder, config.AssemblyListPath);
         }
 
         #endregion
@@ -157,9 +157,6 @@ namespace Shift
             using (var connection = new SqlConnection(config.DBConnectionString))
             {
                 connection.Open();
-                //Get RUN-NOW jobs
-                var claimedRunnowJobs = jobDAL.ClaimRunNowJobs(config.ProcessID);
-                RunJobs(claimedRunnowJobs);
 
                 //Check max jobs count
                 var runningCount = jobDAL.CountRunningJobs(config.ProcessID);
