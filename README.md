@@ -34,7 +34,7 @@ The [Shift.WinService](https://github.com/hhalim/Shift.WinService) is the standa
 The [Shift.WebJob](https://github.com/hhalim/Shift.WebJob) is the Azure WebJob component that can be easily deployed to Azure cloud environment, multiple web jobs can also be deployed to multiple App Services. If you're using Azure, it is highly recommended to locate the Azure SQL and Azure Redis within the same region as the web jobs.
 
 ## Quick Start and More
-See the wiki for [[Quick Start]] and more details.
+See the wiki for [Quick Start](https://github.com/hhalim/Shift/wiki/Quick-Start) and for more details.
 
 ## Demos
 - Console apps demo: [Shift.Demo.Client](https://github.com/hhalim/Shift.Demo.Client) and [Shift.Demo.Server](https://github.com/hhalim/Shift.Demo.Server)
