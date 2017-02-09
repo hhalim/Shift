@@ -549,60 +549,11 @@ namespace Shift.DataLayer
                             FROM Job j
                             WHERE j.Status IS NULL 
                             AND j.ProcessID IS NULL
-                            ORDER BY j.Created, j.JobID 
+                            AND (j.Command = @runNow OR j.Command IS NULL)
+                            ORDER BY j.Command DESC, j.Created, j.JobID 
                             OFFSET 0 ROWS FETCH NEXT @rowsToGet ROWS ONLY; ";
-                jobList = connection.Query<Job>(sql, new { rowsToGet }).ToList();
+                jobList = connection.Query<Job>(sql, new { runNow = JobCommand.RunNow, rowsToGet }).ToList();
 
-            }
-
-            return jobList;
-        }
-
-        public IList<Job> ClaimRunNowJobs(string processID)
-        {
-            var jobList = GetRunNowJobs();
-            return ClaimRunNowJobs(processID, jobList);
-        }
-
-        //Use Optimistic Concurrency, don't claim if it's already running
-        public IList<Job> ClaimRunNowJobs(string processID, IEnumerable<Job> jobList)
-        {
-            var claimedJobs = new List<Job>();
-            using (var connection = new SqlConnection(connectionString))
-            {
-                connection.Open();
-
-                foreach (var job in jobList)
-                {
-                    var sql = @"UPDATE [Job]
-                                SET ProcessID = @processID, Command = null
-                                WHERE Status IS NULL 
-                                AND Command = @command
-                                AND [jobID] = @jobID; ";
-                    var count = connection.Execute(sql, new { processID, command = JobCommand.RunNow, job.JobID });
-
-                    if (count > 0) //successful update
-                        claimedJobs.Add(job);
-                }
-            }
-
-            return claimedJobs; //it's possible to return less than passed jobIDs, since multiple Shift server might run and already claimed the job(s)
-        }
-
-        //Get all jobs with 'run-now' command, don't get it if it's already claimed by other processes.
-        private IList<Job> GetRunNowJobs()
-        {
-            var jobList = new List<Job>();
-            using (var connection = new SqlConnection(connectionString))
-            {
-                connection.Open();
-                var sql = @"SELECT * 
-                            FROM Job j
-                            WHERE j.Status IS NULL 
-                            AND j.ProcessID IS NULL
-                            AND Command = @command
-                            ORDER BY j.Created, j.JobID; ";
-                jobList = connection.Query<Job>(sql, new { command = JobCommand.RunNow }).ToList();
             }
 
             return jobList;
