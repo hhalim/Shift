@@ -191,12 +191,6 @@ namespace Shift.DataLayer
 
                 if (notRunning.Count > 0)
                 {
-                    //Delete JobResult
-                    sql = @"DELETE  
-                            FROM JobResult
-                            WHERE JobID IN @ids; ";
-                    connection.Execute(sql, new { ids = notRunning.ToArray() });
-
                     //Reset jobs and progress for NON running jobs
                     sql = @"UPDATE JobProgress 
                             SET 
@@ -244,12 +238,6 @@ namespace Shift.DataLayer
                 if (notRunning.Count > 0)
                 {
                     //Delete only the NON running jobs
-                    //Delete JobResult
-                    sql = @"DELETE  
-                            FROM JobResult
-                            WHERE JobID IN @ids; ";
-                    connection.Execute(sql, new { ids = notRunning.ToArray() });
-
                     //Delete JobProgress
                     sql = @"DELETE  
                             FROM JobProgress
@@ -322,39 +310,6 @@ namespace Shift.DataLayer
             }
 
             return jobList;
-        }
-
-        public JobResult GetJobResult(int jobResultID)
-        {
-            using (var connection = new SqlConnection(connectionString))
-            {
-                connection.Open();
-                var sql = @"SELECT * 
-                            FROM JobResult j
-                            WHERE j.JobResultID = @jobResultID; ";
-                var jobResult = connection.Query<JobResult>(sql, new { jobResultID }).FirstOrDefault();
-
-                return jobResult;
-            }
-        }
-
-        /// <summary>
-        /// Get a JobResult object using a unique external ID.
-        /// </summary>
-        /// <remarks>
-        /// </remarks>
-        public JobResult GetJobResult(string externalID)
-        {
-            using (var connection = new SqlConnection(connectionString))
-            {
-                connection.Open();
-                var sql = @"SELECT *
-                            FROM JobResult j
-                            WHERE j.ExternalID = @externalID; ";
-                var jobResult = connection.Query<JobResult>(sql, new { externalID }).FirstOrDefault();
-
-                return jobResult;
-            }
         }
 
         /* 
@@ -598,19 +553,6 @@ namespace Shift.DataLayer
                 var sql = @"UPDATE [JobProgress] SET [Percent] = @percent, Note = @note, Data = @data 
                             WHERE JobID = @jobID; ";
                 count = connection.Execute(sql, new { percent, note, data, jobID });
-            }
-
-            return count;
-        }
-
-        public int InsertResults(IEnumerable<JobResult> resultList)
-        {
-            var count = 0;
-            using (var connection = new SqlConnection(connectionString))
-            {
-                connection.Open();
-                count = connection.Execute(@"INSERT INTO [JobResult] (JobID, ExternalID, Name, BinaryContent, ContentType) 
-                                            VALUES(@JobID, @ExternalID, @Name, @BinaryContent, @ContentType)", resultList);
             }
 
             return count;

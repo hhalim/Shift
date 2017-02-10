@@ -198,26 +198,6 @@ namespace Shift
         }
 
         ///<summary>
-        /// Gets the job result instance that contains a blob binary data.
-        ///</summary>
-        ///<param name="jobResultID"></param>
-        ///<returns>JobResult</returns>
-        public JobResult GetJobResult(int jobResultID)
-        {
-            return jobDAL.GetJobResult(jobResultID);
-        }
-
-        ///<summary>
-        /// Gets the job result instance using unique external GUID.
-        ///</summary>
-        ///<param name="jobResultID"></param>
-        ///<returns>JobResult</returns>
-        public JobResult GetJobResult(string externalID)
-        {
-            return jobDAL.GetJobResult(externalID);
-        }
-
-        ///<summary>
         /// Return counts of all job statuses (running, not running, completed, stopped, with errors).
         /// Useful for UI reporting of job statuses.
         ///</summary>

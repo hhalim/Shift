@@ -56,7 +56,6 @@
     <Compile Include="Job.cs" />
     <Compile Include="JobCommand.cs" />
     <Compile Include="JobStatusProgress.cs" />
-    <Compile Include="JobResult.cs" />
     <Compile Include="JobStatusCount.cs" />
     <Compile Include="JobType.cs" />
     <Compile Include="JobView.cs" />

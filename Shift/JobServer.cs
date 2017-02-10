@@ -287,50 +287,6 @@ namespace Shift
                     jobDAL.SetCachedProgress(jobID, progressInfo.Percent, progressInfo.Note, progressInfo.Data);
                 }
 
-                //Insert JobResult data
-                var resultList = new List<JobResult>();
-                if (progressInfo.FileInfoList != null && progressInfo.FileInfoList.Count > 0)
-                {
-                    foreach (var fileInfo in progressInfo.FileInfoList)
-                    {
-                        var result = new JobResult
-                        {
-                            JobID = jobID,
-                            ExternalID = fileInfo.ExternalID,
-                            BinaryContent = File.ReadAllBytes(fileInfo.FullPath),
-                            ContentType = fileInfo.ContentType,
-                            Name = fileInfo.FileName
-                        };
-
-                        resultList.Add(result);
-                    }
-
-                    if (resultList.Count > 0)
-                    {
-                        jobDAL.InsertResults(resultList);
-
-                        //Delete files if marked delete after upload
-                        foreach (var fileInfo in progressInfo.FileInfoList)
-                        {
-                            if (fileInfo.DeleteAfterUpload)
-                            {
-                                try
-                                {
-                                    File.Delete(fileInfo.FullPath);
-                                }
-                                catch (Exception exc)
-                                {
-                                    //Don't die if unable to delete, just record the error
-                                    var row = jobDAL.GetJob(jobID);
-                                    var error = row.Error + " Unable to delete file: " + fileInfo.FullPath;
-                                    jobDAL.SetCachedProgressError(row.JobID, error);
-                                    jobDAL.SetError(row.JobID, error);
-                                }
-                            }
-                        }
-                    }
-                }
-
             });
 
             return progress;
