@@ -29,7 +29,7 @@ The server component retrieve available jobs through polling, using first-in, fi
 
 Two runnable server apps projects are included as quick start templates:
 - [Shift.WinService](https://github.com/hhalim/Shift.WinService) is the standalone Windows service server component, multiple services can be installed in the same server. 
-- [Shift.WebJob](https://github.com/hhalim/Shift.WebJob) is the Azure WebJob component that can be easily deployed to Azure cloud environment, multiple web jobs can also be deployed to multiple App Services. If you're using Azure, it is highly recommended to locate the Azure SQL and Azure Redis within the same region as the web jobs.
+- [Shift.WebJob](https://github.com/hhalim/Shift.WebJob) is the Azure WebJob component that can be easily deployed to Azure cloud environment, multiple web jobs can also be deployed to multiple App Services. 
 
 ## Quick Start and More
 See the [Shift.wiki](https://github.com/hhalim/Shift/wiki) for [Quick Start](https://github.com/hhalim/Shift/wiki/Quick-Start) and for more details.
