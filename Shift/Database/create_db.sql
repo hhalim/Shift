@@ -61,23 +61,6 @@ CREATE TABLE [dbo].[JobProgress](
 ) 
 GO
 
-/****** Object:  Table [dbo].[JobResult] ******/
-CREATE TABLE [dbo].[JobResult](
-	[JobResultID] [int] IDENTITY(1,1) NOT NULL,
-	[JobID] [int] NOT NULL,
-	[ExternalID] [varchar](32) NULL,
-	[Name] [varchar](250) NULL,
-	[BinaryContent] [varbinary](max) NULL,
-	[ContentType] [varchar](50) NULL,
-	
-	CONSTRAINT [PK_JobResult] PRIMARY KEY CLUSTERED 
-	(
-		[JobResultID] ASC
-	)
-)
-
-GO
-
 SET ANSI_PADDING OFF
 GO
 
