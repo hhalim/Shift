@@ -26,14 +26,14 @@ var progress = new SynchronousProgress<ProgressInfo>();
 var jobID = shiftClient.Add("Shift.Demo", () => job.Start("Hello World", progress));
 ```
 
-The server component retrieve available jobs through polling, using first-in, first-out queue method. The server is a simple .NET library and needs to run inside a container app, Azure WebJob, or Windows service. 
+The server component checks for available jobs through polling, using first-in, first-out (FIFO) queue method. The server is a simple .NET library and needs to run inside a .NET app, Azure WebJob, or Windows service. 
 
 Two runnable server apps projects are included as quick start templates:
 - [Shift.WinService](https://github.com/hhalim/Shift.WinService) is the standalone Windows service server component, multiple services can be installed in the same server. 
 - [Shift.WebJob](https://github.com/hhalim/Shift.WebJob) is the Azure WebJob component that can be easily deployed to Azure cloud environment, multiple web jobs can also be deployed to multiple App Services. 
 
 ## Quick Start and More
-See the [Shift.wiki](https://github.com/hhalim/Shift/wiki) for [Quick Start](https://github.com/hhalim/Shift/wiki/Quick-Start) and for more details.
+Check out the [Shift.wiki](https://github.com/hhalim/Shift/wiki) for [Quick Start](https://github.com/hhalim/Shift/wiki/Quick-Start) and for more details.
 
 ## Demos
 - Console apps demo: [Shift.Demo.Client](https://github.com/hhalim/Shift.Demo.Client) and [Shift.Demo.Server](https://github.com/hhalim/Shift.Demo.Server)
