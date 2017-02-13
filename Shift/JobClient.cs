@@ -61,10 +61,10 @@ namespace Shift
 
         /// <summary>
         /// Add a method and parameters into the job table.
-        /// Reference parameters and out (ref and out) are not supported.
+        /// Ref and out parameters are not supported.
         /// </summary>
         /// <param name="methodCall">Expression body for method call </param>
-        /// <returns>The jobID of the added job.</returns>
+        /// <returns>JobID of the added job.</returns>
         public int? Add(Expression<Action> methodCall)
         {
             return jobDAL.Add(null, null, null, null, methodCall);
@@ -72,11 +72,11 @@ namespace Shift
 
         /// <summary>
         /// Add a method and parameters into the job table.
-        /// Reference parameters and out (ref and out) are not supported.
+        /// Ref and out parameters are not supported.
         /// </summary>
         /// <param name="appID">Client application ID</param>
         /// <param name="methodCall">Expression body for method call </param>
-        /// <returns>The jobID of the added job.</returns>
+        /// <returns>JobID of the added job.</returns>
         public int? Add(string appID, Expression<Action> methodCall)
         {
             return jobDAL.Add(appID, null, null, null, methodCall);
@@ -85,13 +85,13 @@ namespace Shift
         /// <summary>
         /// Add a method and parameters into the job table.
         /// Job name defaults to class.method name.
-        /// Reference parameters and out (ref and out) are not supported.
+        /// Ref and out parameters are not supported.
         /// </summary>
         /// <param name="appID">Client application ID</param>
         /// <param name="userID">User ID</param>
         /// <param name="jobType">Job type category/group</param>
         /// <param name="methodCall">Expression body for method call </param>
-        /// <returns>The jobID of the added job.</returns>
+        /// <returns>JobID of the added job.</returns>
         public int? Add(string appID, string userID, string jobType, Expression<Action> methodCall)
         {
             return jobDAL.Add(appID, userID, jobType, null, methodCall);
@@ -99,18 +99,58 @@ namespace Shift
 
         /// <summary>
         /// Add a method and parameters into the job table with a custom name.
-        /// Job name defaults to class.method name.
-        /// Reference parameters and out (ref and out) are not supported.
+        /// Ref and out parameters are not supported.
         /// </summary>
         /// <param name="appID">Client application ID</param>
         /// <param name="userID">User ID</param>
         /// <param name="jobType">Job type category/group</param>
         /// <param name="jobName">Name for this job</param>
         /// <param name="methodCall">Expression body for method call </param>
-        /// <returns>The jobID of the added job.</returns>
+        /// <returns>JobID of the added job.</returns>
         public int? Add(string appID, string userID, string jobType, string jobName, Expression<Action> methodCall)
         {
             return jobDAL.Add(appID, userID, jobType, jobName, methodCall);
+        }
+
+        /// <summary>
+        /// Update a job's method and parameters.
+        /// Ref and out parameters are not supported.
+        /// </summary>
+        /// <param name="jobID">Existing job ID</param>
+        /// <param name="methodCall">Expression body for method call </param>
+        /// <returns>Number of successfully updated job</returns>
+        public int Update(int jobID, Expression<Action> methodCall)
+        {
+            return jobDAL.Update(jobID, null, null, null, null, methodCall);
+        }
+
+        /// <summary>
+        /// Update a job's method and parameters.
+        /// Ref and out parameters are not supported.
+        /// </summary>
+        /// <param name="jobID">Existing job ID</param>
+        /// <param name="appID">Client application ID</param>
+        /// <param name="methodCall">Expression body for method call </param>
+        /// <returns>Number of successfully updated job</returns>
+        public int? Update(int jobID, string appID, Expression<Action> methodCall)
+        {
+            return jobDAL.Update(jobID, appID, null, null, null, methodCall);
+        }
+
+        /// <summary>
+        /// Update a job's method and parameters.
+        /// Ref and out parameters are not supported.
+        /// </summary>
+        /// <param name="jobID">Existing job ID</param>
+        /// <param name="appID">Client application ID</param>
+        /// <param name="userID">User ID</param>
+        /// <param name="jobType">Job type category/group</param>
+        /// <param name="jobName">Name for this job</param>
+        /// <param name="methodCall">Expression body for method call </param>
+        /// <returns>Number of successfully updated job</returns>
+        public int Update(int jobID, string appID, string userID, string jobType, string jobName, Expression<Action> methodCall)
+        {
+            return jobDAL.Update(jobID, appID, userID, jobType, jobName, methodCall);
         }
 
         ///<summary>

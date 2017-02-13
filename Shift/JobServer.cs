@@ -403,12 +403,18 @@ namespace Shift
 
         /// <summary>
         /// Cleanup and synchronize running jobs and jobs table.
-        /// Cases for cleanup:
-        /// * Job is marked as "RUNNING" in DB table, but there is no actual running thread in the related server process (Zombie Job).
-        /// * Thread reference still in memory, but actual process is: stopped, error, completed.
+        /// * Job is deleted based on AutoDeletePeriod and AutoDeleteStatus settings.
+        /// * Mark job as an error, when job status is "RUNNING" in DB table, but there is no actual running thread in the related server process (Zombie Jobs).
+        /// * Remove thread references in memory, when job is deleted or status in DB is: stopped, error, or completed.
         /// </summary>
         public void CleanUp()
         {
+            //Delete past completed jobs from storage
+            if (config.AutoDeletePeriod != null)
+            {
+                var count = jobDAL.Delete(config.AutoDeletePeriod.Value, config.AutoDeleteStatus);
+            }
+
             // For Running jobs, mark as error if no reference in threadList.
             // DB record is marked as Status = Running but NO thread in threadList (crashed, aborted, etc) => Mark as error and add error message
             // If not in threadList, it's a rogue thread or crashed, better to mark as error and restart.
@@ -427,12 +433,10 @@ namespace Shift
             // Remove reference from ThreadList 
             if (threadList.Count != 0)
             {
-                // It's possible that threadList still exists for DELETED jobs, so remove from threadList.
-                // If thread reference still in list, but actual process is: stopped, error, completed. => Remove from list, no need to keep track of them anymore.
                 var jobIDs = new List<int>();
                 jobList = jobDAL.GetJobsByProcess(config.ProcessID, threadList.Keys.ToList());
 
-                //Remove Deleted jobs from threadList
+                // For deleted jobs, remove from threadList.
                 jobIDs = jobList.Select(j => j.JobID).ToList();
                 var keys = new List<int>(threadList.Keys); //copy keys before removal
                 foreach (var jobID in keys)
@@ -446,13 +450,14 @@ namespace Shift
                     }
                 }
 
-                //Remove stopped / error / completed from threadList
+                // For job status that is stopped, error, completed => Remove from thread list, no need to keep track of them anymore.
                 var statuses = new List<int>
                 {
                     (int)JobStatus.Stopped,
                     (int)JobStatus.Error,
                     (int)JobStatus.Completed
                 };
+
                 foreach (var job in jobList)
                 {
                     if (job.Status != null
