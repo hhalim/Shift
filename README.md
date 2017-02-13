@@ -9,6 +9,7 @@ Shift background or long running jobs into reliable and durable workers out of t
 - Scale out with multiple shift servers to run large number of jobs.
 - Optional encryption for serialized data.
 - Run Shift Server in your own .NET apps, Azure WebJobs, or Windows services. 
+- Auto removal of older jobs.
 
 The client component allows client apps to add jobs and send commands to Shift server to stop, delete, reset, and run jobs.
 
