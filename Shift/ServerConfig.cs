@@ -34,7 +34,10 @@ namespace Shift
         //Avoid hitting the DB too much, since the Progress event update can be very chatty and rapid.
         public TimeSpan? ProgressDBInterval { get; set; } = new TimeSpan(0, 0, 10);
 
-        public int ServerTimerInterval { get; set; } = 5000;//interval timer for server running jobs
-        public int ServerTimerInterval2 { get; set; } = 10000;//interval timer2 for server running cleanup
+        public int ServerTimerInterval { get; set; } = 5000; //interval timer for server running jobs
+        public int ServerTimerInterval2 { get; set; } = 10000; //interval timer2 for server running cleanup
+
+        public int? AutoDeletePeriod { get; set; } = 168; //Default = 7 days; hours before jobs are deleted 
+        public IList<JobStatus?> AutoDeleteStatus { get; set; } = new List<JobStatus?> { JobStatus.Completed }; //Jobs with status to delete
     }
 }
