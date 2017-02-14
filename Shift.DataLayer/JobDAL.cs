@@ -146,6 +146,12 @@ namespace Shift.DataLayer
             var count = 0;
             using (var connection = new SqlConnection(connectionString))
             {
+                //Delete job Progress
+                var query2 = @"DELETE  
+                            FROM JobProgress
+                            WHERE JobID = @jobID; ";
+                connection.Execute(query2, new { jobID });
+
                 var query = @"
                             UPDATE [Job]
                             SET [AppID] = @AppID
