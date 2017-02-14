@@ -276,4 +276,4 @@ __pycache__/
 
 /Documents
 *.BAK
-prebuilt/*.xml
+packages

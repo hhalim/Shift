@@ -36,16 +36,6 @@ namespace Shift.DataLayer
             this.encryptionKey = encryptionKey;
         }
 
-        public int? Add(string appID, Expression<Action> methodCall)
-        {
-            return Add(appID, null, null, null, methodCall);
-        }
-
-        public int? Add(string appID, string userID, string jobType, Expression<Action> methodCall)
-        {
-            return Add(appID, userID, jobType, null, methodCall);
-        }
-
         public int? Add(string appID, string userID, string jobType, string jobName, Expression<Action> methodCall)
         {
             if (methodCall == null)
@@ -54,7 +44,7 @@ namespace Shift.DataLayer
             var callExpression = methodCall.Body as MethodCallExpression;
             if (callExpression == null)
             {
-                throw new ArgumentException("Expression body must be 'MethodCallExpression' type.", "methodCall");
+                throw new ArgumentException("Expression body must be 'System.Linq.Expressions.MethodCallExpression' type.", "methodCall");
             }
 
             Type type;
@@ -95,12 +85,88 @@ namespace Shift.DataLayer
             int? jobID = null;
             using (var connection = new SqlConnection(connectionString))
             {
-                jobID = connection.Query<int>(@"INSERT INTO [Job] ([AppID], [UserID], [JobType], [JobName], [InvokeMeta], [Parameters], [Created]) 
-                                            VALUES(@AppID, @UserID, @JobType, @JobName, @InvokeMeta, @Parameters, @Created);
-                                            SELECT CAST(SCOPE_IDENTITY() as int); ", job).SingleOrDefault();
+                var query = @"INSERT INTO [Job] ([AppID], [UserID], [JobType], [JobName], [InvokeMeta], [Parameters], [Created]) 
+                              VALUES(@AppID, @UserID, @JobType, @JobName, @InvokeMeta, @Parameters, @Created);
+                              SELECT CAST(SCOPE_IDENTITY() as int); ";
+                jobID = connection.Query<int>(query, job).SingleOrDefault();
             }
 
             return jobID;
+        }
+
+        //Update Job, reset some fields, return updated record count.
+        public int Update(int jobID, string appID, string userID, string jobType, string jobName, Expression<Action> methodCall)
+        {
+            if (methodCall == null)
+                throw new ArgumentNullException("methodCall");
+
+            var callExpression = methodCall.Body as MethodCallExpression;
+            if (callExpression == null)
+            {
+                throw new ArgumentException("Expression body must be 'System.Linq.Expressions.MethodCallExpression' type.", "methodCall");
+            }
+
+            Type type;
+            if (callExpression.Object != null)
+            {
+                var value = GetExpressionValue(callExpression.Object);
+                if (value == null)
+                    throw new InvalidOperationException("Expression object can not be null.");
+
+                type = value.GetType();
+            }
+            else
+            {
+                type = callExpression.Method.DeclaringType;
+            }
+
+            var methodInfo = callExpression.Method;
+            var args = callExpression.Arguments.Select(GetExpressionValue).ToArray();
+
+            if (type == null) throw new ArgumentNullException("type");
+            if (methodInfo == null) throw new ArgumentNullException("method");
+            if (args == null) throw new ArgumentNullException("args");
+
+            Validate(type, "type", methodInfo, "method", args.Length, "args");
+
+            var invokeMeta = new InvokeMeta(type, methodInfo);
+
+            //Save InvokeMeta and args
+            var values = new DynamicParameters();
+            values.Add("JobID", jobID);
+            values.Add("AppID", appID);
+            values.Add("UserID", userID);
+            values.Add("JobType", jobType);
+            values.Add("JobName", string.IsNullOrWhiteSpace(jobName) ? type.Name + "." + methodInfo.Name : jobName);
+            values.Add("InvokeMeta", JsonConvert.SerializeObject(invokeMeta, SerializerSettings.Settings));
+            values.Add("Parameters", Helpers.Encrypt(JsonConvert.SerializeObject(SerializeArguments(args), SerializerSettings.Settings), encryptionKey)); //ENCRYPT it!!!
+            values.Add("Created", DateTime.Now);
+            values.Add("Status", JobStatus.Running);
+
+            var count = 0;
+            using (var connection = new SqlConnection(connectionString))
+            {
+                var query = @"
+                            UPDATE [Job]
+                            SET [AppID] = @AppID
+                                ,[UserID] = @UserID
+                                ,[ProcessID] = NULL
+                                ,[JobType] = @JobType
+                                ,[JobName] = @JobName
+                                ,[InvokeMeta] = @InvokeMeta
+                                ,[Parameters] = @Parameters
+                                ,[Command] = NULL
+                                ,[Status] = NULL
+                                ,[Error] = NULL
+                                ,[Start] = NULL
+                                ,[End] = NULL
+                                ,[Created] = @Created
+                            WHERE JobID = @JobID AND (Status != @Status OR Status IS NULL);
+                            ";
+                count = connection.Execute(query, values);
+            }
+
+            return count;
         }
 
         /// <summary>
@@ -217,7 +283,7 @@ namespace Shift.DataLayer
         }
 
         /*
-        * Delete Jobs and all children for Non-running jobs
+        * Delete Jobs and all children for Non-running jobs.
         */
         public int Delete(IList<int> jobIDs)
         {
@@ -252,6 +318,74 @@ namespace Shift.DataLayer
                 }
             }
 
+            return count;
+        }
+
+
+        /*
+        * Delete past jobs with specified status(es) and all jobs' children. 
+        * Null job status is also valid.
+        */
+        public int Delete(int hour, IList<JobStatus?> statusList)
+        {
+            var whereQuery = "j.Created < DATEADD(hour, -@hour, GETDATE())";
+
+            //build where status
+            if (statusList != null)
+            {
+                var whereStatus = "";
+                foreach (var status in statusList)
+                {
+                    whereStatus += string.IsNullOrWhiteSpace(whereStatus) ? "" : " OR ";
+                    if (status == null)
+                    {
+                        whereStatus += "j.Status IS NULL";
+                    }
+                    else
+                    {
+                        whereStatus += "j.Status = " + (int)status;
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(whereStatus))
+                {
+                    whereQuery += " AND " + "(" + whereStatus + ")";
+                }
+            }
+
+            var count = 0;
+            using (var connection = new SqlConnection(connectionString))
+            {
+                connection.Open();
+                //Get only the NON running jobs
+                var sql = @"SELECT j.JobID 
+                            FROM Job j
+                            WHERE  " + whereQuery 
+                            + " ORDER BY j.Created, j.JobID; "; // FIFO deletion
+                var deleteIDs = connection.Query<int>(sql, new { hour }).ToList<int>();
+
+                if (deleteIDs.Count > 0)
+                {
+                    //Delete JobProgress
+                    sql = @"DELETE  
+                            FROM JobProgress
+                            WHERE JobID IN @ids; ";
+                    connection.Execute(sql, new { ids = deleteIDs.ToArray() });
+
+                    //Delete Job
+                    sql = @"DELETE  
+                            FROM Job
+                            WHERE JobID IN @ids; ";
+                    count = connection.Execute(sql, new { ids = deleteIDs.ToArray() });
+                }
+            }
+
+            return count;
+        }
+
+        public async Task<int> DeleteAsync(int hour, IList<JobStatus?> statusList)
+        {
+            var count = await Task.Run(() => Delete(hour, statusList));
             return count;
         }
 
