@@ -33,7 +33,7 @@ Two runnable server apps projects are included as quick start templates:
 - [Shift.WebJob](https://github.com/hhalim/Shift.WebJob) is the Azure WebJob component that can be easily deployed to Azure cloud environment, multiple web jobs can also be deployed to multiple App Services. 
 
 ## Quick Start and More
-Check out the [Shift.wiki](https://github.com/hhalim/Shift/wiki) for [Quick Start](https://github.com/hhalim/Shift/wiki/Quick-Start) and for more details.
+Shift build package is on [nuget.org](https://www.nuget.org/packages/Shift), but first check out the [Shift.wiki](https://github.com/hhalim/Shift/wiki) for [Quick Start](https://github.com/hhalim/Shift/wiki/Quick-Start) and for more details. 
 
 ## Demos
 - Console apps demo: [Shift.Demo.Client](https://github.com/hhalim/Shift.Demo.Client) and [Shift.Demo.Server](https://github.com/hhalim/Shift.Demo.Server)
