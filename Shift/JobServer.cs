@@ -179,7 +179,7 @@ namespace Shift
         public void RunJobs(IEnumerable<int> jobIDs)
         {
             //Try to start the selected jobs, ignoring MaxRunableJobs
-            var jobList = jobDAL.GetJobsByStatus(jobIDs, "Status IS NULL");
+            var jobList = jobDAL.GetNonRunningJobsByIDs(jobIDs);
             var claimedJobs = jobDAL.ClaimJobsToRun(config.ProcessID, jobList);
 
             RunJobs(claimedJobs);
@@ -269,24 +269,18 @@ namespace Shift
             var start = DateTime.Now;
             var updateTs = config.ProgressDBInterval ?? new TimeSpan(0, 0, 10); //default to 10 sec interval for updating DB
 
+            //SynchronousProgress is event based and called regularly by the running job
             var progress = new SynchronousProgress<ProgressInfo>(progressInfo =>
             {
-                //SynchronousProgress is event based and called regularly by the running job
+                jobDAL.SetCachedProgress(jobID, progressInfo.Percent, progressInfo.Note, progressInfo.Data);
 
                 var diffTs = DateTime.Now - start;
                 if (diffTs >= updateTs || progressInfo.Percent >= 100)
                 {
                     //Update DB and Cache
-                    jobDAL.UpdateProgress(jobID, progressInfo.Percent, progressInfo.Note, progressInfo.Data);
-                    jobDAL.SetCachedProgress(jobID, progressInfo.Percent, progressInfo.Note, progressInfo.Data);
+                    jobDAL.UpdateProgressAsync(jobID, progressInfo.Percent, progressInfo.Note, progressInfo.Data); //async, don't wait/don't hold
                     start = DateTime.Now;
                 }
-                else
-                {
-                    //Update Redis cache only
-                    jobDAL.SetCachedProgress(jobID, progressInfo.Percent, progressInfo.Note, progressInfo.Data);
-                }
-
             });
 
             return progress;
@@ -303,7 +297,7 @@ namespace Shift
                 var progress = UpdateProgressEvent(jobID); //Need this to update the progress of the job's
 
                 //Invoke Method
-                var args = JobDAL.DeserializeArguments(progress, methodInfo, parameters);
+                var args = DALHelpers.DeserializeArguments(progress, methodInfo, parameters);
                 methodInfo.Invoke(instance, args);
             }
             catch (ThreadAbortException txc)
@@ -344,7 +338,7 @@ namespace Shift
         /// </summary>
         public void StopJobs()
         {
-            var jobList = jobDAL.GetJobsByCommand(config.ProcessID, JobCommand.Stop);
+            var jobList = jobDAL.GetJobsByProcessAndCommand(config.ProcessID, JobCommand.Stop);
 
             //abort running threads
             if (threadList.Count > 0)
@@ -377,7 +371,7 @@ namespace Shift
         /// </summary>
         public void StopDeleteJobs()
         {
-            var jobList = jobDAL.GetJobsByCommand(config.ProcessID, JobCommand.StopDelete);
+            var jobList = jobDAL.GetJobsByProcessAndCommand(config.ProcessID, JobCommand.StopDelete);
 
             //abort running threads
             if (threadList.Count > 0)

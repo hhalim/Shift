@@ -1,16 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
 
 using System.Data.SqlClient;
-using System.Globalization;
 using System.Linq.Expressions;
-using System.Reflection;
 
 using Newtonsoft.Json;
-using Shift.Common;
 using Shift.Entities;
 using Dapper;
 
@@ -36,6 +32,10 @@ namespace Shift.DataLayer
             this.encryptionKey = encryptionKey;
         }
 
+        #region insert/update job
+        /// <summary>
+        /// Add a new job in to queue.
+        /// </summary>
         public int? Add(string appID, string userID, string jobType, string jobName, Expression<Action> methodCall)
         {
             if (methodCall == null)
@@ -50,7 +50,7 @@ namespace Shift.DataLayer
             Type type;
             if (callExpression.Object != null)
             {
-                var value = GetExpressionValue(callExpression.Object);
+                var value = DALHelpers.GetExpressionValue(callExpression.Object);
                 if (value == null)
                     throw new InvalidOperationException("Expression object can not be null.");
 
@@ -62,13 +62,13 @@ namespace Shift.DataLayer
             }
 
             var methodInfo = callExpression.Method;
-            var args = callExpression.Arguments.Select(GetExpressionValue).ToArray();
+            var args = callExpression.Arguments.Select(DALHelpers.GetExpressionValue).ToArray();
 
             if (type == null) throw new ArgumentNullException("type");
             if (methodInfo == null) throw new ArgumentNullException("method");
             if (args == null) throw new ArgumentNullException("args");
 
-            Validate(type, "type", methodInfo, "method", args.Length, "args");
+            DALHelpers.Validate(type, "type", methodInfo, "method", args.Length, "args");
 
             var invokeMeta = new InvokeMeta(type, methodInfo);
 
@@ -79,7 +79,7 @@ namespace Shift.DataLayer
             job.JobType = jobType;
             job.JobName = string.IsNullOrWhiteSpace(jobName) ? type.Name + "." + methodInfo.Name : jobName;
             job.InvokeMeta = JsonConvert.SerializeObject(invokeMeta, SerializerSettings.Settings);
-            job.Parameters = Helpers.Encrypt(JsonConvert.SerializeObject(SerializeArguments(args), SerializerSettings.Settings), encryptionKey); //ENCRYPT it!!!
+            job.Parameters = Helpers.Encrypt(JsonConvert.SerializeObject(DALHelpers.SerializeArguments(args), SerializerSettings.Settings), encryptionKey); //ENCRYPT it!!!
             job.Created = DateTime.Now;
 
             int? jobID = null;
@@ -94,7 +94,9 @@ namespace Shift.DataLayer
             return jobID;
         }
 
-        //Update Job, reset some fields, return updated record count.
+        /// <summary>
+        /// Update existing job, reset fields, return updated record count.
+        /// </summary>
         public int Update(int jobID, string appID, string userID, string jobType, string jobName, Expression<Action> methodCall)
         {
             if (methodCall == null)
@@ -109,7 +111,7 @@ namespace Shift.DataLayer
             Type type;
             if (callExpression.Object != null)
             {
-                var value = GetExpressionValue(callExpression.Object);
+                var value = DALHelpers.GetExpressionValue(callExpression.Object);
                 if (value == null)
                     throw new InvalidOperationException("Expression object can not be null.");
 
@@ -121,13 +123,13 @@ namespace Shift.DataLayer
             }
 
             var methodInfo = callExpression.Method;
-            var args = callExpression.Arguments.Select(GetExpressionValue).ToArray();
+            var args = callExpression.Arguments.Select(DALHelpers.GetExpressionValue).ToArray();
 
             if (type == null) throw new ArgumentNullException("type");
             if (methodInfo == null) throw new ArgumentNullException("method");
             if (args == null) throw new ArgumentNullException("args");
 
-            Validate(type, "type", methodInfo, "method", args.Length, "args");
+            DALHelpers.Validate(type, "type", methodInfo, "method", args.Length, "args");
 
             var invokeMeta = new InvokeMeta(type, methodInfo);
 
@@ -139,7 +141,7 @@ namespace Shift.DataLayer
             values.Add("JobType", jobType);
             values.Add("JobName", string.IsNullOrWhiteSpace(jobName) ? type.Name + "." + methodInfo.Name : jobName);
             values.Add("InvokeMeta", JsonConvert.SerializeObject(invokeMeta, SerializerSettings.Settings));
-            values.Add("Parameters", Helpers.Encrypt(JsonConvert.SerializeObject(SerializeArguments(args), SerializerSettings.Settings), encryptionKey)); //ENCRYPT it!!!
+            values.Add("Parameters", Helpers.Encrypt(JsonConvert.SerializeObject(DALHelpers.SerializeArguments(args), SerializerSettings.Settings), encryptionKey)); //ENCRYPT it!!!
             values.Add("Created", DateTime.Now);
             values.Add("Status", JobStatus.Running);
 
@@ -174,11 +176,14 @@ namespace Shift.DataLayer
 
             return count;
         }
+        #endregion
 
+        #region Set Command field
         /// <summary>
-        /// Set the Command field to stop, only works for running and no status jobs.
+        /// Flag jobs with 'stop' command. 
         /// </summary>
         /// <remarks>
+        /// This works only for running jobs and jobs with no status. The server will attempt to 'stop' jobs marked as 'stop'.
         /// </remarks>
         public int SetCommandStop(IList<int> jobIDs)
         {
@@ -199,9 +204,10 @@ namespace Shift.DataLayer
         }
 
         /// <summary>
-        /// Set the Command field to stop, works for ANY job status.
+        /// Flag jobs with 'stop-delete' command. 
         /// </summary>
         /// <remarks>
+        /// Any job status can be marked with 'stop-delete'. The server will attempt to 'stop' AND delete jobs marked as 'stop-delete'.
         /// </remarks>
         public int SetCommandStopDelete(IList<int> jobIDs)
         {
@@ -221,7 +227,7 @@ namespace Shift.DataLayer
         }
 
         /// <summary>
-        /// Set the Command field to run-now, only works for non-running and no status jobs.
+        /// Set the Command field to run-now, only works for jobs with no status (ready to run).
         /// </summary>
         /// <remarks>
         /// </remarks>
@@ -237,15 +243,17 @@ namespace Shift.DataLayer
                             SET 
                             Command = @command 
                             WHERE JobID IN @ids 
-                            AND Status IS NULL;
+                            AND Status IS NULL
+                            AND ProcessID IS NULL;
                             ";
                 return connection.Execute(sql, new { command = JobCommand.RunNow, ids = jobIDs.ToArray() });
             }
         }
+        #endregion
 
-        /*
-        * Reset Job data for Non-running jobs
-        */
+        /// <summary>
+        /// Reset jobs, only affect non-running jobs.
+        /// </summary>
         public int Reset(IList<int> jobIDs)
         {
             if (jobIDs.Count == 0)
@@ -288,9 +296,9 @@ namespace Shift.DataLayer
             return 0;
         }
 
-        /*
-        * Delete Jobs and all children for Non-running jobs.
-        */
+        /// <summary>
+        /// Delete jobs, only affect non-running jobs.
+        /// </summary>
         public int Delete(IList<int> jobIDs)
         {
             if (jobIDs.Count == 0)
@@ -327,11 +335,11 @@ namespace Shift.DataLayer
             return count;
         }
 
-
-        /*
-        * Delete past jobs with specified status(es) and all jobs' children. 
-        * Null job status is also valid.
-        */
+        /// <summary>
+        /// Delete past jobs with specified status(es). 
+        /// </summary>
+        /// <param name="hour">Job create hour in the past</param>
+        /// <param name="statusList">A list of job's status to delete. Null job status is valid. Default is JobStatus.Completed.</param>
         public int Delete(int hour, IList<JobStatus?> statusList)
         {
             var whereQuery = "j.Created < DATEADD(hour, -@hour, GETDATE())";
@@ -389,12 +397,20 @@ namespace Shift.DataLayer
             return count;
         }
 
+        /// <summary>
+        /// Asynchronous delete past jobs with specified status(es). 
+        /// </summary>
+        /// <param name="hour">Job create hour in the past</param>
+        /// <param name="statusList">A list of job's status to delete. Null job status is valid. Default is JobStatus.Completed.</param>
         public async Task<int> DeleteAsync(int hour, IList<JobStatus?> statusList)
         {
             var count = await Task.Run(() => Delete(hour, statusList));
             return count;
         }
 
+        /// <summary>
+        ///  Mark job status to JobStatus.Stopped. 
+        /// </summary>
         public int SetToStopped(IList<int> jobIDs)
         {
             if (jobIDs.Count == 0)
@@ -412,50 +428,14 @@ namespace Shift.DataLayer
             }
         }
 
-        public Job GetJob(int jobID)
-        {
-            using (var connection = new SqlConnection(connectionString))
-            {
-                connection.Open();
-                var sql = @"SELECT *
-                            FROM Job 
-                            WHERE JobID = @jobID; ";
-                return connection.Query<Job>(sql, new { jobID }).FirstOrDefault();
-            }
-        }
-
-        public JobView GetJobView(int jobID)
-        {
-            using (var connection = new SqlConnection(connectionString))
-            {
-                connection.Open();
-                var sql = @"SELECT *
-                            FROM JobView 
-                            WHERE JobID = @jobID; ";
-                return connection.Query<JobView>(sql, new { jobID }).FirstOrDefault();
-            }
-        }
-
-        public IList<Job> GetJobsByCommand(string processID, string command)
-        {
-            var jobList = new List<Job>();
-            using (var connection = new SqlConnection(connectionString))
-            {
-                connection.Open();
-                var sql = @"SELECT * 
-                            FROM Job j
-                            WHERE (j.ProcessID = @processID OR j.ProcessID IS NULL)
-                            AND j.Command = @command; ";
-                jobList = connection.Query<Job>(sql, new { processID, command }).ToList();
-            }
-
-            return jobList;
-        }
-
-        /* 
-        Get Job Status Count based on appID and/or userID 
-        Can not get just by userID, because there might be similar userID for different apps (appID).
-        */
+        /// <summary>
+        /// Return Job Status Count based on appID and/or userID.
+        /// Must use unique appID for multi tenant client apps.
+        /// Can return count based on only userID for single tenant client apps.
+        /// </summary>
+        /// <param name="appID"></param>
+        /// <param name="userID"></param>
+        /// <returns>JobStatusCount</returns>
         public IList<JobStatusCount> GetJobStatusCount(string appID, string userID)
         {
             var countList = new List<JobStatusCount>();
@@ -498,48 +478,47 @@ namespace Shift.DataLayer
             return countList;
         }
 
-        #region ManageJobs DAC
-        public int SetToRunning(int jobID)
+        #region Various ways to get Jobs
+        /// <summary>
+        ///  Get Job object by specific jobID.
+        /// </summary>
+        /// <param name="jobID">The existing unique jobID</param>
+        /// <returns>Job</returns>
+        public Job GetJob(int jobID)
         {
-            var count = 0;
             using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
-                var sql = "UPDATE [Job] SET Status = @status, [Start] = @start WHERE JobID = @jobID;";
-                count = connection.Execute(sql, new { status = JobStatus.Running, start = DateTime.Now, jobID });
+                var sql = @"SELECT *
+                            FROM Job 
+                            WHERE JobID = @jobID; ";
+                return connection.Query<Job>(sql, new { jobID }).FirstOrDefault();
             }
-
-            return count;
         }
 
-        public int SetError(int jobID, string error)
+        /// <summary>
+        ///  Get JobView by specific jobID.
+        /// </summary>
+        /// <param name="jobID">The existing unique jobID</param>
+        /// <returns>JobView</returns>
+        public JobView GetJobView(int jobID)
         {
-            var count = 0;
             using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
-
-                var sql = "UPDATE [Job] SET [Error] = @error, [Status] = @status WHERE JobID = @jobID;";
-                count = connection.Execute(sql, new { error, status=JobStatus.Error, jobID });
+                var sql = @"SELECT *
+                            FROM JobView 
+                            WHERE JobID = @jobID; ";
+                return connection.Query<JobView>(sql, new { jobID }).FirstOrDefault();
             }
-
-            return count;
         }
 
-        public int SetCompleted(int jobID)
-        {
-            var count = 0;
-            using (var connection = new SqlConnection(connectionString))
-            {
-                connection.Open();
-                var sql = "UPDATE [Job] SET Status = @status, [End] = @end WHERE JobID = @jobID;";
-                count = connection.Execute(sql, new { status = JobStatus.Completed, end = DateTime.Now, jobID });
-            }
-
-            return count;
-        }
-
-        public IList<Job> GetJobsByStatus(IEnumerable<int> jobIDs, string statusSql)
+        /// <summary>
+        /// Get ready to run jobs by specified job IDs.
+        /// </summary>
+        /// <param name="jobIDs"></param>
+        /// <returns></returns>
+        public IList<Job> GetNonRunningJobsByIDs(IEnumerable<int> jobIDs)
         {
             var jobList = new List<Job>();
             using (var connection = new SqlConnection(connectionString))
@@ -548,13 +527,41 @@ namespace Shift.DataLayer
                 var sql = @"SELECT * 
                             FROM Job j
                             WHERE j.JobID IN @ids 
-                            AND (" + statusSql + "); ";
+                            AND j.Status IS NULL; ";
                 jobList = connection.Query<Job>(sql, new { ids = jobIDs.ToArray() }).ToList();
 
             }
             return jobList;
         }
 
+        /// <summary>
+        ///  Return all jobs by specified command and owned by processID. And all jobs with specified command, but no owner.
+        /// </summary>
+        /// <param name="processID">The processID owning the jobs</param>
+        /// <param name="command">The command specified in JobCommand</param>
+        /// <returns>List of Jobs</returns>
+        public IList<Job> GetJobsByProcessAndCommand(string processID, string command)
+        {
+            var jobList = new List<Job>();
+            using (var connection = new SqlConnection(connectionString))
+            {
+                connection.Open();
+                var sql = @"SELECT * 
+                            FROM Job j
+                            WHERE (j.ProcessID = @processID OR j.ProcessID IS NULL)
+                            AND j.Command = @command; ";
+                jobList = connection.Query<Job>(sql, new { processID, command }).ToList();
+            }
+
+            return jobList;
+        }
+
+        /// <summary>
+        /// Return jobs based on owner processID and by job's status.
+        /// </summary>
+        /// <param name="processID">Owner processID</param>
+        /// <param name="status">JobStatus</param>
+        /// <returns>List of Jobs</returns>
         public IList<Job> GetJobsByProcessAndStatus(string processID, JobStatus status)
         {
             var jobList = new List<Job>();
@@ -571,6 +578,12 @@ namespace Shift.DataLayer
             return jobList;
         }
 
+        /// <summary>
+        /// Return jobs based on owner processID and specified jobIDs.
+        /// </summary>
+        /// <param name="processID">Owner processID</param>
+        /// <param name="jobIDs">List of jobIDs</param>
+        /// <returns>List of Jobs</returns>
         public IList<Job> GetJobsByProcess(string processID, IEnumerable<int> jobIDs)
         {
             var jobList = new List<Job>();
@@ -582,12 +595,75 @@ namespace Shift.DataLayer
                             WHERE j.ProcessID = @processID 
                             AND j.JobID IN @ids ;
                             ";
-                jobList = connection.Query<Job>(sql, new { processID, ids = jobIDs.ToArray()}).ToList();
+                jobList = connection.Query<Job>(sql, new { processID, ids = jobIDs.ToArray() }).ToList();
             }
 
             return jobList;
         }
+        #endregion
 
+        #region ManageJobs DAC
+        /// <summary>
+        /// Set job status to running and set start date and time to now.
+        /// </summary>
+        /// <param name="jobID">jobID</param>
+        /// <returns>Updated record count, 0 or 1 record updated</returns>
+        public int SetToRunning(int jobID)
+        {
+            var count = 0;
+            using (var connection = new SqlConnection(connectionString))
+            {
+                connection.Open();
+                var sql = "UPDATE [Job] SET Status = @status, [Start] = @start WHERE JobID = @jobID;";
+                count = connection.Execute(sql, new { status = JobStatus.Running, start = DateTime.Now, jobID });
+            }
+
+            return count;
+        }
+
+        /// <summary>
+        /// Set job status to error and fill in the error message.
+        /// </summary>
+        /// <param name="jobID">jobID</param>
+        /// <param name="error">Error message</param>
+        /// <returns>Updated record count, 0 or 1 record updated</returns>
+        public int SetError(int jobID, string error)
+        {
+            var count = 0;
+            using (var connection = new SqlConnection(connectionString))
+            {
+                connection.Open();
+
+                var sql = "UPDATE [Job] SET [Error] = @error, [Status] = @status WHERE JobID = @jobID;";
+                count = connection.Execute(sql, new { error, status=JobStatus.Error, jobID });
+            }
+
+            return count;
+        }
+
+        /// <summary>
+        /// Set job as completed.
+        /// </summary>
+        /// <param name="jobID">jobID</param>
+        /// <returns>Updated record count, 0 or 1 record updated</returns>
+        public int SetCompleted(int jobID)
+        {
+            var count = 0;
+            using (var connection = new SqlConnection(connectionString))
+            {
+                connection.Open();
+                var sql = "UPDATE [Job] SET Status = @status, [End] = @end WHERE JobID = @jobID;";
+                count = connection.Execute(sql, new { status = JobStatus.Completed, end = DateTime.Now, jobID });
+            }
+
+            return count;
+        }
+
+        /// <summary>
+        /// Count how many running jobs owned by processID.
+        /// </summary>
+        /// <param name="processID">Owner processID</param>
+        /// <returns>Total count of running jobs.</returns>
         public int CountRunningJobs(string processID)
         {
             var runningCount = 0;
@@ -604,13 +680,26 @@ namespace Shift.DataLayer
             return runningCount;
         }
 
-        public IList<Job> ClaimJobsToRun(string processID, int rowsToGet)
+        /// <summary>
+        /// Claim specific number of ready to run jobs to be owned by processID.
+        /// Use Optimistic Concurrency, don't claim job if it's already running.
+        /// </summary>
+        /// <param name="processID">Owner processID</param>
+        /// <param name="maxNum">Number of jobs to claim</param>
+        /// <returns>List of jobs claimed by processID</returns>
+        public IList<Job> ClaimJobsToRun(string processID, int maxNum)
         {
-            var jobList = GetJobsToRun(rowsToGet);
+            var jobList = GetJobsToRun(maxNum);
             return ClaimJobsToRun(processID, jobList);
         }
 
-        //Use Optimistic Concurrency, don't claim if it's already running
+        /// <summary>
+        /// Attempt to claim specific jobs to be owned by processID.
+        /// Use Optimistic Concurrency, don't claim job if it's already running or claimed by someone else.
+        /// </summary>
+        /// <param name="processID">Owner processID</param>
+        /// <param name="jobList">List of jobs to claim</param>
+        /// <returns>List of actual jobs claimed by processID</returns>
         public IList<Job> ClaimJobsToRun(string processID, IEnumerable<Job> jobList)
         {
             var claimedJobs = new List<Job>();
@@ -622,6 +711,7 @@ namespace Shift.DataLayer
                     var sql = @"UPDATE [Job]
                                 SET ProcessID = @processID 
                                 WHERE Status IS NULL 
+                                AND ProcessID IS NULL
                                 AND [jobID] = @jobID; ";
                     var count = connection.Execute(sql, new { processID, job.JobID });
 
@@ -633,8 +723,13 @@ namespace Shift.DataLayer
             return claimedJobs; //it's possible to return less than passed jobIDs, since multiple Shift server might run and already claimed the job(s)
         }
 
-        //Get an X amount of jobs ready to run, don't get it if it's already claimed by other processes.
-        private IList<Job> GetJobsToRun(int rowsToGet)
+        /// <summary>
+        /// Return ready to run or 'run-now' jobs based on a set number, don't return if it's already claimed by other processes.
+        /// Sort by inserted date and by 'run-now' command. The jobs with 'run-now' command are given highest priority.
+        /// </summary>
+        /// <param name="maxNum">Maximum number to return</param>
+        /// <returns>List of jobs</returns>
+        private IList<Job> GetJobsToRun(int maxNum)
         {
             var jobList = new List<Job>();
             using (var connection = new SqlConnection(connectionString))
@@ -646,14 +741,22 @@ namespace Shift.DataLayer
                             AND j.ProcessID IS NULL
                             AND (j.Command = @runNow OR j.Command IS NULL)
                             ORDER BY j.Command DESC, j.Created, j.JobID 
-                            OFFSET 0 ROWS FETCH NEXT @rowsToGet ROWS ONLY; ";
-                jobList = connection.Query<Job>(sql, new { runNow = JobCommand.RunNow, rowsToGet }).ToList();
+                            OFFSET 0 ROWS FETCH NEXT @maxNum ROWS ONLY; ";
+                jobList = connection.Query<Job>(sql, new { runNow = JobCommand.RunNow, maxNum }).ToList();
 
             }
 
             return jobList;
         }
 
+        /// <summary>
+        /// Set progress for specific job.
+        /// </summary>
+        /// <param name="jobID">jobID</param>
+        /// <param name="percent">% of progress</param>
+        /// <param name="note">Any type of note for the progress</param>
+        /// <param name="data">Any data for the progress</param>
+        /// <returns>0 for no insert/update, 1 for successful insert/update</returns>
         public int SetProgress(int jobID, int? percent, string note, string data)
         {
             var count = 0;
@@ -680,10 +783,15 @@ namespace Shift.DataLayer
             return count;
         }
 
-        /* 
-         * Update progress without checking if it exist or not first, no insert, use SetProgress instead 
-         * Much faster than 2 calls on the DB
-        */
+        /// <summary>
+        /// Update progress, similar to SetProgress() method. 
+        /// Higher performance than SetProgress(). This method only uses 1 call to the database storage.
+        /// </summary>
+        /// <param name="jobID">jobID</param>
+        /// <param name="percent">% of progress</param>
+        /// <param name="note">Any type of note for the progress</param>
+        /// <param name="data">Any data for the progress</param>
+        /// <returns>0 for no update, 1 for successful update</returns>
         public int UpdateProgress(int jobID, int? percent, string note, string data)
         {
             var count = 0;
@@ -698,159 +806,22 @@ namespace Shift.DataLayer
             return count;
         }
 
-        #endregion
-
-        #region Helpers
-        private static void Validate(
-             Type type,
-             string typeParameterName,
-             MethodInfo method,
-             string methodParameterName,
-             int argumentCount,
-             string argumentParameterName
-            )
+        /// <summary>
+        /// Asynchronous update progress. 
+        /// </summary>
+        /// <param name="jobID">jobID</param>
+        /// <param name="percent">% of progress</param>
+        /// <param name="note">Any type of note for the progress</param>
+        /// <param name="data">Any data for the progress</param>
+        /// <returns>0 for no update, 1 for successful update</returns>
+        public async Task<int> UpdateProgressAsync(int jobID, int? percent, string note, string data)
         {
-            if (!method.IsPublic)
-            {
-                throw new NotSupportedException("Only public methods can be invoked.");
-            }
-
-            if (method.ContainsGenericParameters)
-            {
-                throw new NotSupportedException("Job method can not contain unassigned generic type parameters.");
-            }
-
-            if (method.DeclaringType == null)
-            {
-                throw new NotSupportedException("Global methods are not supported. Use class methods instead.");
-            }
-
-            if (!method.DeclaringType.IsAssignableFrom(type))
-            {
-                throw new ArgumentException(
-                    String.Format("The type `{0}` must be derived from the `{1}` type.", method.DeclaringType, type),
-                    typeParameterName);
-            }
-
-            if (typeof(Task).IsAssignableFrom(method.ReturnType))
-            {
-                throw new NotSupportedException("Async methods (Task) are not supported . Please make them synchronous.");
-            }
-
-            var parameters = method.GetParameters();
-
-            if (parameters.Length != argumentCount)
-            {
-                throw new ArgumentException("Argument count must be equal to method parameter count.", argumentParameterName);
-            }
-
-            foreach (var parameter in parameters)
-            {
-                // There is no guarantee that specified method will be invoked
-                // in the same process. Therefore, output parameters and parameters
-                // passed by reference are not supported.
-
-                if (parameter.IsOut)
-                {
-                    throw new NotSupportedException("Output parameters are not supported: there is no guarantee that specified method will be invoked inside the same process.");
-                }
-
-                if (parameter.ParameterType.IsByRef)
-                {
-                    throw new NotSupportedException("Parameters, passed by reference, are not supported: there is no guarantee that specified method will be invoked inside the same process.");
-                }
-            }
-        }
-
-        private static object GetExpressionValue(Expression expression)
-        {
-            var constantExpression = expression as ConstantExpression;
-
-            return constantExpression != null
-                ? constantExpression.Value
-                : CachedExpressionCompiler.Evaluate(expression);
-        }
-
-        internal static string[] SerializeArguments(IReadOnlyCollection<object> arguments)
-        {
-            var serializedArguments = new List<string>(arguments.Count);
-            foreach (var argument in arguments)
-            {
-                string value = null;
-
-                if (argument != null)
-                {
-                    if (argument is DateTime)
-                    {
-                        value = ((DateTime)argument).ToString("o", CultureInfo.InvariantCulture);
-                    }
-                    else
-                    {
-                        value = JsonConvert.SerializeObject(argument, SerializerSettings.Settings);
-                    }
-                }
-
-                serializedArguments.Add(value);
-            }
-
-            return serializedArguments.ToArray();
-        }
-
-        public static object[] DeserializeArguments(IProgress<ProgressInfo> progress, MethodInfo methodInfo, string rawArguments)
-        {
-            var arguments = JsonConvert.DeserializeObject<string[]>(rawArguments, SerializerSettings.Settings);
-            if (arguments.Length == 0)
-                return null;
-
-            var parameters = methodInfo.GetParameters();
-            var result = new List<object>(arguments.Length);
-
-            for (var i = 0; i < parameters.Length; i++)
-            {
-                var parameter = parameters[i];
-                var argument = arguments[i];
-
-                var value = parameter.ParameterType.FullName.Contains("System.IProgress") ? progress : DeserializeArgument(argument, parameter.ParameterType);
-
-                result.Add(value);
-            }
-
-            return result.ToArray();
-        }
-
-        public static object DeserializeArgument(string argument, Type type)
-        {
-            object value;
-            try
-            {
-                value = argument != null
-                    ? JsonConvert.DeserializeObject(argument, type, SerializerSettings.Settings)
-                    : null;
-            }
-            catch (Exception jsonException)
-            {
-                if (type == typeof(object))
-                {
-                    // Special case for handling object types, because string can not be converted to object type.
-                    value = argument;
-                }
-                else
-                {
-                    try
-                    {
-                        var converter = TypeDescriptor.GetConverter(type);
-                        value = converter.ConvertFromInvariantString(argument);
-                    }
-                    catch (Exception)
-                    {
-                        throw jsonException;
-                    }
-                }
-            }
-            return value;
+            var count = await Task.Run(() => UpdateProgress(jobID, percent, note, data));
+            return count;
         }
 
         #endregion
+
 
         #region Cache
         /* Use Cache and DB to return progress */

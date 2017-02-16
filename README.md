@@ -1,5 +1,5 @@
 # Shift
-Shift background or long running jobs into reliable and durable workers out of the client app process. Shift enables your app to easily run long running jobs in physically separate infrastructures. 
+Shift background or long running jobs into reliable and durable processes out of the client app. Shift enables your app to easily run long running jobs in physically separate infrastructures. 
 
 **Features:**
 - Reliable and durable background and long running jobs.
@@ -38,3 +38,10 @@ Shift package is on [nuget.org](https://www.nuget.org/packages/Shift), but first
 ## Demos
 - ASP.NET MVC demo: [Shift.Demo.MVC](https://github.com/hhalim/Shift.Demo.MVC)
 - Console apps demo: [Shift.Demo.Client](https://github.com/hhalim/Shift.Demo.Client) and [Shift.Demo.Server](https://github.com/hhalim/Shift.Demo.Server)
+
+## Credits
+Shift uses the following open source projects:
+- [Autofac](http://autofac.org/)
+- [Dapper](https://github.com/StackExchange/Dapper)
+- [StackExchange.Redis](https://github.com/StackExchange/StackExchange.Redis)
+- [Json.NET](http://james.newtonking.com/json)
