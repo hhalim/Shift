@@ -32,12 +32,13 @@ Two runnable server apps projects are included as quick start templates:
 - [Shift.WinService](https://github.com/hhalim/Shift.WinService) is the standalone Windows service server component, multiple services can be installed in the same server. 
 - [Shift.WebJob](https://github.com/hhalim/Shift.WebJob) is the Azure WebJob component that can be easily deployed to Azure cloud environment, multiple web jobs can also be deployed to multiple App Services. 
 
-## Quick Start and More
-Shift package is on [nuget.org](https://www.nuget.org/packages/Shift), but first check out the Shift wiki for [Quick Start](https://github.com/hhalim/Shift/wiki/Quick-Start), [Scheduling, Batch and Continuation jobs](https://github.com/hhalim/Shift/wiki/Schedule-Batch-Continuation), [Message Queuing](https://github.com/hhalim/Shift/wiki/Message-Queuing), and more. 
-
 ## Demos
+Please check out the demo apps first to provide better understanding on how to integrate Shift into your own .NET application. There is the ASP.NET MVC demo that shows Shift client and server running in the same ASP.Net process, and the simple console Shift client and server apps. The console apps are two separate projects that demonstrate the client and the server working in different processes.
 - ASP.NET MVC demo: [Shift.Demo.MVC](https://github.com/hhalim/Shift.Demo.MVC)
 - Console apps demo: [Shift.Demo.Client](https://github.com/hhalim/Shift.Demo.Client) and [Shift.Demo.Server](https://github.com/hhalim/Shift.Demo.Server)
+
+## Quick Start and More
+Shift package is on [nuget.org](https://www.nuget.org/packages/Shift), but first check out the Shift wiki for [Quick Start](https://github.com/hhalim/Shift/wiki/Quick-Start), [Scheduling, Batch and Continuation jobs](https://github.com/hhalim/Shift/wiki/Schedule-Batch-Continuation), [Message Queuing](https://github.com/hhalim/Shift/wiki/Message-Queuing), and more. 
 
 ## Credits
 Shift uses the following open source projects:
