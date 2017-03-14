@@ -15,6 +15,9 @@ namespace Shift
         [Required]
         public string DBConnectionString { get; set; }
 
+        [Required]
+        public string StorageMode { get; set; }  //mssql, redis, etc... 
+
         //Maximum jobs to run for each server
         public int MaxRunnableJobs { get; set; } = 100;
 

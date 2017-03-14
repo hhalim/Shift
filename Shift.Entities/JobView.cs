@@ -34,6 +34,8 @@ namespace Shift.Entities
 
         public DateTime? Created { get; set; }
 
+        public long Score { get; set; }
+
         public int? Percent { get; set; }
         public string Note { get; set; }
         public string Data { get; set; }

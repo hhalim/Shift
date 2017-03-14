@@ -26,6 +26,8 @@ namespace Shift.Entities
 
         public DateTime? Created { get; set; }
 
+        public long Score { get; set; }
+
         [Editable(false)]
         public string StatusLabel { get { return Status.ToString(); } }
     }

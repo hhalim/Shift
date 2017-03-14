@@ -34,8 +34,8 @@
     <DocumentationFile>bin\Release\Shift.XML</DocumentationFile>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Autofac, Version=4.3.0.0, Culture=neutral, PublicKeyToken=17863af14b0044da, processorArchitecture=MSIL">
-      <HintPath>..\packages\Autofac.4.3.0\lib\net45\Autofac.dll</HintPath>
+    <Reference Include="Autofac, Version=4.4.0.0, Culture=neutral, PublicKeyToken=17863af14b0044da, processorArchitecture=MSIL">
+      <HintPath>..\packages\Autofac.4.4.0\lib\net45\Autofac.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Dapper, Version=1.50.2.0, Culture=neutral, processorArchitecture=MSIL">
@@ -74,9 +74,9 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Shift.DataLayer.Redis\Shift.DataLayer.Redis.csproj">
+    <ProjectReference Include="..\Shift.Cache.Redis\Shift.Cache.Redis.csproj">
       <Project>{f43a6d1c-5aea-470b-8b33-d8ed2c156b86}</Project>
-      <Name>Shift.DataLayer.Redis</Name>
+      <Name>Shift.Cache.Redis</Name>
     </ProjectReference>
     <ProjectReference Include="..\Shift.DataLayer\Shift.DataLayer.csproj">
       <Project>{4e74e7c7-4ea1-425c-b467-1db4a5f99a37}</Project>
