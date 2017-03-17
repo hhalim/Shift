@@ -35,19 +35,17 @@ namespace Shift.Entities
         IList<Job> GetNonRunningJobsByIDs(IEnumerable<int> jobIDs);
         IList<int> GetJobIdsByProcessAndCommand(string processID, string command);
         IList<Job> GetJobsByProcessAndStatus(string processID, JobStatus status);
-        IList<Job> GetJobsByProcess(string processID, IEnumerable<int> jobIDs);
         JobViewList GetJobViews(int? pageIndex, int? pageSize);
         #endregion
 
         #region ManageJobs by Server
-        int SetToRunning(int jobID);
-        int SetError(int jobID, string error);
-        int SetCompleted(int jobID);
+        int SetToRunning(string processID, int jobID);
+        int SetError(string processID, int jobID, string error);
+        int SetCompleted(string processID, int jobID);
         int CountRunningJobs(string processID);
         IList<Job> ClaimJobsToRun(string processID, int maxNum);
         IList<Job> ClaimJobsToRun(string processID, IEnumerable<Job> jobList);
         int SetProgress(int jobID, int? percent, string note, string data);
-        int UpdateProgress(int jobID, int? percent, string note, string data);
         Task<int> UpdateProgressAsync(int jobID, int? percent, string note, string data);
         #endregion
 

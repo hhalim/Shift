@@ -97,5 +97,15 @@ namespace Shift.DataLayer
 
             return Convert.ChangeType(value, t);
         }
+
+        /// <summary>
+        /// Create an array of strings from an array of values
+        /// </summary>
+        public static string[] ToStringArray(this RedisValue[] values)
+        {
+            if (values == null) return null;
+            if (values.Length == 0) return null;
+            return Array.ConvertAll(values, x => (string)x);
+        }
     }
 }

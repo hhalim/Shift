@@ -149,8 +149,10 @@ namespace Shift
             if(runningJobsList.Count() > 0)
             {
                 jobDAL.SetCommandStop(runningJobsList.Select(x => x.JobID).ToList());
-                StopJobs();
             }
+
+            //Stop jobs marked with 'stop' command
+            StopJobs();
         }
 
         /// <summary>
@@ -158,21 +160,16 @@ namespace Shift
         /// </summary>
         public void RunJobs()
         {
-            using (var connection = new SqlConnection(config.DBConnectionString))
+            //Check max jobs count
+            var runningCount = jobDAL.CountRunningJobs(config.ProcessID);
+            if (runningCount >= config.MaxRunnableJobs)
             {
-                connection.Open();
-
-                //Check max jobs count
-                var runningCount = jobDAL.CountRunningJobs(config.ProcessID);
-                if (runningCount >= config.MaxRunnableJobs)
-                {
-                    return;
-                }
-
-                var rowsToGet = config.MaxRunnableJobs - runningCount;
-                var claimedJobs = jobDAL.ClaimJobsToRun(config.ProcessID, rowsToGet);
-                RunJobs(claimedJobs);
+                return;
             }
+
+            var rowsToGet = config.MaxRunnableJobs - runningCount;
+            var claimedJobs = jobDAL.ClaimJobsToRun(config.ProcessID, rowsToGet);
+            RunJobs(claimedJobs);
         }
 
         /// <summary>
@@ -195,19 +192,20 @@ namespace Shift
             if (jobList.Count() == 0)
                 return;
 
-            foreach (var row in jobList)
+            foreach (var job in jobList)
             {
                 try
                 {
-                    var decryptedParameters = Entities.Helpers.Decrypt(row.Parameters, config.EncryptionKey);
-                    CreateThread(row.JobID, row.InvokeMeta, decryptedParameters); //Use the DecryptedParameters, NOT encrypted Parameters
+                    var decryptedParameters = Entities.Helpers.Decrypt(job.Parameters, config.EncryptionKey);
+                    CreateThread(job.ProcessID, job.JobID, job.InvokeMeta, decryptedParameters); //Use the DecryptedParameters, NOT encrypted Parameters
                 }
                 catch (Exception exc)
                 {
                     //just mark as Invoke error, don't stop
-                    var error = row.Error + " Invoke error: " + exc.ToString();
-                    jobDAL.SetCachedProgressError(row.JobID, error);
-                    jobDAL.SetError(row.JobID, error);
+                    var error = job.Error + " Invoke error: " + exc.ToString();
+                    jobDAL.SetCachedProgressError(job.JobID, error);
+                    var processID = string.IsNullOrWhiteSpace(job.ProcessID) ? config.ProcessID : job.ProcessID;
+                    jobDAL.SetError(processID, job.JobID, error);
                 }
             }
         }
@@ -233,7 +231,7 @@ namespace Shift
         }
 
         //Create the thread that will run the job
-        private void CreateThread(int jobID, string invokeMeta, string parameters)
+        private void CreateThread(string processID, int jobID, string invokeMeta, string parameters)
         {
             var invokeMetaObj = JsonConvert.DeserializeObject<InvokeMeta>(invokeMeta, SerializerSettings.Settings);
 
@@ -250,7 +248,7 @@ namespace Shift
                 instance = Helpers.CreateInstance(type); //create object method instance
             }
 
-            var thread = new Thread(() => RunJob(jobID, methodInfo, parameters, instance)); //Create the new Job thread
+            var thread = new Thread(() => ExecuteJob(processID, jobID, methodInfo, parameters, instance)); //Create the new Job thread
 
             if (threadList.ContainsKey(jobID))
             {
@@ -290,12 +288,12 @@ namespace Shift
             return progress;
         }
 
-        private void RunJob(int jobID, MethodInfo methodInfo, string parameters, object instance)
+        private void ExecuteJob(string processID, int jobID, MethodInfo methodInfo, string parameters, object instance)
         {
             try
             {
                 //Set job to Running
-                jobDAL.SetToRunning(jobID);
+                jobDAL.SetToRunning(processID, jobID);
                 jobDAL.SetCachedProgressStatus(jobID, JobStatus.Running);
 
                 var progress = UpdateProgressEvent(jobID); //Need this to update the progress of the job's
@@ -311,7 +309,7 @@ namespace Shift
                 {
                     var error = row.Error + " " + txc.ToString();
                     jobDAL.SetCachedProgressError(row.JobID, error);
-                    jobDAL.SetError(row.JobID, error);
+                    jobDAL.SetError(processID, row.JobID, error);
                 }
                 return; //can't throw to another thread so quit here
             }
@@ -320,13 +318,13 @@ namespace Shift
                 var row = jobDAL.GetJob(jobID);
                 var error = row.Error + " " + exc.ToString();
                 jobDAL.SetCachedProgressError(row.JobID, error);
-                jobDAL.SetError(row.JobID, error);
+                jobDAL.SetError(processID, row.JobID, error);
 
                 return; //can't throw to another thread so quit here
             }
 
             //Entire thread completes successfully
-            jobDAL.SetCompleted(jobID);
+            jobDAL.SetCompleted(processID, jobID);
             jobDAL.SetCachedProgressStatus(jobID, JobStatus.Completed);
             var rsTask = Task.Delay(60000).ContinueWith(_ =>
             {
@@ -389,7 +387,8 @@ namespace Shift
                     //Doesn't exist anymore? 
                     var error = "Error: No actual running job process found. Try reset and run again.";
                     jobDAL.SetCachedProgressError(job.JobID, error);
-                    jobDAL.SetError(job.JobID, error);
+                    var processID = string.IsNullOrWhiteSpace(job.ProcessID) ? config.ProcessID : job.ProcessID;
+                    jobDAL.SetError(processID, job.JobID, error);
                 }
             }
 

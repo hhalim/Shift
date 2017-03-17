@@ -14,23 +14,34 @@ using Dapper;
 
 namespace Shift.DataLayer
 {
+    public static class JobFields
+    {
+        public const string Command = "Command";
+        public const string Status = "Status";
+        public const string Error = "Error";
+        public const string Start = "Start";
+        public const string End = "End";
+        public const string ProcessID = "ProcessID";
+
+        public const string Percent = "Percent";
+        public const string Note = "Note";
+        public const string Data = "Data";
+    }
+
     public class JobDALRedis : IJobDAL
     {
-        private string connectionString; //obsolete
-
         private string encryptionKey;
         const string JobKeyPrefix = "job:";
-        const string JobStopKeyPrefix = "job-stop:"; //job-stop:[processID]
 
         const string JobIDMax = "jobid-max";
         const string JobQueue = "job-queue";
-        const string JobSorted = "job-sorted"; //Hash set for sorted jobs by Created/Score
+        const string JobSorted = "job-sorted"; //Hash set for sorted jobs by jobID
+        const string JobCreated = "job-created";
 
-        //index
-        const string JobStopIndex = "job-stop-index";
-
+        //index template
         const string JobCommandIndexTemplate = "job-[command]-index";
         const string JobCommandProcessTemplate = "job-[command]:[processid]";
+        const string JobStatusProcessTemplate = "job-[status]:[processid]";
 
         private readonly Lazy<ConnectionMultiplexer> lazyConnection;
 
@@ -117,26 +128,27 @@ namespace Shift.DataLayer
             job.InvokeMeta = JsonConvert.SerializeObject(invokeMeta, SerializerSettings.Settings);
             job.Parameters = Helpers.Encrypt(JsonConvert.SerializeObject(DALHelpers.SerializeArguments(args), SerializerSettings.Settings), encryptionKey); //ENCRYPT it!!!
             job.Created = now;
-            job.Score = ((DateTimeOffset)now).ToUnixTimeSeconds();
 
             int? jobID = IncrementJobID();
             job.JobID = jobID.GetValueOrDefault();
             var key = JobKeyPrefix + jobID.GetValueOrDefault();
             //add into HashSet
-            var tran = RedisDatabase.CreateTransaction();
+            var trn = RedisDatabase.CreateTransaction();
             var hashEntries = RedisHelpers.ToHashEntries(job);
-            tran.HashSetAsync(key, hashEntries);
+            trn.HashSetAsync(key, hashEntries);
 
             //Add to sorted set
-            //The JobsSorted acts as the only way to sort the Jobs data, it is similar to the SQL version using Created field as a sort field.
-            //The JobsSorted is not the same as JobQueue, hence the score doesn't change, it is always the same as Created field. 
-            var index = tran.SortedSetAddAsync(JobSorted, new SortedSetEntry[] { new SortedSetEntry(key, job.Score) });
+            //The JobsSorted acts as the only way to sort the Jobs data, it is similar to the SQL version using jobID field as a sort field.
+            var index = trn.SortedSetAddAsync(JobSorted, key, job.JobID);
 
             //Add to queue
-            //job.Score can change if set to run-now
-            var index2 = tran.SortedSetAddAsync(JobQueue, new SortedSetEntry[] { new SortedSetEntry(key, job.Score) });
+            var index2 = trn.SortedSetAddAsync(JobQueue, key, job.JobID);
 
-            tran.Execute();
+            //Add to created
+            var createdTS = ((DateTimeOffset)now).ToUnixTimeSeconds();
+            var index3 = trn.SortedSetAddAsync(JobCreated, key, createdTS);
+
+            trn.Execute();
 
             return jobID;
         }
@@ -180,6 +192,13 @@ namespace Shift.DataLayer
 
             var invokeMeta = new InvokeMeta(type, methodInfo);
 
+            var key = JobKeyPrefix + jobID;
+
+            //Running check
+            var status = RedisDatabase.HashGet(key, JobFields.Status);
+            if ((int)status == (int)JobStatus.Running)
+                return 0; //Unable to update if still running.
+
             //Save InvokeMeta and args
             var now = DateTime.Now;
             var job = new JobView();
@@ -192,28 +211,27 @@ namespace Shift.DataLayer
             job.Parameters = Helpers.Encrypt(JsonConvert.SerializeObject(DALHelpers.SerializeArguments(args), SerializerSettings.Settings), encryptionKey); //ENCRYPT it!!!
             job.Created = now;
             job.Status = null;
-            job.Score = ((DateTimeOffset)now).ToUnixTimeSeconds();
 
             var count = 0;
 
             //Delete/reset job Progress => already reset with new jobView object
 
             //Update it
-            var key = JobKeyPrefix + job.JobID;
-            var tran = RedisDatabase.CreateTransaction();
+            var trn = RedisDatabase.CreateTransaction();
             var hashEntries = RedisHelpers.ToHashEntries(job);
-            tran.HashSetAsync(key, hashEntries);
+            trn.HashSetAsync(key, hashEntries);
 
             //Update jobs-sorted
-            //The JobsSorted acts as the only way to sort the Jobs data, it is similar to the SQL version using Created field as a sort field.
-            //The JobsSorted is not the same as JobQueue, hence the score doesn't change, it is always the same as Created field. 
-            var index = tran.SortedSetAddAsync(JobSorted, new SortedSetEntry[] { new SortedSetEntry(key, job.Score) });
+            var index = trn.SortedSetAddAsync(JobSorted, key, job.JobID);
 
             //Update job-queue
-            //job.Score can change if set to run-now
-            var index2 = tran.SortedSetAddAsync(JobQueue, new SortedSetEntry[] { new SortedSetEntry(key, job.Score) });
+            var index2 = trn.SortedSetAddAsync(JobQueue, key, job.JobID);
 
-            if(tran.Execute())
+            //Update job-created
+            var createdTS = ((DateTimeOffset)now).ToUnixTimeSeconds();
+            var index3 = trn.SortedSetAddAsync(JobCreated, key, createdTS);
+
+            if (trn.Execute())
                 count++;
 
             return count;
@@ -233,24 +251,28 @@ namespace Shift.DataLayer
                 return 0;
 
             var count = 0;
+            var command = JobCommand.Stop.ToString().ToLower();
+            var jobStopIndex = JobCommandIndexTemplate.Replace("[command]", command);
+            var jobStopProcess = JobCommandProcessTemplate.Replace("[command]", command);
             foreach (var jobID in jobIDs) {
-                var key = JobKeyPrefix + jobID.ToString();
+                var jobKey = JobKeyPrefix + jobID;
 
                 //Check status is null or status = running 
                 var job = GetJob(jobID);
                 if (job.Status == null || job.Status == JobStatus.Running)
                 {
-                    var tran = RedisDatabase.CreateTransaction();
+                    var trn = RedisDatabase.CreateTransaction();
                     if (string.IsNullOrWhiteSpace(job.ProcessID))
                     {
-                        tran.HashSetAsync(JobStopIndex, new HashEntry[] { new HashEntry(key, "") }); //set hash job-stop-index job:123 ""
+                        trn.SetAddAsync(jobStopIndex, jobKey); //set hash job-stop-index job:123 ""
                     }
                     else
                     {
-                        tran.HashSetAsync(JobStopKeyPrefix + job.ProcessID, new HashEntry[] { new HashEntry(key, "") }); //set job-stop:[processID] job:123 ""
+                        jobStopProcess = jobStopProcess.Replace("[processid]", job.ProcessID);
+                        trn.SetAddAsync(jobStopProcess, jobKey); //set job-[command]:[processID] job:123 ""
                     }
-                    tran.HashSetAsync(key, "Command", JobCommand.Stop);
-                    if (tran.Execute())
+                    trn.HashSetAsync(jobKey, JobFields.Command, JobCommand.Stop);
+                    if (trn.Execute())
                         count++;
                 }
             }
@@ -277,12 +299,11 @@ namespace Shift.DataLayer
                 var job = GetJob(jobID);
                 if (job.Status == null && string.IsNullOrWhiteSpace(job.ProcessID))
                 {
-                    var tran = RedisDatabase.CreateTransaction();
-                    tran.HashSetAsync(key, "Command", JobCommand.RunNow);
-                    tran.HashSetAsync(key, "Score", 0);
+                    var trn = RedisDatabase.CreateTransaction();
+                    trn.HashSetAsync(key, JobFields.Command, JobCommand.RunNow);
                     //Set queue sort to 0
-                    tran.SortedSetAddAsync(JobQueue, new SortedSetEntry[] { new SortedSetEntry(key, 0) });
-                    if (tran.Execute())
+                    trn.SortedSetAddAsync(JobQueue, key, 0);
+                    if (trn.Execute())
                         count++;
                 }
             }
@@ -326,19 +347,16 @@ namespace Shift.DataLayer
                     job.Error = null;
                     job.Start = null;
                     job.End = null;
-                    job.Score = score;
                     var hashEntries = RedisHelpers.ToHashEntries(job);
 
-                    var tran = RedisDatabase.CreateTransaction();
-                    //delete from stop index
-                    tran = DeleteFromCommand(tran, JobCommand.Stop, processID, key); //Don't use job.ProcessID, already reset and always empty
+                    var trn = RedisDatabase.CreateTransaction();
+                    trn = CleanUpCommandAndStatusIndex(trn, job.ProcessID, jobID);
 
-                    tran.KeyDeleteAsync(key); //delete entire job object
-                    tran.HashSetAsync(key, hashEntries); //add it back
-                    tran.SortedSetAddAsync(JobQueue, new SortedSetEntry[] { new SortedSetEntry(key, score) }); //reset queue
-                    tran.SortedSetAddAsync(JobSorted, new SortedSetEntry[] { new SortedSetEntry(key, score) }); //reset job sorted
+                    trn.KeyDeleteAsync(key); //delete entire job object
+                    trn.HashSetAsync(key, hashEntries); //add it back
+                    trn.SortedSetAddAsync(JobQueue, key, jobID); //reset queue
 
-                    if (tran.Execute())
+                    if (trn.Execute())
                         count++;
                 }
             }
@@ -358,20 +376,19 @@ namespace Shift.DataLayer
 
             foreach (var jobID in jobIDs)
             {
-                var key = JobKeyPrefix + jobID.ToString();
+                var jobKey = JobKeyPrefix + jobID.ToString();
 
                 //Check status is null or status != running 
                 var job = GetJob(jobID);
                 if (job.Status == null || job.Status != JobStatus.Running)
                 {
-                    var tran = RedisDatabase.CreateTransaction();
-                    //delete from stop index
-                    tran = DeleteFromCommand(tran, JobCommand.Stop, job.ProcessID, key);
-
-                    tran.SortedSetRemoveAsync(JobQueue, key);
-                    tran.SortedSetRemoveAsync(JobSorted, key);
-                    tran.KeyDeleteAsync(key);
-                    if (tran.Execute())
+                    var trn = RedisDatabase.CreateTransaction();
+                    trn = CleanUpCommandAndStatusIndex(trn, job.ProcessID, jobID);
+                    trn.SortedSetRemoveAsync(JobQueue, jobKey);
+                    trn.SortedSetRemoveAsync(JobSorted, jobKey);
+                    trn.SortedSetRemoveAsync(JobCreated, jobKey);
+                    trn.KeyDeleteAsync(jobKey);
+                    if (trn.Execute())
                         count++;
                 }
             }
@@ -379,7 +396,7 @@ namespace Shift.DataLayer
             return count;
         }
 
-        private ITransaction DeleteFromCommand(ITransaction tran, string command, string processID, string hashField)
+        private ITransaction DeleteFromCommand(ITransaction trn, string command, string processID, string jobKey)
         {
             var key = "";
             if (string.IsNullOrWhiteSpace(processID))
@@ -394,72 +411,55 @@ namespace Shift.DataLayer
                     .Replace("[command]", command.ToLower())
                     .Replace("[processid]", processID);
             }
-            tran.HashDeleteAsync(key, hashField); //delete job-stop-index job:123 
+            trn.SetRemoveAsync(key, jobKey); 
 
-            return tran;
+            return trn;
+        }
+
+        private ITransaction DeleteFromStatus(ITransaction trn, string status, string processID, string jobKey)
+        {
+            //job-[status]:[processid]
+            var key = JobStatusProcessTemplate
+                .Replace("[status]", status.ToLower())
+                .Replace("[processid]", processID);
+            trn.SetRemoveAsync(key, jobKey); //delete job-[status]:[processingID] job:123 
+
+            return trn;
+        }
+
+        private ITransaction CleanUpCommandAndStatusIndex(ITransaction trn, string processID, int jobID)
+        {
+            var jobKey = JobKeyPrefix + jobID;
+            trn = DeleteFromCommand(trn, JobCommand.Stop, processID, jobKey); //stop index
+            trn = DeleteFromStatus(trn, JobStatus.Running.ToString(), processID, jobKey); //running index
+
+            return trn;
         }
 
         /// <summary>
         /// Delete past jobs with specified status(es). 
+        /// Delete all jobs created older than hours specified. Only deletes older jobs with specified statuses.
         /// </summary>
-        /// <param name="hour">Job create hour in the past</param>
+        /// <param name="hours">Hours in the past</param>
         /// <param name="statusList">A list of job's status to delete. Null job status is valid. Default is JobStatus.Completed.</param>
-        public int Delete(int hour, IList<JobStatus?> statusList)
+        public int Delete(int hours, IList<JobStatus?> statusList)
         {
-            //TODO: DELETE based on JobsSorted scores
+            var maxDate = DateTime.Now.AddHours(-hours);
+            var maxTS = ((DateTimeOffset)maxDate).ToUnixTimeSeconds();
 
-            var whereQuery = "j.Created < DATEADD(hour, -@hour, GETDATE())";
-
-            //build where status
-            if (statusList != null)
+            var jobIDs = new List<int>();
+            var sortedSetArray = RedisDatabase.SortedSetRangeByScoreWithScores(JobCreated, 0, maxTS, Exclude.Stop);
+            foreach (var sortedSet in sortedSetArray)
             {
-                var whereStatus = "";
-                foreach (var status in statusList)
+                var hashEntry = RedisDatabase.HashGetAll(sortedSet.Element.ToString());
+                var job = RedisHelpers.ConvertFromRedis<Job>(hashEntry);
+                if(statusList.Contains(job.Status))
                 {
-                    whereStatus += string.IsNullOrWhiteSpace(whereStatus) ? "" : " OR ";
-                    if (status == null)
-                    {
-                        whereStatus += "j.Status IS NULL";
-                    }
-                    else
-                    {
-                        whereStatus += "j.Status = " + (int)status;
-                    }
-                }
-
-                if (!string.IsNullOrWhiteSpace(whereStatus))
-                {
-                    whereQuery += " AND " + "(" + whereStatus + ")";
+                    jobIDs.Add(job.JobID);
                 }
             }
-
-            var count = 0;
-            using (var connection = new SqlConnection(connectionString))
-            {
-                connection.Open();
-                //Get only the NON running jobs
-                var sql = @"SELECT j.JobID 
-                            FROM Job j
-                            WHERE  " + whereQuery 
-                            + " ORDER BY j.Created, j.JobID; "; // FIFO deletion
-                var deleteIDs = connection.Query<int>(sql, new { hour }).ToList<int>();
-
-                if (deleteIDs.Count > 0)
-                {
-                    //Delete JobProgress
-                    sql = @"DELETE  
-                            FROM JobProgress
-                            WHERE JobID IN @ids; ";
-                    connection.Execute(sql, new { ids = deleteIDs.ToArray() });
-
-                    //Delete Job
-                    sql = @"DELETE  
-                            FROM Job
-                            WHERE JobID IN @ids; ";
-                    count = connection.Execute(sql, new { ids = deleteIDs.ToArray() });
-                }
-            }
-
+            
+            var count = Delete(jobIDs); //Delete jobs, except the running jobs, can't delete running ones unless they're stopped first
             return count;
         }
 
@@ -475,7 +475,7 @@ namespace Shift.DataLayer
         }
 
         /// <summary>
-        ///  Mark job status to JobStatus.Stopped. 
+        ///  Set job status to JobStatus.Stopped. 
         /// </summary>
         public int SetToStopped(IList<int> jobIDs)
         {
@@ -485,22 +485,26 @@ namespace Shift.DataLayer
             var count = 0;
             foreach( var jobID in jobIDs)
             {
-                var fieldKey = JobKeyPrefix + jobID;
+                var jobKey= JobKeyPrefix + jobID;
 
-                var tran = RedisDatabase.CreateTransaction();
+                var trn = RedisDatabase.CreateTransaction();
                 //set job command to empty, status to Stopped
-                tran.HashSetAsync(fieldKey, new HashEntry[] { new HashEntry ("Command", ""), new HashEntry ("Status", Convert.ToInt32(JobStatus.Stopped)) });
+                trn.HashSetAsync(jobKey, new HashEntry[] { new HashEntry (JobFields.Command, ""), new HashEntry (JobFields.Status, (int)JobStatus.Stopped) });
+                trn.SortedSetRemoveAsync(JobQueue, jobKey); //remove from JobQueue
 
                 //delete from job-stop-index and job-stop:processid
                 var job = GetJob(jobID);
-                tran = DeleteFromCommand(tran, JobCommand.Stop, job.ProcessID, fieldKey);
-                if (tran.Execute())
+                trn = CleanUpCommandAndStatusIndex(trn, job.ProcessID, jobID);
+
+                if (trn.Execute())
                     count++;
             }
 
             return count;
         }
+        #endregion
 
+        #region Count Status
         /// <summary>
         /// Return Job Status Count based on appID and/or userID.
         /// Must use unique appID for multi tenant client apps.
@@ -511,48 +515,127 @@ namespace Shift.DataLayer
         /// <returns>JobStatusCount</returns>
         public IList<JobStatusCount> GetJobStatusCount(string appID, string userID)
         {
-            //TODO: REDIS, use ZScan per 10000 records and then count per status
-
-            var countList = new List<JobStatusCount>();
-            using (var connection = new SqlConnection(connectionString))
+            if (!string.IsNullOrWhiteSpace(appID) && !string.IsNullOrWhiteSpace(userID))
             {
-                var sql = "";
-                if (!string.IsNullOrWhiteSpace(appID) && !string.IsNullOrWhiteSpace(userID))
-                {
-                    sql = @"SELECT [Status], Count([Status]) [Count], sum(case when [Status] IS null then 1 else 0 end) NullCount
-                          FROM [Job]
-                          WHERE [AppID] = @appID AND [UserID] = @userID
-                          GROUP BY [Status]; ";
-                }
-                else if (!string.IsNullOrWhiteSpace(appID) && string.IsNullOrWhiteSpace(userID)) //appID not null, userID is null
-                {
-                    sql = @"SELECT [Status], Count([Status]) [Count], sum(case when [Status] IS null then 1 else 0 end) NullCount
-                          FROM [Job]
-                          WHERE [AppID] = @appID
-                          GROUP BY [Status]; ";
-                }
-                else if (string.IsNullOrWhiteSpace(appID) && !string.IsNullOrWhiteSpace(userID)) //appID is null, userID not null
-                {
-                    //This works okay for single tenant/app, but for multi-tenant, there can be multiple UserID for the different apps
-                    //Works okay for multi tenant apps with GUID for UserID
-                    sql = @"SELECT [Status], Count([Status]) [Count], sum(case when [Status] IS null then 1 else 0 end) NullCount
-                          FROM [Job]
-                          WHERE [UserID] = @userID
-                          GROUP BY [Status]; ";
-                }
-                else
-                {
-                    sql = @"SELECT [Status], Count([Status]) [Count], sum(case when [Status] IS null then 1 else 0 end) NullCount
-                          FROM [Job]
-                          GROUP BY [Status]; ";
-                }
-
-                countList = connection.Query<JobStatusCount>(sql, new { appID, userID }).ToList();
+                return GroupStatusCount(appID, userID);
+            }
+            else if (!string.IsNullOrWhiteSpace(appID) && string.IsNullOrWhiteSpace(userID)) //appID not null, userID is null
+            {
+                return GroupStatusCountByAppID(appID);
+            }
+            else if (string.IsNullOrWhiteSpace(appID) && !string.IsNullOrWhiteSpace(userID)) //appID is null, userID not null
+            {
+                return GroupStatusCountByUserID(userID);
             }
 
-            return countList;
+            return GroupStatusCount();
         }
 
+        private IList<JobStatusCount> GroupStatusCount(string appID, string userID)
+        {
+            var groupStatus = new Dictionary<string, JobStatusCount>();
+            var result = RedisDatabase.SortedSetScan(JobSorted, JobKeyPrefix + "*");
+
+            foreach (var item in result)
+            {
+                var key = item.Element;
+                var score = item.Score;
+
+                var hashEntries = RedisDatabase.HashGetAll(key.ToString());
+                var job = RedisHelpers.ConvertFromRedis<Job>(hashEntries);
+
+                if (job.AppID == appID && job.UserID == userID)
+                {
+                    GroupStatusCount(groupStatus, job);
+                }
+            }
+
+            return groupStatus.Values.ToList();
+        }
+
+        private IList<JobStatusCount> GroupStatusCountByAppID(string appID)
+        {
+            var groupStatus = new Dictionary<string, JobStatusCount>();
+            var result = RedisDatabase.SortedSetScan(JobSorted, JobKeyPrefix + "*");
+
+            foreach (var item in result)
+            {
+                var key = item.Element;
+                var score = item.Score;
+
+                var hashEntries = RedisDatabase.HashGetAll(key.ToString());
+                var job = RedisHelpers.ConvertFromRedis<Job>(hashEntries);
+
+                if (job.AppID == appID)
+                {
+                    GroupStatusCount(groupStatus, job);
+                }
+            }
+
+            return groupStatus.Values.ToList();
+        }
+
+        private IList<JobStatusCount> GroupStatusCountByUserID(string userID)
+        {
+            var groupStatus = new Dictionary<string, JobStatusCount>();
+            var result = RedisDatabase.SortedSetScan(JobSorted, JobKeyPrefix + "*");
+
+            foreach (var item in result)
+            {
+                var key = item.Element;
+                var score = item.Score;
+
+                var hashEntries = RedisDatabase.HashGetAll(key.ToString());
+                var job = RedisHelpers.ConvertFromRedis<Job>(hashEntries);
+
+                if (job.UserID == userID)
+                {
+                    GroupStatusCount(groupStatus, job);
+                }
+            }
+
+            return groupStatus.Values.ToList();
+        }
+
+        private IList<JobStatusCount> GroupStatusCount()
+        {
+            var groupStatus = new Dictionary<string, JobStatusCount>();
+            var result = RedisDatabase.SortedSetScan(JobSorted, JobKeyPrefix + "*");
+
+            foreach (var item in result)
+            {
+                var key = item.Element;
+                var score = item.Score;
+
+                var hashEntries = RedisDatabase.HashGetAll(key.ToString());
+                var job = RedisHelpers.ConvertFromRedis<Job>(hashEntries);
+
+                GroupStatusCount(groupStatus, job);
+            }
+
+            return groupStatus.Values.ToList();
+        }
+
+        private static void GroupStatusCount(Dictionary<string, JobStatusCount> groupStatus, Job job)
+        {
+            var jsCount = new JobStatusCount();
+            if (job.Status == null)
+            {
+                if (groupStatus.ContainsKey("NullStatus"))
+                    jsCount = groupStatus["NullStatus"];
+                jsCount.Status = null;
+                jsCount.NullCount++;
+                groupStatus["NullStatus"] = jsCount;
+            }
+            else
+            {
+                if (groupStatus.ContainsKey(job.StatusLabel))
+                    jsCount = groupStatus[job.StatusLabel];
+                jsCount.Status = job.Status;
+                jsCount.Count++;
+                groupStatus[job.StatusLabel] = jsCount;
+            }
+        }
         #endregion
 
         #region Various ways to get Jobs
@@ -606,16 +689,17 @@ namespace Shift.DataLayer
         public IList<Job> GetNonRunningJobsByIDs(IEnumerable<int> jobIDs)
         {
             var jobList = new List<Job>();
-            using (var connection = new SqlConnection(connectionString))
+            foreach(var jobID in jobIDs)
             {
-                connection.Open();
-                var sql = @"SELECT * 
-                            FROM Job j
-                            WHERE j.JobID IN @ids 
-                            AND j.Status IS NULL; ";
-                jobList = connection.Query<Job>(sql, new { ids = jobIDs.ToArray() }).ToList();
-
+                var jobKey = JobKeyPrefix + jobID;
+                var score = RedisDatabase.SortedSetScore(JobQueue, jobKey);
+                if (score != null) {
+                    RedisDatabase.SortedSetRemove(JobQueue, jobKey);
+                    var job = GetJob(jobID);
+                    jobList.Add(job);
+                }
             }
+
             return jobList;
         }
 
@@ -627,29 +711,36 @@ namespace Shift.DataLayer
         /// <returns>List of JobIDs</returns>
         public IList<int> GetJobIdsByProcessAndCommand(string processID, string command)
         {
+            var jobIDs = new List<int>();
 
             var key = "";
             //get from index: job-[command]-index
             key = JobCommandIndexTemplate.Replace("[command]", command.ToLower());
-            var hashEntries = RedisDatabase.HashGetAll(key);
-            var jobIDs = GetJobIDs(hashEntries);
-
+            var elements = RedisDatabase.SetMembers(key);
+            if (elements != null && elements.Count() > 0)
+            {
+                jobIDs = GetJobIDs(RedisHelpers.ToStringArray(elements)).ToList();
+            }
             //get from process: job-[command]:[processid]
             key = JobCommandProcessTemplate
                 .Replace("[command]", command.ToLower())
                 .Replace("[processid]", processID);
-            hashEntries = RedisDatabase.HashGetAll(key);
-            jobIDs = jobIDs.Concat(GetJobIDs(hashEntries)).ToList();
-            
+            elements = RedisDatabase.SetMembers(key);
+            if (elements != null && elements.Count() > 0)
+            {
+                var jobIDs2 = GetJobIDs(RedisHelpers.ToStringArray(elements)).ToList();
+                jobIDs = jobIDs.Concat(jobIDs2).ToList();
+            }
+
             return jobIDs;
         }
 
-        private IList<int> GetJobIDs(HashEntry[] hashEntries)
+        private IList<int> GetJobIDs(string[] values)
         {
             var jobIDs = new List<int>();
-            foreach (var item in hashEntries)
+            foreach (var item in values)
             {
-                var arr = item.Name.ToString().Split(':');
+                var arr = item.Split(':');
                 if (arr.Count() == 2)
                     jobIDs.Add(Convert.ToInt32(arr[1])); //arr[0] = "job" ; arr[1] = ####
             }
@@ -664,38 +755,15 @@ namespace Shift.DataLayer
         /// <returns>List of Jobs</returns>
         public IList<Job> GetJobsByProcessAndStatus(string processID, JobStatus status)
         {
+            var key = JobStatusProcessTemplate
+                .Replace("[status]", status.ToString().ToLower())
+                .Replace("[processid]", processID);
+            var elements = RedisHelpers.ToStringArray(RedisDatabase.SetMembers(key));
             var jobList = new List<Job>();
-            using (var connection = new SqlConnection(connectionString))
+            if (elements != null && elements.Count() > 0)
             {
-                connection.Open();
-                var sql = @"SELECT * 
-                            FROM Job j
-                            WHERE j.ProcessID = @processID
-                            AND j.Status = @status; ";
-                jobList = connection.Query<Job>(sql, new { processID, status }).ToList();
-            }
-
-            return jobList;
-        }
-
-        /// <summary>
-        /// Return jobs based on owner processID and specified jobIDs.
-        /// </summary>
-        /// <param name="processID">Owner processID</param>
-        /// <param name="jobIDs">List of jobIDs</param>
-        /// <returns>List of Jobs</returns>
-        public IList<Job> GetJobsByProcess(string processID, IEnumerable<int> jobIDs)
-        {
-            var jobList = new List<Job>();
-            using (var connection = new SqlConnection(connectionString))
-            {
-                connection.Open();
-                var sql = @"Select j.*
-                            FROM Job j
-                            WHERE j.ProcessID = @processID 
-                            AND j.JobID IN @ids ;
-                            ";
-                jobList = connection.Query<Job>(sql, new { processID, ids = jobIDs.ToArray() }).ToList();
+                var jobIDs = GetJobIDs(elements);
+                jobList = GetJobs(jobIDs).ToList();
             }
 
             return jobList;
@@ -710,24 +778,23 @@ namespace Shift.DataLayer
         public JobViewList GetJobViews(int? pageIndex, int? pageSize)
         {
             var result = new List<JobView>();
-            var totalCount = 0;
 
             pageIndex = pageIndex == null || pageIndex == 0 ? 1 : pageIndex; //default to 1
             pageSize = pageSize == null || pageSize == 0 ? 10 : pageSize; //default to 10
 
             var start = (pageIndex.Value - 1) * pageSize.Value;
             var stop = (pageIndex.Value * pageSize.Value) - 1;
-            var resultSortedSet = RedisDatabase.SortedSetRangeByRankWithScores(JobSorted, start, stop, Order.Ascending);
-            foreach(var sortedSet in resultSortedSet)
+            var sortedSetArray = RedisDatabase.SortedSetRangeByRankWithScores(JobSorted, start, stop, Order.Ascending);
+            foreach(var sortedSet in sortedSetArray)
             {
                 var hashEntry = RedisDatabase.HashGetAll(sortedSet.Element.ToString());
                 var jobView = RedisHelpers.ConvertFromRedis<JobView>(hashEntry);
                 result.Add(jobView);
-                totalCount++;
             }
+            var totalCount = RedisDatabase.SortedSetLength(JobSorted);
 
             var jobViewList = new JobViewList();
-            jobViewList.Total= totalCount;
+            jobViewList.Total= (int)totalCount;
             jobViewList.Items = result;
 
             return jobViewList;
@@ -738,17 +805,22 @@ namespace Shift.DataLayer
         /// <summary>
         /// Set job status to running and set start date and time to now.
         /// </summary>
-        /// <param name="jobID">jobID</param>
+        /// <param name="jobID">job ID</param>
+        /// <param name="processID">process ID</param>
         /// <returns>Updated record count, 0 or 1 record updated</returns>
-        public int SetToRunning(int jobID)
+        public int SetToRunning(string processID, int jobID)
         {
             var count = 0;
-            using (var connection = new SqlConnection(connectionString))
-            {
-                connection.Open();
-                var sql = "UPDATE [Job] SET Status = @status, [Start] = @start WHERE JobID = @jobID;";
-                count = connection.Execute(sql, new { status = JobStatus.Running, start = DateTime.Now, jobID });
-            }
+            var jspKey = JobStatusProcessTemplate
+                .Replace("[status]", JobStatus.Running.ToString().ToLower())
+                .Replace("[processid]", processID);
+
+            var jobKey = JobKeyPrefix + jobID;
+            var trn = RedisDatabase.CreateTransaction();
+            trn.HashSetAsync(jobKey, new HashEntry[] { new HashEntry(JobFields.Status, (int)JobStatus.Running), new HashEntry(JobFields.Start, DateTime.Now.ToString()) });
+            trn.SetAddAsync(jspKey, jobKey); //set index
+            if (trn.Execute())
+                count++;
 
             return count;
         }
@@ -756,19 +828,22 @@ namespace Shift.DataLayer
         /// <summary>
         /// Set job status to error and fill in the error message.
         /// </summary>
-        /// <param name="jobID">jobID</param>
+        /// <param name="processID">process ID</param>
+        /// <param name="jobID">job ID</param>
         /// <param name="error">Error message</param>
         /// <returns>Updated record count, 0 or 1 record updated</returns>
-        public int SetError(int jobID, string error)
+        public int SetError(string processID, int jobID, string error)
         {
             var count = 0;
-            using (var connection = new SqlConnection(connectionString))
-            {
-                connection.Open();
 
-                var sql = "UPDATE [Job] SET [Error] = @error, [Status] = @status WHERE JobID = @jobID;";
-                count = connection.Execute(sql, new { error, status=JobStatus.Error, jobID });
-            }
+            var jobKey = JobKeyPrefix + jobID;
+
+            var trn = RedisDatabase.CreateTransaction();
+            trn.HashSetAsync(jobKey, new HashEntry[] { new HashEntry(JobFields.Status, (int)JobStatus.Error), new HashEntry(JobFields.Error, error) });
+            trn.SortedSetRemoveAsync(JobQueue, jobKey); //Remove from queue
+            trn = CleanUpCommandAndStatusIndex(trn, processID, jobID); //Remove from all stop/running indexes
+            if(trn.Execute())
+                count++;
 
             return count;
         }
@@ -776,17 +851,23 @@ namespace Shift.DataLayer
         /// <summary>
         /// Set job as completed.
         /// </summary>
-        /// <param name="jobID">jobID</param>
+        /// <param name="processID">process ID</param>
+        /// <param name="jobID">job ID</param>
         /// <returns>Updated record count, 0 or 1 record updated</returns>
-        public int SetCompleted(int jobID)
+        public int SetCompleted(string processID, int jobID)
         {
             var count = 0;
-            using (var connection = new SqlConnection(connectionString))
-            {
-                connection.Open();
-                var sql = "UPDATE [Job] SET Status = @status, [End] = @end WHERE JobID = @jobID;";
-                count = connection.Execute(sql, new { status = JobStatus.Completed, end = DateTime.Now, jobID });
-            }
+
+            var jspKey = JobStatusProcessTemplate
+            .Replace("[status]", JobStatus.Running.ToString().ToLower())
+            .Replace("[processid]", processID);
+            var jobKey = JobKeyPrefix + jobID;
+
+            var trn = RedisDatabase.CreateTransaction();
+            trn.HashSetAsync(jobKey, new HashEntry[] { new HashEntry(JobFields.Status, (int)JobStatus.Completed), new HashEntry(JobFields.End, DateTime.Now.ToString()) });
+            trn.SetRemoveAsync(jspKey, jobKey);
+            if (trn.Execute())
+                count++;
 
             return count;
         }
@@ -798,18 +879,13 @@ namespace Shift.DataLayer
         /// <returns>Total count of running jobs.</returns>
         public int CountRunningJobs(string processID)
         {
-            var runningCount = 0;
-            using (var connection = new SqlConnection(connectionString))
-            {
-                connection.Open();
-                var sql = @"SELECT COUNT(j.JobID) 
-                            FROM Job j
-                            WHERE j.Status = @status 
-                            AND j.ProcessID = @processID; ";
-                runningCount = connection.Query<int>(sql, new { status = JobStatus.Running, processID }).FirstOrDefault();
-            }
+            var count = 0;
+            var jspKey = JobStatusProcessTemplate
+            .Replace("[status]", JobStatus.Running.ToString().ToLower())
+            .Replace("[processid]", processID);
+            count = Convert.ToInt32(RedisDatabase.SetLength(jspKey));
 
-            return runningCount;
+            return count;
         }
 
         /// <summary>
@@ -835,20 +911,13 @@ namespace Shift.DataLayer
         public IList<Job> ClaimJobsToRun(string processID, IEnumerable<Job> jobList)
         {
             var claimedJobs = new List<Job>();
-            using (var connection = new SqlConnection(connectionString))
+            foreach (var job in jobList)
             {
-                connection.Open();
-                foreach(var job in jobList)
+                var key = JobKeyPrefix + job.JobID;
+                if (RedisDatabase.HashSet(key, JobFields.ProcessID, processID, When.NotExists))
                 {
-                    var sql = @"UPDATE [Job]
-                                SET ProcessID = @processID 
-                                WHERE Status IS NULL 
-                                AND ProcessID IS NULL
-                                AND [jobID] = @jobID; ";
-                    var count = connection.Execute(sql, new { processID, job.JobID });
-
-                    if (count > 0) //successful update
-                        claimedJobs.Add(job);
+                    job.ProcessID = processID; //the job object is old, so set with the new processID
+                    claimedJobs.Add(job);
                 }
             }
 
@@ -864,18 +933,23 @@ namespace Shift.DataLayer
         private IList<Job> GetJobsToRun(int maxNum)
         {
             var jobList = new List<Job>();
-            using (var connection = new SqlConnection(connectionString))
-            {
-                connection.Open();
-                var sql = @"SELECT * 
-                            FROM Job j
-                            WHERE j.Status IS NULL 
-                            AND j.ProcessID IS NULL
-                            AND (j.Command = @runNow OR j.Command IS NULL)
-                            ORDER BY j.Score ASC
-                            OFFSET 0 ROWS FETCH NEXT @maxNum ROWS ONLY; ";
-                jobList = connection.Query<Job>(sql, new { runNow = JobCommand.RunNow, maxNum }).ToList();
 
+            var start = 0;
+            var stop = maxNum - 1; //0 based index
+
+            var trn = RedisDatabase.CreateTransaction();
+            var resultSortedSet = trn.SortedSetRangeByRankWithScoresAsync(JobQueue, start, stop, Order.Ascending);
+            trn.SortedSetRemoveRangeByRankAsync(JobQueue, start, stop); //remove from queue
+            if (trn.Execute())
+            {
+                trn.WaitAll();
+                foreach (var sortedSet in resultSortedSet.Result)
+                {
+                    var jobKey = sortedSet.Element.ToString();
+                    var hashEntry = RedisDatabase.HashGetAll(jobKey);
+                    var job = RedisHelpers.ConvertFromRedis<Job>(hashEntry);
+                    jobList.Add(job);
+                }
             }
 
             return jobList;
@@ -891,55 +965,12 @@ namespace Shift.DataLayer
         /// <returns>0 for no insert/update, 1 for successful insert/update</returns>
         public int SetProgress(int jobID, int? percent, string note, string data)
         {
-            var count = 0;
-            using (var connection = new SqlConnection(connectionString))
-            {
-                connection.Open();
-                var found = connection.Query<int>("SELECT COUNT(JobID) FROM JobProgress WHERE JobID = @jobID;", new { jobID }).FirstOrDefault(); ;
-                if (found == 0)
-                {
-                    //INSERT
-                    var sql = @"INSERT INTO JobProgress ([JobID], [Percent], [Note], [Data]) 
-                                VALUES ( @jobID, @percent, @note, @data ); ";
-                    count = connection.Execute(sql, new { jobID, percent, note, data });
-                }
-                else
-                {
-                    //UPDATE
-                    var sql = @"UPDATE [JobProgress] SET [Percent] = @percent, Note = @note, Data = @data 
-                                WHERE JobID = @jobID; ";
-                    count = connection.Execute(sql, new { percent, note, data, jobID });
-                }
-            }
-
-            return count;
+            var task = UpdateProgressAsync(jobID, percent, note, data);
+            return task.Result; //Possible Deadlock unless the ConfigureAwait(continueOnCapturedContext:false)
         }
 
         /// <summary>
-        /// Update progress, similar to SetProgress() method. 
-        /// Higher performance than SetProgress(). This method only uses 1 call to the database storage.
-        /// </summary>
-        /// <param name="jobID">jobID</param>
-        /// <param name="percent">% of progress</param>
-        /// <param name="note">Any type of note for the progress</param>
-        /// <param name="data">Any data for the progress</param>
-        /// <returns>0 for no update, 1 for successful update</returns>
-        public int UpdateProgress(int jobID, int? percent, string note, string data)
-        {
-            var count = 0;
-            using (var connection = new SqlConnection(connectionString))
-            {
-                connection.Open();
-                var sql = @"UPDATE [JobProgress] SET [Percent] = @percent, Note = @note, Data = @data 
-                            WHERE JobID = @jobID; ";
-                count = connection.Execute(sql, new { percent, note, data, jobID });
-            }
-
-            return count;
-        }
-
-        /// <summary>
-        /// Asynchronous update progress. 
+        /// Update progress, similar to SetProgress() method. No difference in Redis.
         /// </summary>
         /// <param name="jobID">jobID</param>
         /// <param name="percent">% of progress</param>
@@ -948,7 +979,14 @@ namespace Shift.DataLayer
         /// <returns>0 for no update, 1 for successful update</returns>
         public async Task<int> UpdateProgressAsync(int jobID, int? percent, string note, string data)
         {
-            var count = await Task.Run(() => UpdateProgress(jobID, percent, note, data));
+            var count = 0;
+            var jobKey = JobKeyPrefix + jobID;
+            var trn = RedisDatabase.CreateTransaction();
+            trn.HashSetAsync(jobKey, JobFields.Percent, percent);
+            trn.HashSetAsync(jobKey, JobFields.Note, note);
+            trn.HashSetAsync(jobKey, JobFields.Data, data);
+            if (await trn.ExecuteAsync().ConfigureAwait(continueOnCapturedContext:false))
+                count++;
             return count;
         }
 

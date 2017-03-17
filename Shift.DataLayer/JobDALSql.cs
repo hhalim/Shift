@@ -84,13 +84,12 @@ namespace Shift.DataLayer
             job.InvokeMeta = JsonConvert.SerializeObject(invokeMeta, SerializerSettings.Settings);
             job.Parameters = Helpers.Encrypt(JsonConvert.SerializeObject(DALHelpers.SerializeArguments(args), SerializerSettings.Settings), encryptionKey); //ENCRYPT it!!!
             job.Created = now;
-            job.Score = ((DateTimeOffset)now).ToUnixTimeSeconds();
 
             int? jobID = null;
             using (var connection = new SqlConnection(connectionString))
             {
-                var query = @"INSERT INTO [Job] ([AppID], [UserID], [JobType], [JobName], [InvokeMeta], [Parameters], [Created], [Score]) 
-                              VALUES(@AppID, @UserID, @JobType, @JobName, @InvokeMeta, @Parameters, @Created, @Score);
+                var query = @"INSERT INTO [Job] ([AppID], [UserID], [JobType], [JobName], [InvokeMeta], [Parameters], [Created]) 
+                              VALUES(@AppID, @UserID, @JobType, @JobName, @InvokeMeta, @Parameters, @Created);
                               SELECT CAST(SCOPE_IDENTITY() as int); ";
                 jobID = connection.Query<int>(query, job).SingleOrDefault();
             }
@@ -149,7 +148,6 @@ namespace Shift.DataLayer
             values.Add("Parameters", Helpers.Encrypt(JsonConvert.SerializeObject(DALHelpers.SerializeArguments(args), SerializerSettings.Settings), encryptionKey)); //ENCRYPT it!!!
             values.Add("Created", now);
             values.Add("Status", JobStatus.Running);
-            values.Add("Score", ((DateTimeOffset)now).ToUnixTimeSeconds());
 
             var count = 0;
             using (var connection = new SqlConnection(connectionString))
@@ -175,7 +173,6 @@ namespace Shift.DataLayer
                                 ,[Start] = NULL
                                 ,[End] = NULL
                                 ,[Created] = @Created
-                                ,[Score] = @Score
                             WHERE JobID = @JobID AND (Status != @Status OR Status IS NULL);
                             ";
                 count = connection.Execute(query, values);
@@ -223,11 +220,9 @@ namespace Shift.DataLayer
             using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
-                //set score to 0 as top of queue
                 var sql = @"UPDATE [Job] 
                             SET 
                             Command = @command 
-                            ,[Score] = 0
                             WHERE JobID IN @ids 
                             AND Status IS NULL
                             AND ProcessID IS NULL;
@@ -246,50 +241,41 @@ namespace Shift.DataLayer
             if (jobIDs.Count == 0)
                 return 0;
 
-            var count = 0;
             using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
 
-                foreach (var jobID in jobIDs)
+                var sql = @"SELECT j.JobID 
+                            FROM Job j
+                            WHERE j.JobID IN @ids
+                            AND (j.Status != @status OR j.Status IS NULL); ";
+                var notRunning = connection.Query<int>(sql, new { ids = jobIDs.ToArray(), status = JobStatus.Running }).ToList<int>();
+
+                if (notRunning.Count > 0)
                 {
-                    //Get only the NON running jobs
-                    var sql = @"SELECT * 
-                                FROM Job j
-                                WHERE j.JobID = @jobID
-                                AND (j.Status != @status OR j.Status IS NULL); ";
-                    var job = connection.Query<Job>(sql, new { jobID, status = JobStatus.Running }).FirstOrDefault();
-                    if(job != null)
-                    {
-                        //reset score to Created column
-                        var score = ((DateTimeOffset)job.Created).ToUnixTimeSeconds();
+                    //Reset jobs and progress for NON running jobs
+                    sql = @"UPDATE JobProgress 
+                            SET 
+                            [Percent] = NULL, 
+                            Note = NULL,
+                            Data = NULL
+                            WHERE JobID IN @ids; ";
+                    connection.Execute(sql, new { ids = notRunning.ToArray() });
 
-                        sql = @"UPDATE JobProgress 
-                                SET 
-                                [Percent] = NULL 
-                                ,Note = NULL
-                                ,Data = NULL
-                                WHERE JobID = @jobID; ";
-                        connection.Execute(sql, new { jobID });
-
-                        sql = @"UPDATE Job 
-                                SET 
-                                ProcessID = NULL 
-                                ,Command = NULL 
-                                ,Status = NULL 
-                                ,Error = NULL
-                                ,[Start] = NULL 
-                                ,[End] = NULL
-                                ,[Score] = @score
-                                WHERE JobID = @jobID; ";
-                        connection.Execute(sql, new { score, jobID });
-
-                        count++;
-                    }
+                    sql = @"UPDATE Job 
+                        SET 
+                        ProcessID = NULL, 
+                        Command = NULL, 
+                        Status = NULL, 
+                        Error = NULL,
+                        [Start] = NULL, 
+                        [End] = NULL 
+                        WHERE JobID IN @ids; ";
+                    return connection.Execute(sql, new { ids = notRunning.ToArray() });
                 }
             }
 
-            return count;
+            return 0;
         }
 
         /// <summary>
@@ -597,29 +583,6 @@ namespace Shift.DataLayer
         }
 
         /// <summary>
-        /// Return jobs based on owner processID and specified jobIDs.
-        /// </summary>
-        /// <param name="processID">Owner processID</param>
-        /// <param name="jobIDs">List of jobIDs</param>
-        /// <returns>List of Jobs</returns>
-        public IList<Job> GetJobsByProcess(string processID, IEnumerable<int> jobIDs)
-        {
-            var jobList = new List<Job>();
-            using (var connection = new SqlConnection(connectionString))
-            {
-                connection.Open();
-                var sql = @"Select j.*
-                            FROM Job j
-                            WHERE j.ProcessID = @processID 
-                            AND j.JobID IN @ids ;
-                            ";
-                jobList = connection.Query<Job>(sql, new { processID, ids = jobIDs.ToArray() }).ToList();
-            }
-
-            return jobList;
-        }
-
-        /// <summary>
         /// Return job views based on page index and page size.
         /// </summary>
         /// <param name="pageIndex">Page index</param>
@@ -678,16 +641,17 @@ namespace Shift.DataLayer
         /// <summary>
         /// Set job status to running and set start date and time to now.
         /// </summary>
-        /// <param name="jobID">jobID</param>
+        /// <param name="processID">process ID</param>
+        /// <param name="jobID">job ID</param>
         /// <returns>Updated record count, 0 or 1 record updated</returns>
-        public int SetToRunning(int jobID)
+        public int SetToRunning(string processID, int jobID)
         {
             var count = 0;
             using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
-                var sql = "UPDATE [Job] SET Status = @status, [Start] = @start WHERE JobID = @jobID;";
-                count = connection.Execute(sql, new { status = JobStatus.Running, start = DateTime.Now, jobID });
+                var sql = "UPDATE [Job] SET Status = @status, [Start] = @start WHERE JobID = @jobID AND ProcessID = @processID;";
+                count = connection.Execute(sql, new { status = JobStatus.Running, start = DateTime.Now, jobID, processID });
             }
 
             return count;
@@ -696,18 +660,19 @@ namespace Shift.DataLayer
         /// <summary>
         /// Set job status to error and fill in the error message.
         /// </summary>
-        /// <param name="jobID">jobID</param>
+        /// <param name="processID">process ID</param>
+        /// <param name="jobID">job ID</param>
         /// <param name="error">Error message</param>
         /// <returns>Updated record count, 0 or 1 record updated</returns>
-        public int SetError(int jobID, string error)
+        public int SetError(string processID, int jobID, string error)
         {
             var count = 0;
             using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
 
-                var sql = "UPDATE [Job] SET [Error] = @error, [Status] = @status WHERE JobID = @jobID;";
-                count = connection.Execute(sql, new { error, status=JobStatus.Error, jobID });
+                var sql = "UPDATE [Job] SET [Error] = @error, [Status] = @status WHERE JobID = @jobID AND ProcessID = @processID;";
+                count = connection.Execute(sql, new { error, status=JobStatus.Error, jobID, processID });
             }
 
             return count;
@@ -716,16 +681,17 @@ namespace Shift.DataLayer
         /// <summary>
         /// Set job as completed.
         /// </summary>
-        /// <param name="jobID">jobID</param>
+        /// <param name="processID">process ID</param>
+        /// <param name="jobID">job ID</param>
         /// <returns>Updated record count, 0 or 1 record updated</returns>
-        public int SetCompleted(int jobID)
+        public int SetCompleted(string processID, int jobID)
         {
             var count = 0;
             using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
-                var sql = "UPDATE [Job] SET Status = @status, [End] = @end WHERE JobID = @jobID;";
-                count = connection.Execute(sql, new { status = JobStatus.Completed, end = DateTime.Now, jobID });
+                var sql = "UPDATE [Job] SET Status = @status, [End] = @end WHERE JobID = @jobID AND ProcessID = @processID;";
+                count = connection.Execute(sql, new { status = JobStatus.Completed, end = DateTime.Now, jobID, processID });
             }
 
             return count;
@@ -786,6 +752,7 @@ namespace Shift.DataLayer
                                 AND ProcessID IS NULL
                                 AND [jobID] = @jobID; ";
                     var count = connection.Execute(sql, new { processID, job.JobID });
+                    job.ProcessID = processID; //set it similar to DB record!
 
                     if (count > 0) //successful update
                         claimedJobs.Add(job);
@@ -812,7 +779,7 @@ namespace Shift.DataLayer
                             WHERE j.Status IS NULL 
                             AND j.ProcessID IS NULL
                             AND (j.Command = @runNow OR j.Command IS NULL)
-                            ORDER BY j.Score ASC
+                            ORDER BY j.Command DESC, j.Created, j.JobID
                             OFFSET 0 ROWS FETCH NEXT @maxNum ROWS ONLY; ";
                 jobList = connection.Query<Job>(sql, new { runNow = JobCommand.RunNow, maxNum }).ToList();
 
@@ -864,7 +831,7 @@ namespace Shift.DataLayer
         /// <param name="note">Any type of note for the progress</param>
         /// <param name="data">Any data for the progress</param>
         /// <returns>0 for no update, 1 for successful update</returns>
-        public int UpdateProgress(int jobID, int? percent, string note, string data)
+        public async Task<int> UpdateProgressAsync(int jobID, int? percent, string note, string data)
         {
             var count = 0;
             using (var connection = new SqlConnection(connectionString))
@@ -872,23 +839,9 @@ namespace Shift.DataLayer
                 connection.Open();
                 var sql = @"UPDATE [JobProgress] SET [Percent] = @percent, Note = @note, Data = @data 
                             WHERE JobID = @jobID; ";
-                count = connection.Execute(sql, new { percent, note, data, jobID });
+                count = await connection.ExecuteAsync(sql, new { percent, note, data, jobID });
             }
 
-            return count;
-        }
-
-        /// <summary>
-        /// Asynchronous update progress. 
-        /// </summary>
-        /// <param name="jobID">jobID</param>
-        /// <param name="percent">% of progress</param>
-        /// <param name="note">Any type of note for the progress</param>
-        /// <param name="data">Any data for the progress</param>
-        /// <returns>0 for no update, 1 for successful update</returns>
-        public async Task<int> UpdateProgressAsync(int jobID, int? percent, string note, string data)
-        {
-            var count = await Task.Run(() => UpdateProgress(jobID, percent, note, data));
             return count;
         }
 
