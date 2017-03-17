@@ -2,14 +2,15 @@
 Shift background or long running jobs into reliable and durable processes out of the client app. Shift enables your app to easily run long running jobs in physically separate infrastructures. 
 
 **Features:**
+- Open source and free - including commercial use.
 - Reliable and durable background and long running jobs.
 - Out of band processing of long running jobs. 
 - Ability to stop, reset, and restart long running jobs.
+- Auto removal of older jobs.
 - Optional progress tracking for each running jobs.
 - Scale out with multiple shift servers to run large number of jobs.
 - Optional encryption for serialized data.
 - Run Shift Server in your own .NET apps, Azure WebJobs, or Windows services. Check out the [Shift.WinService](https://github.com/hhalim/Shift.WinService) and [Shift.WebJob](https://github.com/hhalim/Shift.WebJob) projects.
-- Auto removal of older jobs.
 
 The client component allows client apps to add jobs and send commands to Shift server to stop, delete, reset, and run jobs.
 
@@ -19,7 +20,7 @@ var job = new TestJob();
 var jobID = jobClient.Add(() => job.Start("Hello World"));
 ```
 
-Add a long running job that report its progress:
+Add a long running job that periodically reports its progress:
 ```
 var job = new TestJob();
 var progress = new SynchronousProgress<ProgressInfo>();
