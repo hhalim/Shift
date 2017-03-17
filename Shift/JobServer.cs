@@ -24,7 +24,7 @@ namespace Shift
 {
     public class JobServer
     {
-        private JobDAL jobDAL = null;
+        private IJobDAL jobDAL = null;
         private ServerConfig config = null;
         private readonly ContainerBuilder builder;
         private readonly IContainer container;
@@ -45,6 +45,12 @@ namespace Shift
                 throw new Exception("Unable to create with no configuration.");
             }
 
+            if (string.IsNullOrWhiteSpace(config.StorageMode))
+            {
+                throw new Exception("The storage mode must not be empty.");
+
+            }
+
             if (string.IsNullOrWhiteSpace(config.ProcessID))
             {
                 throw new Exception("Unable to create with no ProcessID.");
@@ -52,13 +58,12 @@ namespace Shift
 
             if (string.IsNullOrWhiteSpace(config.DBConnectionString))
             {
-                throw new Exception("Error: unable to create without DB connection string.");
-
+                throw new Exception("Unable to run without DB storage connection string.");
             }
 
             if (config.UseCache && string.IsNullOrWhiteSpace(config.CacheConfigurationString))
             {
-                throw new Exception("Error: unable to create without Cache configuration string.");
+                throw new Exception("Unable to run without Cache configuration string.");
             }
 
             if (config.MaxRunnableJobs <= 0)
@@ -70,10 +75,10 @@ namespace Shift
 
             builder = new ContainerBuilder();
             builder.RegisterSource(new AnyConcreteTypeNotAlreadyRegisteredSource());
-            RegisterAssembly.RegisterTypes(builder, config.DBConnectionString, config.UseCache, config.CacheConfigurationString, config.EncryptionKey);
+            RegisterAssembly.RegisterTypes(builder, config.StorageMode, config.DBConnectionString, config.UseCache, config.CacheConfigurationString, config.EncryptionKey);
             container = builder.Build();
 
-            Initialize();
+            Initialize(config.StorageMode);
         }
 
         #region Startup
@@ -81,11 +86,11 @@ namespace Shift
         /// Instantiate the data layer and loads all the referenced assemblies defined in the assembly list text file 
         /// in Options.AssemblyListPath and Options.AssemblyBaseDir
         /// </summary>
-        private void Initialize()
+        private void Initialize(string storageMode)
         {
             this.threadList = new Dictionary<int, Thread>();
 
-            jobDAL = container.Resolve<JobDAL>();
+            jobDAL = container.Resolve<IJobDAL>();
 
             //OPTIONAL: Load all EXTERNAL DLLs needed by this process
             AppDomain.CurrentDomain.AssemblyResolve += AssemblyHelpers.OnAssemblyResolve;
@@ -113,7 +118,6 @@ namespace Shift
                 timer.Interval = config.ServerTimerInterval;
                 timer.Elapsed += (sender, e) => {
                     StopJobs();
-                    StopDeleteJobs();
                     RunJobs();
                 };
 
@@ -145,8 +149,10 @@ namespace Shift
             if(runningJobsList.Count() > 0)
             {
                 jobDAL.SetCommandStop(runningJobsList.Select(x => x.JobID).ToList());
-                StopJobs();
             }
+
+            //Stop jobs marked with 'stop' command
+            StopJobs();
         }
 
         /// <summary>
@@ -154,21 +160,16 @@ namespace Shift
         /// </summary>
         public void RunJobs()
         {
-            using (var connection = new SqlConnection(config.DBConnectionString))
+            //Check max jobs count
+            var runningCount = jobDAL.CountRunningJobs(config.ProcessID);
+            if (runningCount >= config.MaxRunnableJobs)
             {
-                connection.Open();
-
-                //Check max jobs count
-                var runningCount = jobDAL.CountRunningJobs(config.ProcessID);
-                if (runningCount >= config.MaxRunnableJobs)
-                {
-                    return;
-                }
-
-                var rowsToGet = config.MaxRunnableJobs - runningCount;
-                var claimedJobs = jobDAL.ClaimJobsToRun(config.ProcessID, rowsToGet);
-                RunJobs(claimedJobs);
+                return;
             }
+
+            var rowsToGet = config.MaxRunnableJobs - runningCount;
+            var claimedJobs = jobDAL.ClaimJobsToRun(config.ProcessID, rowsToGet);
+            RunJobs(claimedJobs);
         }
 
         /// <summary>
@@ -191,19 +192,20 @@ namespace Shift
             if (jobList.Count() == 0)
                 return;
 
-            foreach (var row in jobList)
+            foreach (var job in jobList)
             {
                 try
                 {
-                    var decryptedParameters = Entities.Helpers.Decrypt(row.Parameters, config.EncryptionKey);
-                    CreateThread(row.JobID, row.InvokeMeta, decryptedParameters); //Use the DecryptedParameters, NOT encrypted Parameters
+                    var decryptedParameters = Entities.Helpers.Decrypt(job.Parameters, config.EncryptionKey);
+                    CreateThread(job.ProcessID, job.JobID, job.InvokeMeta, decryptedParameters); //Use the DecryptedParameters, NOT encrypted Parameters
                 }
                 catch (Exception exc)
                 {
                     //just mark as Invoke error, don't stop
-                    var error = row.Error + " Invoke error: " + exc.ToString();
-                    jobDAL.SetCachedProgressError(row.JobID, error);
-                    jobDAL.SetError(row.JobID, error);
+                    var error = job.Error + " Invoke error: " + exc.ToString();
+                    jobDAL.SetCachedProgressError(job.JobID, error);
+                    var processID = string.IsNullOrWhiteSpace(job.ProcessID) ? config.ProcessID : job.ProcessID;
+                    jobDAL.SetError(processID, job.JobID, error);
                 }
             }
         }
@@ -229,7 +231,7 @@ namespace Shift
         }
 
         //Create the thread that will run the job
-        private void CreateThread(int jobID, string invokeMeta, string parameters)
+        private void CreateThread(string processID, int jobID, string invokeMeta, string parameters)
         {
             var invokeMetaObj = JsonConvert.DeserializeObject<InvokeMeta>(invokeMeta, SerializerSettings.Settings);
 
@@ -246,7 +248,7 @@ namespace Shift
                 instance = Helpers.CreateInstance(type); //create object method instance
             }
 
-            var thread = new Thread(() => RunJob(jobID, methodInfo, parameters, instance)); //Create the new Job thread
+            var thread = new Thread(() => ExecuteJob(processID, jobID, methodInfo, parameters, instance)); //Create the new Job thread
 
             if (threadList.ContainsKey(jobID))
             {
@@ -286,12 +288,12 @@ namespace Shift
             return progress;
         }
 
-        private void RunJob(int jobID, MethodInfo methodInfo, string parameters, object instance)
+        private void ExecuteJob(string processID, int jobID, MethodInfo methodInfo, string parameters, object instance)
         {
             try
             {
                 //Set job to Running
-                jobDAL.SetToRunning(jobID);
+                jobDAL.SetToRunning(processID, jobID);
                 jobDAL.SetCachedProgressStatus(jobID, JobStatus.Running);
 
                 var progress = UpdateProgressEvent(jobID); //Need this to update the progress of the job's
@@ -307,7 +309,7 @@ namespace Shift
                 {
                     var error = row.Error + " " + txc.ToString();
                     jobDAL.SetCachedProgressError(row.JobID, error);
-                    jobDAL.SetError(row.JobID, error);
+                    jobDAL.SetError(processID, row.JobID, error);
                 }
                 return; //can't throw to another thread so quit here
             }
@@ -316,13 +318,13 @@ namespace Shift
                 var row = jobDAL.GetJob(jobID);
                 var error = row.Error + " " + exc.ToString();
                 jobDAL.SetCachedProgressError(row.JobID, error);
-                jobDAL.SetError(row.JobID, error);
+                jobDAL.SetError(processID, row.JobID, error);
 
                 return; //can't throw to another thread so quit here
             }
 
             //Entire thread completes successfully
-            jobDAL.SetCompleted(jobID);
+            jobDAL.SetCompleted(processID, jobID);
             jobDAL.SetCachedProgressStatus(jobID, JobStatus.Completed);
             var rsTask = Task.Delay(60000).ContinueWith(_ =>
             {
@@ -338,61 +340,26 @@ namespace Shift
         /// </summary>
         public void StopJobs()
         {
-            var jobList = jobDAL.GetJobsByProcessAndCommand(config.ProcessID, JobCommand.Stop);
+            var jobIDs = jobDAL.GetJobIdsByProcessAndCommand(config.ProcessID, JobCommand.Stop);
 
             //abort running threads
             if (threadList.Count > 0)
             {
-                foreach (var row in jobList)
+                foreach (var jobID in jobIDs)
                 {
-                    var thread = threadList.ContainsKey(row.JobID) ? threadList[row.JobID] : null;
+                    var thread = threadList.ContainsKey(jobID) ? threadList[jobID] : null;
                     if (thread != null)
                     {
                         thread.Abort();
-                        threadList.Remove(row.JobID);
+                        threadList.Remove(jobID);
                     }
                 }
             }
 
             //mark status to stopped
-            var ids = jobList.Select(j => j.JobID).ToList<int>();
-            jobDAL.SetToStopped(ids);
-            jobDAL.SetCachedProgressStatus(ids, JobStatus.Stopped); //redis cached progress
-            jobDAL.DeleteCachedProgress(ids);
-        }
-
-        //Stop if running and then delete jobs
-        //Useful for UI that closes window or Cancel job
-        /// <summary>
-        /// Stops jobs and then delete them.
-        /// Only jobs marked with "STOP-DELETE" command will be acted on.
-        /// This uses Thread.Abort.
-        /// No clean up is possible when thread is aborted.
-        /// </summary>
-        public void StopDeleteJobs()
-        {
-            var jobList = jobDAL.GetJobsByProcessAndCommand(config.ProcessID, JobCommand.StopDelete);
-
-            //abort running threads
-            if (threadList.Count > 0)
-            {
-                foreach (var row in jobList)
-                {
-                    var thread = threadList.ContainsKey(row.JobID) ? threadList[row.JobID] : null;
-                    if (thread != null)
-                    {
-                        thread.Abort();
-                        threadList.Remove(row.JobID);
-                    }
-                }
-            }
-
-            //delete jobs
-            var ids = jobList.Select(j => j.JobID).ToList<int>();
-            jobDAL.SetToStopped(ids);
-            jobDAL.SetCachedProgressStatus(ids, JobStatus.Stopped); //redis cached progress
-            jobDAL.Delete(ids);
-            jobDAL.DeleteCachedProgress(ids);
+            jobDAL.SetToStopped(jobIDs);
+            jobDAL.SetCachedProgressStatus(jobIDs, JobStatus.Stopped); //redis cached progress
+            jobDAL.DeleteCachedProgress(jobIDs);
         }
 
         /// <summary>
@@ -420,22 +387,23 @@ namespace Shift
                     //Doesn't exist anymore? 
                     var error = "Error: No actual running job process found. Try reset and run again.";
                     jobDAL.SetCachedProgressError(job.JobID, error);
-                    jobDAL.SetError(job.JobID, error);
+                    var processID = string.IsNullOrWhiteSpace(job.ProcessID) ? config.ProcessID : job.ProcessID;
+                    jobDAL.SetError(processID, job.JobID, error);
                 }
             }
 
             // Remove reference from ThreadList 
             if (threadList.Count != 0)
             {
-                var jobIDs = new List<int>();
-                jobList = jobDAL.GetJobsByProcess(config.ProcessID, threadList.Keys.ToList());
+                var inDBjobIDs = new List<int>();
+                jobList = jobDAL.GetJobs(threadList.Keys.ToList()); //get all jobs in threadList
 
-                // For deleted jobs, remove from threadList.
-                jobIDs = jobList.Select(j => j.JobID).ToList();
-                var keys = new List<int>(threadList.Keys); //copy keys before removal
-                foreach (var jobID in keys)
+                // If jobs doesn't even exists in storage (zombie?), remove from threadList.
+                inDBjobIDs = jobList.Select(j => j.JobID).ToList();
+                var threadListKeys = new List<int>(threadList.Keys); //copy keys before removal
+                foreach (var jobID in threadListKeys)
                 {
-                    if (!jobIDs.Contains(jobID))
+                    if (!inDBjobIDs.Contains(jobID))
                     {
                         var thread = threadList[jobID];
                         if (thread.IsAlive)

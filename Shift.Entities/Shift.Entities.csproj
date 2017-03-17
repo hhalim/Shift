@@ -52,6 +52,7 @@
     <Compile Include="GlobalVars.cs" />
     <Compile Include="Helpers.cs" />
     <Compile Include="IJobCache.cs" />
+    <Compile Include="IJobDAL.cs" />
     <Compile Include="InvokeMeta.cs" />
     <Compile Include="Job.cs" />
     <Compile Include="JobCommand.cs" />
@@ -59,6 +60,7 @@
     <Compile Include="JobStatusCount.cs" />
     <Compile Include="JobType.cs" />
     <Compile Include="JobView.cs" />
+    <Compile Include="JobViewList.cs" />
     <Compile Include="ProgressInfo.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

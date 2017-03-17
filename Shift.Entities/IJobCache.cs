@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Shift.DataLayer
+namespace Shift.Entities
 {
     public interface IJobCache
     {

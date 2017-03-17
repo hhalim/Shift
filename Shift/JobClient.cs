@@ -12,7 +12,7 @@ namespace Shift
 {
     public class JobClient
     {
-        private JobDAL jobDAL = null;
+        private IJobDAL jobDAL = null;
         public ClientConfig config = null;
         private readonly ContainerBuilder builder;
         private readonly IContainer container;
@@ -36,24 +36,31 @@ namespace Shift
                 throw new Exception("Unable to start with no configuration.");
             }
 
+            if (string.IsNullOrWhiteSpace(config.StorageMode))
+            {
+                throw new Exception("The storage mode must not be empty.");
+
+            }
+
             if (string.IsNullOrWhiteSpace(config.DBConnectionString))
             {
-                throw new Exception("Error: unable to start without DB connection string.");
+                throw new Exception("Unable to run without DB storage connection string.");
 
             }
 
             if (config.UseCache && string.IsNullOrWhiteSpace(config.CacheConfigurationString))
             {
-                throw new Exception("Error: unable to start without Cache configuration string.");
+                throw new Exception("Unable to run without Cache configuration string.");
             }
 
             this.config = config;
 
             builder = new ContainerBuilder();
             builder.RegisterSource(new AnyConcreteTypeNotAlreadyRegisteredSource());
-            RegisterAssembly.RegisterTypes(builder, config.DBConnectionString, config.UseCache, config.CacheConfigurationString, config.EncryptionKey);
+            RegisterAssembly.RegisterTypes(builder, config.StorageMode, config.DBConnectionString, config.UseCache, config.CacheConfigurationString, config.EncryptionKey);
             container = builder.Build();
-            jobDAL = container.Resolve<JobDAL>();
+
+            jobDAL = container.Resolve<IJobDAL>();
         }
 
         #region Clients access
@@ -166,18 +173,6 @@ namespace Shift
         }
 
         ///<summary>
-        /// Sets "stop-delete" command to already running or not running jobs.
-        ///</summary>
-        ///<returns>Number of affected jobs.</returns>
-        public int SetCommandStopDelete(IList<int> jobIDs)
-        {
-            if (jobIDs == null || jobIDs.Count == 0)
-                return 0;
-
-            return jobDAL.SetCommandStopDelete(jobIDs);
-        }
-
-        ///<summary>
         /// Sets "run-now" command to not running jobs.
         ///</summary>
         ///<returns>Number of affected jobs.</returns>
@@ -207,6 +202,17 @@ namespace Shift
         public JobView GetJobView(int jobID)
         {
             return jobDAL.GetJobView(jobID);
+        }
+
+        /// <summary>
+        /// Return job views based on page index and page size.
+        /// </summary>
+        /// <param name="pageIndex">Page index</param>
+        /// <param name="pageSize">Page size</param>
+        /// <returns>Total count of job views and list of JobViews</returns>
+        public JobViewList GetJobViews(int? pageIndex, int? pageSize)
+        {
+            return jobDAL.GetJobViews(pageIndex, pageSize);
         }
 
         ///<summary>

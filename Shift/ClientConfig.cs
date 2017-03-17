@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -8,6 +9,10 @@ namespace Shift
 {
     public class ClientConfig
     {
+        [Required]
+        public string StorageMode { get; set; }  //mssql, redis, etc... 
+
+        [Required]
         public string DBConnectionString { get; set; }
 
         public bool UseCache { get; set; } = false; //if false, the progress update depends on ProgressDBInterval time to update the DB
