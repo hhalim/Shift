@@ -7,8 +7,8 @@
     <ProjectGuid>{F43A6D1C-5AEA-470B-8B33-D8ED2C156B86}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Shift.DataLayer.Redis</RootNamespace>
-    <AssemblyName>Shift.DataLayer.Redis</AssemblyName>
+    <RootNamespace>Shift.Cache.Redis</RootNamespace>
+    <AssemblyName>Shift.Cache.Redis</AssemblyName>
     <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
