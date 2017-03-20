@@ -250,7 +250,7 @@ namespace Shift
         ///<param name="appID">Client application ID, optional</param>
         ///<param name="userID">User ID, optional.</param>
         ///<returns>Collection of JobStatusCount</returns>
-        public IList<JobStatusCount> GetJobStatusCount(string appID, string userID)
+        public IReadOnlyCollection<JobStatusCount> GetJobStatusCount(string appID, string userID)
         {
             return jobDAL.GetJobStatusCount(appID, userID);
         }

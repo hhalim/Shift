@@ -15,26 +15,26 @@ namespace Shift.Entities
         #endregion
 
         #region Set Command field
-        int SetCommandStop(IList<int> jobIDs);
-        int SetCommandRunNow(IList<int> jobIDs);
+        int SetCommandStop(ICollection<int> jobIDs);
+        int SetCommandRunNow(ICollection<int> jobIDs);
         #endregion
 
         #region Direct Action to Jobs
-        int Reset(IList<int> jobIDs);
-        int Delete(IList<int> jobIDs);
-        int Delete(int hour, IList<JobStatus?> statusList);
-        Task<int> DeleteAsync(int hour, IList<JobStatus?> statusList);
-        int SetToStopped(IList<int> jobIDs);
-        IList<JobStatusCount> GetJobStatusCount(string appID, string userID);
+        int Reset(ICollection<int> jobIDs);
+        int Delete(ICollection<int> jobIDs);
+        int Delete(int hour, ICollection<JobStatus?> statusList);
+        Task<int> DeleteAsync(int hour, ICollection<JobStatus?> statusList);
+        int SetToStopped(ICollection<int> jobIDs);
+        IReadOnlyCollection<JobStatusCount> GetJobStatusCount(string appID, string userID);
         #endregion
 
         #region Various ways to get Jobs
         Job GetJob(int jobID);
         JobView GetJobView(int jobID);
-        IList<Job> GetJobs(IEnumerable<int> jobIDs);
-        IList<Job> GetNonRunningJobsByIDs(IEnumerable<int> jobIDs);
-        IList<int> GetJobIdsByProcessAndCommand(string processID, string command);
-        IList<Job> GetJobsByProcessAndStatus(string processID, JobStatus status);
+        IReadOnlyCollection<Job> GetJobs(IEnumerable<int> jobIDs);
+        IReadOnlyCollection<Job> GetNonRunningJobsByIDs(IEnumerable<int> jobIDs);
+        IReadOnlyCollection<int> GetJobIdsByProcessAndCommand(string processID, string command);
+        IReadOnlyCollection<Job> GetJobsByProcessAndStatus(string processID, JobStatus status);
         JobViewList GetJobViews(int? pageIndex, int? pageSize);
         #endregion
 
@@ -43,8 +43,8 @@ namespace Shift.Entities
         int SetError(string processID, int jobID, string error);
         int SetCompleted(string processID, int jobID);
         int CountRunningJobs(string processID);
-        IList<Job> ClaimJobsToRun(string processID, int maxNum);
-        IList<Job> ClaimJobsToRun(string processID, IEnumerable<Job> jobList);
+        IReadOnlyCollection<Job> ClaimJobsToRun(string processID, int maxNum);
+        IReadOnlyCollection<Job> ClaimJobsToRun(string processID, ICollection<Job> jobList);
         int SetProgress(int jobID, int? percent, string note, string data);
         Task<int> UpdateProgressAsync(int jobID, int? percent, string note, string data);
         #endregion

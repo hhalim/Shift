@@ -181,7 +181,7 @@ namespace Shift
         {
             //Try to start the selected jobs, ignoring MaxRunableJobs
             var jobList = jobDAL.GetNonRunningJobsByIDs(jobIDs);
-            var claimedJobs = jobDAL.ClaimJobsToRun(config.ProcessID, jobList);
+            var claimedJobs = jobDAL.ClaimJobsToRun(config.ProcessID, jobList.ToList());
 
             RunJobs(claimedJobs);
         }
@@ -357,7 +357,7 @@ namespace Shift
             }
 
             //mark status to stopped
-            jobDAL.SetToStopped(jobIDs);
+            jobDAL.SetToStopped(jobIDs.ToList());
             jobDAL.SetCachedProgressStatus(jobIDs, JobStatus.Stopped); //redis cached progress
             jobDAL.DeleteCachedProgress(jobIDs);
         }

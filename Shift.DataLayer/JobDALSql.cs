@@ -189,7 +189,7 @@ namespace Shift.DataLayer
         /// <remarks>
         /// This works only for running jobs and jobs with no status. The server will attempt to 'stop' jobs marked as 'stop'.
         /// </remarks>
-        public int SetCommandStop(IList<int> jobIDs)
+        public int SetCommandStop(ICollection<int> jobIDs)
         {
             if (jobIDs.Count == 0)
                 return 0;
@@ -212,7 +212,7 @@ namespace Shift.DataLayer
         /// </summary>
         /// <remarks>
         /// </remarks>
-        public int SetCommandRunNow(IList<int> jobIDs)
+        public int SetCommandRunNow(ICollection<int> jobIDs)
         {
             if (jobIDs.Count == 0)
                 return 0;
@@ -236,7 +236,7 @@ namespace Shift.DataLayer
         /// <summary>
         /// Reset jobs, only affect non-running jobs.
         /// </summary>
-        public int Reset(IList<int> jobIDs)
+        public int Reset(ICollection<int> jobIDs)
         {
             if (jobIDs.Count == 0)
                 return 0;
@@ -281,7 +281,7 @@ namespace Shift.DataLayer
         /// <summary>
         /// Delete jobs, only affect non-running jobs.
         /// </summary>
-        public int Delete(IList<int> jobIDs)
+        public int Delete(ICollection<int> jobIDs)
         {
             if (jobIDs.Count == 0)
                 return 0;
@@ -322,7 +322,7 @@ namespace Shift.DataLayer
         /// </summary>
         /// <param name="hour">Job create hour in the past</param>
         /// <param name="statusList">A list of job's status to delete. Null job status is valid. Default is JobStatus.Completed.</param>
-        public int Delete(int hour, IList<JobStatus?> statusList)
+        public int Delete(int hour, ICollection<JobStatus?> statusList)
         {
             var whereQuery = "j.Created < DATEADD(hour, -@hour, GETDATE())";
 
@@ -384,7 +384,7 @@ namespace Shift.DataLayer
         /// </summary>
         /// <param name="hour">Job create hour in the past</param>
         /// <param name="statusList">A list of job's status to delete. Null job status is valid. Default is JobStatus.Completed.</param>
-        public async Task<int> DeleteAsync(int hour, IList<JobStatus?> statusList)
+        public async Task<int> DeleteAsync(int hour, ICollection<JobStatus?> statusList)
         {
             var count = await Task.Run(() => Delete(hour, statusList));
             return count;
@@ -393,7 +393,7 @@ namespace Shift.DataLayer
         /// <summary>
         ///  Mark job status to JobStatus.Stopped. 
         /// </summary>
-        public int SetToStopped(IList<int> jobIDs)
+        public int SetToStopped(ICollection<int> jobIDs)
         {
             if (jobIDs.Count == 0)
                 return 0;
@@ -418,7 +418,7 @@ namespace Shift.DataLayer
         /// <param name="appID"></param>
         /// <param name="userID"></param>
         /// <returns>JobStatusCount</returns>
-        public IList<JobStatusCount> GetJobStatusCount(string appID, string userID)
+        public IReadOnlyCollection<JobStatusCount> GetJobStatusCount(string appID, string userID)
         {
             var countList = new List<JobStatusCount>();
             using (var connection = new SqlConnection(connectionString))
@@ -485,7 +485,7 @@ namespace Shift.DataLayer
         /// </summary>
         /// <param name="jobIDs">group of jobIDs</param>
         /// <returns>List of Jobs</returns>
-        public IList<Job> GetJobs(IEnumerable<int> jobIDs)
+        public IReadOnlyCollection<Job> GetJobs(IEnumerable<int> jobIDs)
         {
             var jobList = new List<Job>();
             using (var connection = new SqlConnection(connectionString))
@@ -522,7 +522,7 @@ namespace Shift.DataLayer
         /// </summary>
         /// <param name="jobIDs"></param>
         /// <returns></returns>
-        public IList<Job> GetNonRunningJobsByIDs(IEnumerable<int> jobIDs)
+        public IReadOnlyCollection<Job> GetNonRunningJobsByIDs(IEnumerable<int> jobIDs)
         {
             var jobList = new List<Job>();
             using (var connection = new SqlConnection(connectionString))
@@ -544,7 +544,7 @@ namespace Shift.DataLayer
         /// <param name="processID">The processID owning the jobs</param>
         /// <param name="command">The command specified in JobCommand</param>
         /// <returns>List of JobIDs</returns>
-        public IList<int> GetJobIdsByProcessAndCommand(string processID, string command)
+        public IReadOnlyCollection<int> GetJobIdsByProcessAndCommand(string processID, string command)
         {
             var jobIds = new List<int>();
             using (var connection = new SqlConnection(connectionString))
@@ -566,7 +566,7 @@ namespace Shift.DataLayer
         /// <param name="processID">Owner processID</param>
         /// <param name="status">JobStatus</param>
         /// <returns>List of Jobs</returns>
-        public IList<Job> GetJobsByProcessAndStatus(string processID, JobStatus status)
+        public IReadOnlyCollection<Job> GetJobsByProcessAndStatus(string processID, JobStatus status)
         {
             var jobList = new List<Job>();
             using (var connection = new SqlConnection(connectionString))
@@ -725,10 +725,10 @@ namespace Shift.DataLayer
         /// <param name="processID">Owner processID</param>
         /// <param name="maxNum">Number of jobs to claim</param>
         /// <returns>List of jobs claimed by processID</returns>
-        public IList<Job> ClaimJobsToRun(string processID, int maxNum)
+        public IReadOnlyCollection<Job> ClaimJobsToRun(string processID, int maxNum)
         {
             var jobList = GetJobsToRun(maxNum);
-            return ClaimJobsToRun(processID, jobList);
+            return ClaimJobsToRun(processID, jobList.ToList());
         }
 
         /// <summary>
@@ -738,7 +738,7 @@ namespace Shift.DataLayer
         /// <param name="processID">Owner processID</param>
         /// <param name="jobList">List of jobs to claim</param>
         /// <returns>List of actual jobs claimed by processID</returns>
-        public IList<Job> ClaimJobsToRun(string processID, IEnumerable<Job> jobList)
+        public IReadOnlyCollection<Job> ClaimJobsToRun(string processID, ICollection<Job> jobList)
         {
             var claimedJobs = new List<Job>();
             using (var connection = new SqlConnection(connectionString))
@@ -746,13 +746,26 @@ namespace Shift.DataLayer
                 connection.Open();
                 foreach(var job in jobList)
                 {
-                    var sql = @"UPDATE [Job]
+                    var count = 0;
+                    try
+                    {
+                        var sql = @"UPDATE [Job]
                                 SET ProcessID = @processID 
                                 WHERE Status IS NULL 
                                 AND ProcessID IS NULL
                                 AND [jobID] = @jobID; ";
-                    var count = connection.Execute(sql, new { processID, job.JobID });
-                    job.ProcessID = processID; //set it similar to DB record!
+                        count = connection.Execute(sql, new { processID, job.JobID });
+                        job.ProcessID = processID; //set it similar to DB record!
+                    }
+                    catch (Exception exc)
+                    {
+                        //just mark error, don't stop
+                        var error = job.Error + " ClaimJobsToRun error: " + exc.ToString();
+                        SetError(processID, job.JobID, error); //set error in storage
+                        job.Status = JobStatus.Error;
+                        job.Error = error;
+                        continue;
+                    }
 
                     if (count > 0) //successful update
                         claimedJobs.Add(job);
@@ -768,7 +781,7 @@ namespace Shift.DataLayer
         /// </summary>
         /// <param name="maxNum">Maximum number to return</param>
         /// <returns>List of jobs</returns>
-        private IList<Job> GetJobsToRun(int maxNum)
+        private IReadOnlyCollection<Job> GetJobsToRun(int maxNum)
         {
             var jobList = new List<Job>();
             using (var connection = new SqlConnection(connectionString))
@@ -782,7 +795,6 @@ namespace Shift.DataLayer
                             ORDER BY j.Command DESC, j.Created, j.JobID
                             OFFSET 0 ROWS FETCH NEXT @maxNum ROWS ONLY; ";
                 jobList = connection.Query<Job>(sql, new { runNow = JobCommand.RunNow, maxNum }).ToList();
-
             }
 
             return jobList;
