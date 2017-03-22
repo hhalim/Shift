@@ -11,6 +11,7 @@ using Shift.Common;
 using Newtonsoft.Json;
 using System.ComponentModel;
 using Shift.Entities;
+using System.Threading;
 
 namespace Shift.DataLayer
 {
@@ -111,7 +112,7 @@ namespace Shift.DataLayer
             return serializedArguments.ToArray();
         }
 
-        public static object[] DeserializeArguments(IProgress<ProgressInfo> progress, MethodInfo methodInfo, string rawArguments)
+        public static object[] DeserializeArguments(CancellationToken token, IProgress<ProgressInfo> progress, MethodInfo methodInfo, string rawArguments)
         {
             var arguments = JsonConvert.DeserializeObject<string[]>(rawArguments, SerializerSettings.Settings);
             if (arguments.Length == 0)
@@ -125,7 +126,18 @@ namespace Shift.DataLayer
                 var parameter = parameters[i];
                 var argument = arguments[i];
 
-                var value = parameter.ParameterType.FullName.Contains("System.IProgress") ? progress : DeserializeArgument(argument, parameter.ParameterType);
+                object value = null;
+                if (parameter.ParameterType.FullName.Contains("System.IProgress")) {
+                    value = progress;
+                }
+                else if(parameter.ParameterType.FullName.Contains("System.Threading.CancellationToken")) 
+                {
+                    value = token;
+                }
+                else
+                {
+                    value = DeserializeArgument(argument, parameter.ParameterType);
+                };
 
                 result.Add(value);
             }

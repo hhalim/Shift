@@ -19,6 +19,7 @@ using Shift.Entities;
 
 using Autofac;
 using Autofac.Features.ResolveAnything;
+using System.Collections.Concurrent;
 
 namespace Shift
 {
@@ -32,6 +33,8 @@ namespace Shift
         private static System.Timers.Timer timer2 = null;
 
         private Dictionary<int, Thread> threadList = null; //reference to running thread
+
+        private Dictionary<int, TaskInfo> taskList = null; //reference to Tasks
 
         ///<summary>
         ///Initializes a new instance of JobServer class, injects data layer with connection and configuration strings.
@@ -90,6 +93,8 @@ namespace Shift
         {
             this.threadList = new Dictionary<int, Thread>();
 
+            this.taskList = new Dictionary<int, TaskInfo>();
+            
             jobDAL = container.Resolve<IJobDAL>();
 
             //OPTIONAL: Load all EXTERNAL DLLs needed by this process
@@ -197,7 +202,15 @@ namespace Shift
                 try
                 {
                     var decryptedParameters = Entities.Helpers.Decrypt(job.Parameters, config.EncryptionKey);
-                    CreateThread(job.ProcessID, job.JobID, job.InvokeMeta, decryptedParameters); //Use the DecryptedParameters, NOT encrypted Parameters
+
+                    if (config.ThreadMode == "thread")
+                    {
+                        CreateThread(job.ProcessID, job.JobID, job.InvokeMeta, decryptedParameters); //Use the DecryptedParameters, NOT encrypted Parameters
+                    }
+                    else 
+                    {
+                        CreateTask(job.ProcessID, job.JobID, job.InvokeMeta, decryptedParameters); //Use the DecryptedParameters, NOT encrypted Parameters
+                    }
                 }
                 catch (Exception exc)
                 {
@@ -248,7 +261,7 @@ namespace Shift
                 instance = Helpers.CreateInstance(type); //create object method instance
             }
 
-            var thread = new Thread(() => ExecuteJob(processID, jobID, methodInfo, parameters, instance)); //Create the new Job thread
+            var thread = new Thread(() => ExecuteJob(processID, jobID, methodInfo, parameters, instance, null)); //Create the new Job thread
 
             if (threadList.ContainsKey(jobID))
             {
@@ -260,6 +273,39 @@ namespace Shift
             thread.IsBackground = true; //keep the main process running https://msdn.microsoft.com/en-us/library/system.threading.thread.isbackground
 
             thread.Start();
+        }
+
+        private void CreateTask(string processID, int jobID, string invokeMeta, string parameters)
+        {
+            var invokeMetaObj = JsonConvert.DeserializeObject<InvokeMeta>(invokeMeta, SerializerSettings.Settings);
+
+            var type = GetTypeFromAllAssemblies(invokeMetaObj.Type);
+            var parameterTypes = JsonConvert.DeserializeObject<Type[]>(invokeMetaObj.ParameterTypes, SerializerSettings.Settings);
+            var methodInfo = Helpers.GetNonOpenMatchingMethod(type, invokeMetaObj.Method, parameterTypes);
+            if (methodInfo == null)
+            {
+                throw new InvalidOperationException(string.Format("The type '{0}' has no method with signature '{1}({2})'", type.FullName, invokeMetaObj.Method, string.Join(", ", parameterTypes.Select(x => x.Name))));
+            }
+            object instance = null;
+            if (!methodInfo.IsStatic) //not static?
+            {
+                instance = Helpers.CreateInstance(type); //create object method instance
+            }
+            var tokenSource = new CancellationTokenSource();
+            var token = tokenSource.Token;
+            if (taskList.ContainsKey(jobID))
+            {
+                //already in tokenSourceList, has not been cleaned up, so replace with the new one
+                taskList.Remove(jobID);
+            }
+            var jobTask = new Task(() => ExecuteJob(processID, jobID, methodInfo, parameters, instance, token), token);
+
+            var taskInfo = new TaskInfo();
+            taskInfo.JobTask = jobTask;
+            taskInfo.TokenSource = tokenSource;
+            taskList.Add(jobID, taskInfo); //Keep track of running thread
+
+            jobTask.Start();
         }
 
         private IProgress<ProgressInfo> UpdateProgressEvent(int jobID)
@@ -288,7 +334,7 @@ namespace Shift
             return progress;
         }
 
-        private void ExecuteJob(string processID, int jobID, MethodInfo methodInfo, string parameters, object instance)
+        private void ExecuteJob(string processID, int jobID, MethodInfo methodInfo, string parameters, object instance, CancellationToken? token)
         {
             try
             {
@@ -299,49 +345,137 @@ namespace Shift
                 var progress = UpdateProgressEvent(jobID); //Need this to update the progress of the job's
 
                 //Invoke Method
-                var args = DALHelpers.DeserializeArguments(progress, methodInfo, parameters);
+                if(token == null)
+                {
+                    var tokenSource = new CancellationTokenSource(); //not doing anything when using thread.Start()
+                    token = tokenSource.Token;
+                }
+                var args = DALHelpers.DeserializeArguments(token.Value, progress, methodInfo, parameters);
                 methodInfo.Invoke(instance, args);
+            }
+            catch (TargetInvocationException exc)
+            {
+                if(!(exc.InnerException is OperationCanceledException)) //handled by Task.Cancel
+                    throw; 
             }
             catch (ThreadAbortException txc)
             {
-                var row = jobDAL.GetJob(jobID);
-                if (row != null && row.Command != JobCommand.Stop && row.Status != JobStatus.Stopped)
+                var job = jobDAL.GetJob(jobID);
+                if (job != null && job.Command != JobCommand.Stop && job.Status != JobStatus.Stopped)
                 {
-                    var error = row.Error + " " + txc.ToString();
-                    jobDAL.SetCachedProgressError(row.JobID, error);
-                    jobDAL.SetError(processID, row.JobID, error);
+                    var error = job.Error + " " + txc.ToString();
+                    jobDAL.SetCachedProgressError(job.JobID, error);
+                    jobDAL.SetError(processID, job.JobID, error);
                 }
                 return; //can't throw to another thread so quit here
             }
             catch (Exception exc)
             {
-                var row = jobDAL.GetJob(jobID);
-                var error = row.Error + " " + exc.ToString();
-                jobDAL.SetCachedProgressError(row.JobID, error);
-                jobDAL.SetError(processID, row.JobID, error);
+                var job = jobDAL.GetJob(jobID);
+                var error = job.Error + " " + exc.ToString();
+                jobDAL.SetCachedProgressError(job.JobID, error);
+                jobDAL.SetError(processID, job.JobID, error);
 
                 return; //can't throw to another thread so quit here
             }
 
-            //Entire thread completes successfully
             jobDAL.SetCompleted(processID, jobID);
             jobDAL.SetCachedProgressStatus(jobID, JobStatus.Completed);
             var rsTask = Task.Delay(60000).ContinueWith(_ =>
             {
                 jobDAL.DeleteCachedProgress(jobID);
             }); //Delay delete to allow real time GetCachedProgress not hitting DB right away.
+
         }
 
         /// <summary>
         /// Stops jobs.
         /// Only jobs marked with "STOP" command will be acted on.
-        /// This uses Thread.Abort.
+        /// ThreadMode="task" will use CancellationTokenSource.Cancel()  
+        /// Make sure the jobs implement CancellationToken.IsCancellationRequested check for throwing and clean up canceled job.
+        /// ThreadMode="thread" will use Thread.Abort.
         /// No clean up is possible when thread is aborted.
         /// </summary>
         public void StopJobs()
         {
             var jobIDs = jobDAL.GetJobIdsByProcessAndCommand(config.ProcessID, JobCommand.Stop);
 
+            if (config.ThreadMode == "thread")
+            {
+                SetToStoppedThreads(jobIDs);
+            }
+            else
+            {
+                //Task.Run(async () => { await SetToStoppedTasksAsync(jobIDs); }); //don't wait for this call
+                SetToStoppedTasks(jobIDs);
+            }
+        }
+
+        private void SetToStoppedTasks(IReadOnlyCollection<int> jobIDs)
+        {
+            var nonWaitJobIDs = new List<int>();
+            if (taskList.Count > 0)
+            {
+                foreach (var jobID in jobIDs)
+                {
+                    var taskInfo = taskList.ContainsKey(jobID) ? taskList[jobID] : null;
+                    if (taskInfo != null)
+                    {
+                        Task.Run(async() => await CancelTaskAndWait(jobID, taskInfo));
+                    }
+                    else
+                    {
+                        nonWaitJobIDs.Add(jobID);
+                    }
+                }
+
+                //Set to stopped for nonWaitJobIDs
+                SetToStopped(nonWaitJobIDs);
+            }
+            else
+            {
+                SetToStopped(jobIDs);
+            }
+        }
+
+        private async Task CancelTaskAndWait(int jobID, TaskInfo taskInfo)
+        {
+            try
+            {
+                taskInfo.TokenSource.Cancel();
+                taskInfo.JobTask.Wait();
+            }
+            catch (AggregateException exc)
+            {
+                var error = new StringBuilder();
+                error.AppendLine("AggregateException thrown with the following inner exceptions:");
+                foreach (var v in exc.InnerExceptions)
+                {
+                    if (v is TaskCanceledException)
+                        error.AppendLine(" TaskCanceledException: Task " + ((TaskCanceledException)v).Task.Id);
+                    else
+                        error.AppendLine(" Exception: " + v.GetType().Name);
+                }
+            }
+            catch (Exception exc)
+            {
+                var job = jobDAL.GetJob(jobID);
+                var error = job.Error + " " + exc.ToString();
+                jobDAL.SetCachedProgressError(job.JobID, error);
+                jobDAL.SetError(job.ProcessID, job.JobID, error);
+                return; //can't throw to another thread so quit here
+            }
+            finally
+            {
+                taskList.Remove(jobID);
+            }
+
+            SetToStopped(new List<int> { jobID });
+            taskInfo.TokenSource.Dispose();
+        }
+
+        private void SetToStoppedThreads(IReadOnlyCollection<int> jobIDs)
+        {
             //abort running threads
             if (threadList.Count > 0)
             {
@@ -355,8 +489,12 @@ namespace Shift
                     }
                 }
             }
-
             //mark status to stopped
+            SetToStopped(jobIDs);
+        }
+
+        private void SetToStopped(IReadOnlyCollection<int>jobIDs)
+        {
             jobDAL.SetToStopped(jobIDs.ToList());
             jobDAL.SetCachedProgressStatus(jobIDs, JobStatus.Stopped); //redis cached progress
             jobDAL.DeleteCachedProgress(jobIDs);
@@ -369,6 +507,20 @@ namespace Shift
         /// * Remove thread references in memory, when job is deleted or status in DB is: stopped, error, or completed.
         /// </summary>
         public void CleanUp()
+        {
+            StopJobs();
+
+            if (config.ThreadMode == "thread")
+            {
+                CleanUpThreads();
+            }
+            else
+            {
+                CleanUpTasks();
+            }
+        }
+
+        private void CleanUpThreads()
         {
             //Delete past completed jobs from storage
             if (config.AutoDeletePeriod != null)
@@ -433,6 +585,79 @@ namespace Shift
             }
 
         }
+
+        private void CleanUpTasks()
+        {
+            //Delete past completed jobs from storage
+            if (config.AutoDeletePeriod != null)
+            {
+                var count = jobDAL.Delete(config.AutoDeletePeriod.Value, config.AutoDeleteStatus);
+            }
+
+            var jobList = jobDAL.GetJobsByProcessAndStatus(config.ProcessID, JobStatus.Running);
+            foreach (var job in jobList)
+            {
+                if (!taskList.ContainsKey(job.JobID))
+                {
+                    //Doesn't exist anymore? 
+                    var error = "Error: No actual running job process found. Try reset and run again.";
+                    jobDAL.SetCachedProgressError(job.JobID, error);
+                    var processID = string.IsNullOrWhiteSpace(job.ProcessID) ? config.ProcessID : job.ProcessID;
+                    jobDAL.SetError(processID, job.JobID, error);
+                }
+            }
+
+            if (taskList.Count != 0)
+            {
+                var inDBjobIDs = new List<int>();
+                jobList = jobDAL.GetJobs(taskList.Keys.ToList()); //get all jobs in threadList
+
+                // If jobs doesn't even exists in storage (zombie?), remove from threadList.
+                inDBjobIDs = jobList.Select(j => j.JobID).ToList();
+                var taskListKeys = new List<int>(taskList.Keys); //copy keys before removal
+                foreach (var jobID in taskListKeys)
+                {
+                    if (!inDBjobIDs.Contains(jobID))
+                    {
+                        var taskInfo = taskList[jobID];
+                        if (!taskInfo.JobTask.IsCanceled 
+                            && !taskInfo.JobTask.IsCompleted 
+                            && !taskInfo.JobTask.IsFaulted)
+                        {
+                            taskInfo.TokenSource.Cancel(); //attempt to cancel
+                        };
+                        taskList.Remove(jobID);
+                    }
+                }
+
+                // For job status that is stopped, error, completed => Remove from thread list, no need to keep track of them anymore.
+                var statuses = new List<int>
+                {
+                    (int)JobStatus.Stopped,
+                    (int)JobStatus.Error,
+                    (int)JobStatus.Completed
+                };
+
+                foreach (var job in jobList)
+                {
+                    if (job.Status != null
+                        && statuses.Contains((int)job.Status)
+                        && taskList.ContainsKey(job.JobID))
+                    {
+                        taskList.Remove(job.JobID);
+                    }
+                }
+
+            }
+
+        }
         #endregion
     }
+
+    public class TaskInfo
+    {
+        public Task JobTask { get; set; }
+        public CancellationTokenSource TokenSource { get; set; }
+    }
+
 }

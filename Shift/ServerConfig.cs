@@ -42,5 +42,7 @@ namespace Shift
 
         public int? AutoDeletePeriod { get; set; } = 168; //Default = 7 days; hours before jobs are deleted 
         public IList<JobStatus?> AutoDeleteStatus { get; set; } = new List<JobStatus?> { JobStatus.Completed }; //Jobs with status to delete
+
+        public string ThreadMode { get; set; } = "task"; //task = Task.Run or thread = Thread.Create
     }
 }

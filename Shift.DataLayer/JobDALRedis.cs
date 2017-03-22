@@ -350,7 +350,7 @@ namespace Shift.DataLayer
                     var hashEntries = RedisHelpers.ToHashEntries(job);
 
                     var trn = RedisDatabase.CreateTransaction();
-                    trn = CleanUpCommandAndStatusIndex(trn, job.ProcessID, jobID);
+                    trn = CleanUpCommandAndStatusIndex(trn, processID, jobID);
 
                     trn.KeyDeleteAsync(key); //delete entire job object
                     trn.HashSetAsync(key, hashEntries); //add it back
@@ -961,7 +961,13 @@ namespace Shift.DataLayer
                     var jobKey = sortedSet.Element.ToString();
                     var hashEntry = RedisDatabase.HashGetAll(jobKey);
                     var job = RedisHelpers.ConvertFromRedis<Job>(hashEntry);
-                    jobList.Add(job);
+
+                    //conditions
+                    if (job.Status == null && job.ProcessID == null &&
+                        (job.Command == null || job.Command == JobCommand.RunNow))
+                    {
+                        jobList.Add(job);
+                    }
                 }
             }
 
