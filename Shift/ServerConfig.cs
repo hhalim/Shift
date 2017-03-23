@@ -16,7 +16,7 @@ namespace Shift
         public string DBConnectionString { get; set; }
 
         [Required]
-        public string StorageMode { get; set; }  //mssql, redis, etc... 
+        public string StorageMode { get; set; } = Shift.StorageMode.Redis; //mssql, redis, etc... 
 
         //Maximum jobs to run for each server
         public int MaxRunnableJobs { get; set; } = 100;
@@ -43,6 +43,6 @@ namespace Shift
         public int? AutoDeletePeriod { get; set; } = 168; //Default = 7 days; hours before jobs are deleted 
         public IList<JobStatus?> AutoDeleteStatus { get; set; } = new List<JobStatus?> { JobStatus.Completed }; //Jobs with status to delete
 
-        public string ThreadMode { get; set; } = "task"; //task = Task.Run or thread = Thread.Create
+        public string ThreadMode { get; set; } = Shift.ThreadMode.Task; //task = Task.Run or thread = Thread.Create
     }
 }

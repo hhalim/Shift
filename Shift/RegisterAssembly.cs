@@ -12,9 +12,9 @@ namespace Shift
         public static void RegisterTypes(ContainerBuilder builder, string storageMode, string dbConnectionString, bool useCache, string cacheConfigurationString, string encryptionKey)
         {
             var parameters = Helpers.GenerateNamedParameters(new Dictionary<string, object> { { "connectionString", dbConnectionString }, { "encryptionKey", encryptionKey} });
-            switch (storageMode.ToUpper())
+            switch (storageMode.ToLower())
             {
-                case "MSSQL":
+                case StorageMode.MSSql:
                     if (useCache)
                     {
                         builder.RegisterType<Cache.Redis.JobCache>().As<IJobCache>().WithParameter("configurationString", cacheConfigurationString);
@@ -25,7 +25,7 @@ namespace Shift
                         builder.RegisterType<JobDALSql>().As<IJobDAL>().UsingConstructor(typeof(string), typeof(string)).WithParameters(parameters);
                     }
                     break;
-                case "REDIS":
+                case StorageMode.Redis:
                     builder.RegisterType<JobDALRedis>().As<IJobDAL>().UsingConstructor(typeof(string), typeof(string)).WithParameters(parameters);
                     break;
                 default:

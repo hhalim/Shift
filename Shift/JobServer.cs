@@ -8,10 +8,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Threading;
-using System.Data.SqlClient;
-using System.Diagnostics;
 using System.Reflection;
-using System.IO;
 
 using Newtonsoft.Json;
 using Shift.DataLayer;
@@ -19,7 +16,6 @@ using Shift.Entities;
 
 using Autofac;
 using Autofac.Features.ResolveAnything;
-using System.Collections.Concurrent;
 
 namespace Shift
 {
@@ -203,7 +199,7 @@ namespace Shift
                 {
                     var decryptedParameters = Entities.Helpers.Decrypt(job.Parameters, config.EncryptionKey);
 
-                    if (config.ThreadMode == "thread")
+                    if (config.ThreadMode.ToLower() == ThreadMode.Thread)
                     {
                         CreateThread(job.ProcessID, job.JobID, job.InvokeMeta, decryptedParameters); //Use the DecryptedParameters, NOT encrypted Parameters
                     }
@@ -400,13 +396,12 @@ namespace Shift
         {
             var jobIDs = jobDAL.GetJobIdsByProcessAndCommand(config.ProcessID, JobCommand.Stop);
 
-            if (config.ThreadMode == "thread")
+            if (config.ThreadMode.ToLower() == ThreadMode.Thread)
             {
                 SetToStoppedThreads(jobIDs);
             }
             else
             {
-                //Task.Run(async () => { await SetToStoppedTasksAsync(jobIDs); }); //don't wait for this call
                 SetToStoppedTasks(jobIDs);
             }
         }
@@ -421,7 +416,7 @@ namespace Shift
                     var taskInfo = taskList.ContainsKey(jobID) ? taskList[jobID] : null;
                     if (taskInfo != null)
                     {
-                        Task.Run(async() => await CancelTaskAndWait(jobID, taskInfo));
+                        Task.Run(() => CancelTaskAndWait(jobID, taskList));
                     }
                     else
                     {
@@ -438,8 +433,10 @@ namespace Shift
             }
         }
 
-        private async Task CancelTaskAndWait(int jobID, TaskInfo taskInfo)
+        private void CancelTaskAndWait(int jobID, Dictionary<int, TaskInfo> taskList)
         {
+            var taskInfo = taskList[jobID];
+
             try
             {
                 taskInfo.TokenSource.Cancel();
@@ -465,11 +462,8 @@ namespace Shift
                 jobDAL.SetError(job.ProcessID, job.JobID, error);
                 return; //can't throw to another thread so quit here
             }
-            finally
-            {
-                taskList.Remove(jobID);
-            }
 
+            taskList.Remove(jobID);
             SetToStopped(new List<int> { jobID });
             taskInfo.TokenSource.Dispose();
         }
@@ -510,7 +504,7 @@ namespace Shift
         {
             StopJobs();
 
-            if (config.ThreadMode == "thread")
+            if (config.ThreadMode.ToLower() == ThreadMode.Thread)
             {
                 CleanUpThreads();
             }
@@ -652,12 +646,6 @@ namespace Shift
 
         }
         #endregion
-    }
-
-    public class TaskInfo
-    {
-        public Task JobTask { get; set; }
-        public CancellationTokenSource TokenSource { get; set; }
     }
 
 }

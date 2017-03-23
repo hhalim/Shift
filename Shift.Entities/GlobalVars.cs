@@ -32,4 +32,15 @@ namespace Shift
         public static string ParametersKey = ConfigurationManager.AppSettings["ShiftEncryptionParametersKey"];
     }
 
+    public static class ThreadMode
+    {
+        public const string Thread = "thread";
+        public const string Task = "task";
+    }
+
+    public static class StorageMode
+    {
+        public const string MSSql = "mssql";
+        public const string Redis = "redis";
+    }
 }
