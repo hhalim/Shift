@@ -435,7 +435,11 @@ namespace Shift
 
         private void CancelTaskAndWait(int jobID, Dictionary<int, TaskInfo> taskList)
         {
-            var taskInfo = taskList[jobID];
+            TaskInfo taskInfo = null;
+            if (taskList.Keys.Contains(jobID))
+                taskInfo = taskList[jobID];
+            else
+                return;
 
             try
             {
@@ -613,13 +617,13 @@ namespace Shift
                 {
                     if (!inDBjobIDs.Contains(jobID))
                     {
-                        var taskInfo = taskList[jobID];
-                        if (!taskInfo.JobTask.IsCanceled 
-                            && !taskInfo.JobTask.IsCompleted 
-                            && !taskInfo.JobTask.IsFaulted)
-                        {
-                            taskInfo.TokenSource.Cancel(); //attempt to cancel
-                        };
+                        TaskInfo taskInfo = null;
+                        if (taskList.Keys.Contains(jobID))
+                            taskInfo = taskList[jobID];
+                        else
+                            continue;
+
+                        taskInfo.TokenSource.Cancel(); //attempt to cancel
                         taskList.Remove(jobID);
                     }
                 }
