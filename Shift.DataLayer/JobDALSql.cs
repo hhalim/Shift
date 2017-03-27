@@ -152,13 +152,15 @@ namespace Shift.DataLayer
             var count = 0;
             using (var connection = new SqlConnection(connectionString))
             {
-                //Delete job Progress
-                var query2 = @"DELETE  
+                using (var trn = connection.BeginTransaction())
+                {
+                    //Delete job Progress
+                    var query2 = @"DELETE  
                             FROM JobProgress
                             WHERE JobID = @jobID; ";
-                connection.Execute(query2, new { jobID });
+                    connection.Execute(query2, new { jobID }, trn);
 
-                var query = @"
+                    var query = @"
                             UPDATE [Job]
                             SET [AppID] = @AppID
                                 ,[UserID] = @UserID
@@ -175,7 +177,10 @@ namespace Shift.DataLayer
                                 ,[Created] = @Created
                             WHERE JobID = @JobID AND (Status != @Status OR Status IS NULL);
                             ";
-                count = connection.Execute(query, values);
+                    count = connection.Execute(query, values, trn);
+
+                    trn.Commit();
+                }
             }
 
             return count;
@@ -238,8 +243,9 @@ namespace Shift.DataLayer
         /// </summary>
         public int Reset(ICollection<int> jobIDs)
         {
+            var count = 0;
             if (jobIDs.Count == 0)
-                return 0;
+                return count;
 
             using (var connection = new SqlConnection(connectionString))
             {
@@ -251,18 +257,20 @@ namespace Shift.DataLayer
                             AND (j.Status != @status OR j.Status IS NULL); ";
                 var notRunning = connection.Query<int>(sql, new { ids = jobIDs.ToArray(), status = JobStatus.Running }).ToList<int>();
 
-                if (notRunning.Count > 0)
+                using (var trn = connection.BeginTransaction())
                 {
-                    //Reset jobs and progress for NON running jobs
-                    sql = @"UPDATE JobProgress 
+                    if (notRunning.Count > 0)
+                    {
+                        //Reset jobs and progress for NON running jobs
+                        sql = @"UPDATE JobProgress 
                             SET 
                             [Percent] = NULL, 
                             Note = NULL,
                             Data = NULL
                             WHERE JobID IN @ids; ";
-                    connection.Execute(sql, new { ids = notRunning.ToArray() });
+                        connection.Execute(sql, new { ids = notRunning.ToArray() }, trn);
 
-                    sql = @"UPDATE Job 
+                        sql = @"UPDATE Job 
                         SET 
                         ProcessID = NULL, 
                         Command = NULL, 
@@ -271,11 +279,14 @@ namespace Shift.DataLayer
                         [Start] = NULL, 
                         [End] = NULL 
                         WHERE JobID IN @ids; ";
-                    return connection.Execute(sql, new { ids = notRunning.ToArray() });
+                        count = connection.Execute(sql, new { ids = notRunning.ToArray() }, trn);
+                    }
+
+                    trn.Commit();
                 }
             }
 
-            return 0;
+            return count;
         }
 
         /// <summary>
@@ -297,20 +308,25 @@ namespace Shift.DataLayer
                             AND (j.Status != @status OR j.Status IS NULL); ";
                 var notRunning = connection.Query<int>(sql, new { ids = jobIDs.ToArray(), status = JobStatus.Running }).ToList<int>();
 
-                if (notRunning.Count > 0)
+                using (var trn = connection.BeginTransaction())
                 {
-                    //Delete only the NON running jobs
-                    //Delete JobProgress
-                    sql = @"DELETE  
+                    if (notRunning.Count > 0)
+                    {
+                        //Delete only the NON running jobs
+                        //Delete JobProgress
+                        sql = @"DELETE  
                             FROM JobProgress
                             WHERE JobID IN @ids; ";
-                    connection.Execute(sql, new { ids = notRunning.ToArray() });
+                        connection.Execute(sql, new { ids = notRunning.ToArray() }, trn);
 
-                    //Delete Job
-                    sql = @"DELETE  
+                        //Delete Job
+                        sql = @"DELETE  
                             FROM Job
                             WHERE JobID IN @ids; ";
-                    count = connection.Execute(sql, new { ids = notRunning.ToArray() });
+                        count = connection.Execute(sql, new { ids = notRunning.ToArray() }, trn);
+                    }
+
+                    trn.Commit();
                 }
             }
 
@@ -360,19 +376,24 @@ namespace Shift.DataLayer
                             + " ORDER BY j.Created, j.JobID; "; // FIFO deletion
                 var deleteIDs = connection.Query<int>(sql, new { hour }).ToList<int>();
 
-                if (deleteIDs.Count > 0)
+                using (var trn = connection.BeginTransaction())
                 {
-                    //Delete JobProgress
-                    sql = @"DELETE  
+                    if (deleteIDs.Count > 0)
+                    {
+                        //Delete JobProgress
+                        sql = @"DELETE  
                             FROM JobProgress
                             WHERE JobID IN @ids; ";
-                    connection.Execute(sql, new { ids = deleteIDs.ToArray() });
+                        connection.Execute(sql, new { ids = deleteIDs.ToArray() }, trn);
 
-                    //Delete Job
-                    sql = @"DELETE  
+                        //Delete Job
+                        sql = @"DELETE  
                             FROM Job
                             WHERE JobID IN @ids; ";
-                    count = connection.Execute(sql, new { ids = deleteIDs.ToArray() });
+                        count = connection.Execute(sql, new { ids = deleteIDs.ToArray() }, trn);
+                    }
+
+                    trn.Commit();
                 }
             }
 
