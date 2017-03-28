@@ -38,7 +38,7 @@ namespace Shift.DataLayer
         /// <summary>
         /// Add a new job in to queue.
         /// </summary>
-        public int? Add(string appID, string userID, string jobType, string jobName, Expression<Action> methodCall)
+        public string Add(string appID, string userID, string jobType, string jobName, Expression<Action> methodCall)
         {
             if (methodCall == null)
                 throw new ArgumentNullException("methodCall");
@@ -85,13 +85,13 @@ namespace Shift.DataLayer
             job.Parameters = Helpers.Encrypt(JsonConvert.SerializeObject(DALHelpers.SerializeArguments(args), SerializerSettings.Settings), encryptionKey); //ENCRYPT it!!!
             job.Created = now;
 
-            int? jobID = null;
+            string jobID = null;
             using (var connection = new SqlConnection(connectionString))
             {
                 var query = @"INSERT INTO [Job] ([AppID], [UserID], [JobType], [JobName], [InvokeMeta], [Parameters], [Created]) 
                               VALUES(@AppID, @UserID, @JobType, @JobName, @InvokeMeta, @Parameters, @Created);
                               SELECT CAST(SCOPE_IDENTITY() as int); ";
-                jobID = connection.Query<int>(query, job).SingleOrDefault();
+                jobID = connection.Query<string>(query, job).SingleOrDefault();
             }
 
             return jobID;
@@ -100,7 +100,7 @@ namespace Shift.DataLayer
         /// <summary>
         /// Update existing job, reset fields, return updated record count.
         /// </summary>
-        public int Update(int jobID, string appID, string userID, string jobType, string jobName, Expression<Action> methodCall)
+        public int Update(string jobID, string appID, string userID, string jobType, string jobName, Expression<Action> methodCall)
         {
             if (methodCall == null)
                 throw new ArgumentNullException("methodCall");
@@ -194,7 +194,7 @@ namespace Shift.DataLayer
         /// <remarks>
         /// This works only for running jobs and jobs with no status. The server will attempt to 'stop' jobs marked as 'stop'.
         /// </remarks>
-        public int SetCommandStop(ICollection<int> jobIDs)
+        public int SetCommandStop(ICollection<string> jobIDs)
         {
             if (jobIDs.Count == 0)
                 return 0;
@@ -217,7 +217,7 @@ namespace Shift.DataLayer
         /// </summary>
         /// <remarks>
         /// </remarks>
-        public int SetCommandRunNow(ICollection<int> jobIDs)
+        public int SetCommandRunNow(ICollection<string> jobIDs)
         {
             if (jobIDs.Count == 0)
                 return 0;
@@ -241,7 +241,7 @@ namespace Shift.DataLayer
         /// <summary>
         /// Reset jobs, only affect non-running jobs.
         /// </summary>
-        public int Reset(ICollection<int> jobIDs)
+        public int Reset(ICollection<string> jobIDs)
         {
             var count = 0;
             if (jobIDs.Count == 0)
@@ -267,7 +267,7 @@ namespace Shift.DataLayer
                             [Percent] = NULL, 
                             Note = NULL,
                             Data = NULL
-                            WHERE JobID IN @ids; ";
+                            WHERE JobID IN @ids; "; 
                         connection.Execute(sql, new { ids = notRunning.ToArray() }, trn);
 
                         sql = @"UPDATE Job 
@@ -292,7 +292,7 @@ namespace Shift.DataLayer
         /// <summary>
         /// Delete jobs, only affect non-running jobs.
         /// </summary>
-        public int Delete(ICollection<int> jobIDs)
+        public int Delete(ICollection<string> jobIDs)
         {
             if (jobIDs.Count == 0)
                 return 0;
@@ -312,6 +312,8 @@ namespace Shift.DataLayer
                 {
                     if (notRunning.Count > 0)
                     {
+                        //TODO: add the not running status and remove the previous not running select, unnecessary!!!
+
                         //Delete only the NON running jobs
                         //Delete JobProgress
                         sql = @"DELETE  
@@ -374,7 +376,10 @@ namespace Shift.DataLayer
                             FROM Job j
                             WHERE  " + whereQuery 
                             + " ORDER BY j.Created, j.JobID; "; // FIFO deletion
-                var deleteIDs = connection.Query<int>(sql, new { hour }).ToList<int>();
+                var deleteIDs = connection.Query<string>(sql, new { hour }).ToList();
+
+                //Delete Cached progress
+                DeleteCachedProgress(deleteIDs);
 
                 using (var trn = connection.BeginTransaction())
                 {
@@ -414,7 +419,7 @@ namespace Shift.DataLayer
         /// <summary>
         ///  Mark job status to JobStatus.Stopped. 
         /// </summary>
-        public int SetToStopped(ICollection<int> jobIDs)
+        public int SetToStopped(ICollection<string> jobIDs)
         {
             if (jobIDs.Count == 0)
                 return 0;
@@ -489,7 +494,7 @@ namespace Shift.DataLayer
         /// </summary>
         /// <param name="jobID">The existing unique jobID</param>
         /// <returns>Job</returns>
-        public Job GetJob(int jobID)
+        public Job GetJob(string jobID)
         {
             using (var connection = new SqlConnection(connectionString))
             {
@@ -506,7 +511,7 @@ namespace Shift.DataLayer
         /// </summary>
         /// <param name="jobIDs">group of jobIDs</param>
         /// <returns>List of Jobs</returns>
-        public IReadOnlyCollection<Job> GetJobs(IEnumerable<int> jobIDs)
+        public IReadOnlyCollection<Job> GetJobs(IEnumerable<string> jobIDs)
         {
             var jobList = new List<Job>();
             using (var connection = new SqlConnection(connectionString))
@@ -526,7 +531,7 @@ namespace Shift.DataLayer
         /// </summary>
         /// <param name="jobID">The existing unique jobID</param>
         /// <returns>JobView</returns>
-        public JobView GetJobView(int jobID)
+        public JobView GetJobView(string jobID)
         {
             using (var connection = new SqlConnection(connectionString))
             {
@@ -543,7 +548,7 @@ namespace Shift.DataLayer
         /// </summary>
         /// <param name="jobIDs"></param>
         /// <returns></returns>
-        public IReadOnlyCollection<Job> GetNonRunningJobsByIDs(IEnumerable<int> jobIDs)
+        public IReadOnlyCollection<Job> GetNonRunningJobsByIDs(IEnumerable<string> jobIDs)
         {
             var jobList = new List<Job>();
             using (var connection = new SqlConnection(connectionString))
@@ -565,9 +570,9 @@ namespace Shift.DataLayer
         /// <param name="processID">The processID owning the jobs</param>
         /// <param name="command">The command specified in JobCommand</param>
         /// <returns>List of JobIDs</returns>
-        public IReadOnlyCollection<int> GetJobIdsByProcessAndCommand(string processID, string command)
+        public IReadOnlyCollection<string> GetJobIdsByProcessAndCommand(string processID, string command)
         {
-            var jobIds = new List<int>();
+            var jobIds = new List<string>();
             using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
@@ -575,7 +580,7 @@ namespace Shift.DataLayer
                             FROM Job j
                             WHERE (j.ProcessID = @processID OR j.ProcessID IS NULL)
                             AND j.Command = @command; ";
-                jobIds = connection.Query<int>(sql, new { processID, command }).ToList();
+                jobIds = connection.Query<string>(sql, new { processID, command }).ToList();
             }
 
             return jobIds;
@@ -665,7 +670,7 @@ namespace Shift.DataLayer
         /// <param name="processID">process ID</param>
         /// <param name="jobID">job ID</param>
         /// <returns>Updated record count, 0 or 1 record updated</returns>
-        public int SetToRunning(string processID, int jobID)
+        public int SetToRunning(string processID, string jobID)
         {
             var count = 0;
             using (var connection = new SqlConnection(connectionString))
@@ -685,7 +690,7 @@ namespace Shift.DataLayer
         /// <param name="jobID">job ID</param>
         /// <param name="error">Error message</param>
         /// <returns>Updated record count, 0 or 1 record updated</returns>
-        public int SetError(string processID, int jobID, string error)
+        public int SetError(string processID, string jobID, string error)
         {
             var count = 0;
             using (var connection = new SqlConnection(connectionString))
@@ -705,7 +710,7 @@ namespace Shift.DataLayer
         /// <param name="processID">process ID</param>
         /// <param name="jobID">job ID</param>
         /// <returns>Updated record count, 0 or 1 record updated</returns>
-        public int SetCompleted(string processID, int jobID)
+        public int SetCompleted(string processID, string jobID)
         {
             var count = 0;
             using (var connection = new SqlConnection(connectionString))
@@ -829,7 +834,7 @@ namespace Shift.DataLayer
         /// <param name="note">Any type of note for the progress</param>
         /// <param name="data">Any data for the progress</param>
         /// <returns>0 for no insert/update, 1 for successful insert/update</returns>
-        public int SetProgress(int jobID, int? percent, string note, string data)
+        public int SetProgress(string jobID, int? percent, string note, string data)
         {
             var count = 0;
             using (var connection = new SqlConnection(connectionString))
@@ -864,7 +869,7 @@ namespace Shift.DataLayer
         /// <param name="note">Any type of note for the progress</param>
         /// <param name="data">Any data for the progress</param>
         /// <returns>0 for no update, 1 for successful update</returns>
-        public async Task<int> UpdateProgressAsync(int jobID, int? percent, string note, string data)
+        public async Task<int> UpdateProgressAsync(string jobID, int? percent, string note, string data)
         {
             var count = 0;
             using (var connection = new SqlConnection(connectionString))
@@ -883,7 +888,7 @@ namespace Shift.DataLayer
 
         #region Cache
         /* Use Cache and DB to return progress */
-        public JobStatusProgress GetProgress(int jobID)
+        public JobStatusProgress GetProgress(string jobID)
         {
             var jsProgress = GetCachedProgress(jobID);
             if (jsProgress == null)
@@ -911,7 +916,7 @@ namespace Shift.DataLayer
             return jsProgress;
         }
 
-        public JobStatusProgress GetCachedProgress(int jobID)
+        public JobStatusProgress GetCachedProgress(string jobID)
         {
             if (jobCache == null)
                 return null;
@@ -919,7 +924,7 @@ namespace Shift.DataLayer
         }
 
         //Set Cached progress similar to the DB SetProgress()
-        public void SetCachedProgress(int jobID, int? percent, string note, string data)
+        public void SetCachedProgress(string jobID, int? percent, string note, string data)
         {
             if (jobCache == null)
                 return;
@@ -927,7 +932,7 @@ namespace Shift.DataLayer
         }
 
         //Set cached progress status
-        public void SetCachedProgressStatus(int jobID, JobStatus status)
+        public void SetCachedProgressStatus(string jobID, JobStatus status)
         {
             if (jobCache == null)
                 return;
@@ -940,7 +945,7 @@ namespace Shift.DataLayer
             }
         }
 
-        public void SetCachedProgressStatus(IEnumerable<int> jobIDs, JobStatus status)
+        public void SetCachedProgressStatus(IEnumerable<string> jobIDs, JobStatus status)
         {
             if (jobCache == null)
                 return;
@@ -952,7 +957,7 @@ namespace Shift.DataLayer
         }
 
         //Set cached progress error
-        public void SetCachedProgressError(int jobID, string error)
+        public void SetCachedProgressError(string jobID, string error)
         {
             if (jobCache == null)
                 return;
@@ -962,7 +967,7 @@ namespace Shift.DataLayer
         }
 
 
-        public void DeleteCachedProgress(int jobID)
+        public void DeleteCachedProgress(string jobID)
         {
             if (jobCache == null)
                 return;
@@ -970,7 +975,7 @@ namespace Shift.DataLayer
             jobCache.DeleteCachedProgress(jobID);
         }
 
-        public void DeleteCachedProgress(IEnumerable<int> jobIDs)
+        public void DeleteCachedProgress(IEnumerable<string> jobIDs)
         {
             if (jobCache == null)
                 return;

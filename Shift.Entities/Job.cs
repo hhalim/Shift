@@ -8,7 +8,7 @@ namespace Shift.Entities
     public partial class Job
     {
         [Key]
-        public int JobID { get; set; } //PrimaryKey
+        public string JobID { get; set; } //PrimaryKey
 
         public string AppID { get; set; }
         public string UserID { get; set; } 
@@ -25,6 +25,8 @@ namespace Shift.Entities
         public DateTime? End { get; set; }
 
         public DateTime? Created { get; set; }
+
+        public long? Score { get; set; } //for sorting run-now
 
         [Editable(false)]
         public string StatusLabel { get { return Status.ToString(); } }

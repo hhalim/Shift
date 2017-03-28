@@ -11,7 +11,7 @@ namespace Shift.Entities
     public class JobStatusProgress
     {
         [Key]
-        public int JobID { get; set; } //PrimaryKey
+        public string JobID { get; set; } //PrimaryKey
 
         public int? Percent { get; set; }
         public string Note { get; set; }

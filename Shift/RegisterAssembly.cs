@@ -28,6 +28,9 @@ namespace Shift
                 case StorageMode.Redis:
                     builder.RegisterType<JobDALRedis>().As<IJobDAL>().UsingConstructor(typeof(string), typeof(string)).WithParameters(parameters);
                     break;
+                case StorageMode.MongoDB:
+                    builder.RegisterType<JobDALMongo>().As<IJobDAL>().UsingConstructor(typeof(string), typeof(string)).WithParameters(parameters);
+                    break;
                 default:
                     throw new ArgumentNullException("The storage mode configuration must not be empty or null.");
                     break;

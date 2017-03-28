@@ -28,9 +28,9 @@ namespace Shift
         private static System.Timers.Timer timer = null;
         private static System.Timers.Timer timer2 = null;
 
-        private Dictionary<int, Thread> threadList = null; //reference to running thread
+        private Dictionary<string, Thread> threadList = null; //reference to running thread
 
-        private Dictionary<int, TaskInfo> taskList = null; //reference to Tasks
+        private Dictionary<string, TaskInfo> taskList = null; //reference to Tasks
 
         ///<summary>
         ///Initializes a new instance of JobServer class, injects data layer with connection and configuration strings.
@@ -77,7 +77,7 @@ namespace Shift
             RegisterAssembly.RegisterTypes(builder, config.StorageMode, config.DBConnectionString, config.UseCache, config.CacheConfigurationString, config.EncryptionKey);
             container = builder.Build();
 
-            Initialize(config.StorageMode);
+            Initialize();
         }
 
         #region Startup
@@ -85,12 +85,17 @@ namespace Shift
         /// Instantiate the data layer and loads all the referenced assemblies defined in the assembly list text file 
         /// in Options.AssemblyListPath and Options.AssemblyBaseDir
         /// </summary>
-        private void Initialize(string storageMode)
+        private void Initialize()
         {
-            this.threadList = new Dictionary<int, Thread>();
+            if (config.ThreadMode == ThreadMode.Thread)
+            {
+                this.threadList = new Dictionary<string, Thread>();
+            }
+            else
+            {
+                this.taskList = new Dictionary<string, TaskInfo>();
+            }
 
-            this.taskList = new Dictionary<int, TaskInfo>();
-            
             jobDAL = container.Resolve<IJobDAL>();
 
             //OPTIONAL: Load all EXTERNAL DLLs needed by this process
@@ -178,7 +183,7 @@ namespace Shift
         /// </summary>
         /// 
         ///<param name="jobIDs">List of job IDs to run.</param>
-        public void RunJobs(IEnumerable<int> jobIDs)
+        public void RunJobs(IEnumerable<string> jobIDs)
         {
             //Try to start the selected jobs, ignoring MaxRunableJobs
             var jobList = jobDAL.GetNonRunningJobsByIDs(jobIDs);
@@ -240,7 +245,7 @@ namespace Shift
         }
 
         //Create the thread that will run the job
-        private void CreateThread(string processID, int jobID, string invokeMeta, string parameters)
+        private void CreateThread(string processID, string jobID, string invokeMeta, string parameters)
         {
             var invokeMetaObj = JsonConvert.DeserializeObject<InvokeMeta>(invokeMeta, SerializerSettings.Settings);
 
@@ -271,7 +276,7 @@ namespace Shift
             thread.Start();
         }
 
-        private void CreateTask(string processID, int jobID, string invokeMeta, string parameters)
+        private void CreateTask(string processID, string jobID, string invokeMeta, string parameters)
         {
             var invokeMetaObj = JsonConvert.DeserializeObject<InvokeMeta>(invokeMeta, SerializerSettings.Settings);
 
@@ -304,7 +309,7 @@ namespace Shift
             jobTask.Start();
         }
 
-        private IProgress<ProgressInfo> UpdateProgressEvent(int jobID)
+        private IProgress<ProgressInfo> UpdateProgressEvent(string jobID)
         {
             //Insert a progress row first for the related jobID if it doesn't exist
             jobDAL.SetProgress(jobID, null, null, null);
@@ -330,7 +335,7 @@ namespace Shift
             return progress;
         }
 
-        private void ExecuteJob(string processID, int jobID, MethodInfo methodInfo, string parameters, object instance, CancellationToken? token)
+        private void ExecuteJob(string processID, string jobID, MethodInfo methodInfo, string parameters, object instance, CancellationToken? token)
         {
             try
             {
@@ -406,9 +411,9 @@ namespace Shift
             }
         }
 
-        private void SetToStoppedTasks(IReadOnlyCollection<int> jobIDs)
+        private void SetToStoppedTasks(IReadOnlyCollection<string> jobIDs)
         {
-            var nonWaitJobIDs = new List<int>();
+            var nonWaitJobIDs = new List<string>();
             if (taskList.Count > 0)
             {
                 foreach (var jobID in jobIDs)
@@ -433,7 +438,7 @@ namespace Shift
             }
         }
 
-        private void CancelTaskAndWait(int jobID, Dictionary<int, TaskInfo> taskList)
+        private void CancelTaskAndWait(string jobID, Dictionary<string, TaskInfo> taskList)
         {
             TaskInfo taskInfo = null;
             if (taskList.Keys.Contains(jobID))
@@ -468,11 +473,11 @@ namespace Shift
             }
 
             taskList.Remove(jobID);
-            SetToStopped(new List<int> { jobID });
+            SetToStopped(new List<string> { jobID });
             taskInfo.TokenSource.Dispose();
         }
 
-        private void SetToStoppedThreads(IReadOnlyCollection<int> jobIDs)
+        private void SetToStoppedThreads(IReadOnlyCollection<string> jobIDs)
         {
             //abort running threads
             if (threadList.Count > 0)
@@ -491,7 +496,7 @@ namespace Shift
             SetToStopped(jobIDs);
         }
 
-        private void SetToStopped(IReadOnlyCollection<int>jobIDs)
+        private void SetToStopped(IReadOnlyCollection<string> jobIDs)
         {
             jobDAL.SetToStopped(jobIDs.ToList());
             jobDAL.SetCachedProgressStatus(jobIDs, JobStatus.Stopped); //redis cached progress
@@ -508,6 +513,12 @@ namespace Shift
         {
             StopJobs();
 
+            //Delete past completed jobs from storage
+            if (config.AutoDeletePeriod != null)
+            {
+                var count = jobDAL.DeleteAsync(config.AutoDeletePeriod.Value, config.AutoDeleteStatus).GetAwaiter().GetResult();
+            }
+
             if (config.ThreadMode.ToLower() == ThreadMode.Thread)
             {
                 CleanUpThreads();
@@ -520,12 +531,6 @@ namespace Shift
 
         private void CleanUpThreads()
         {
-            //Delete past completed jobs from storage
-            if (config.AutoDeletePeriod != null)
-            {
-                var count = jobDAL.Delete(config.AutoDeletePeriod.Value, config.AutoDeleteStatus);
-            }
-
             // For Running jobs, mark as error if no reference in threadList.
             // DB record is marked as Status = Running but NO thread in threadList (crashed, aborted, etc) => Mark as error and add error message
             // If not in threadList, it's a rogue thread or crashed, better to mark as error and restart.
@@ -543,14 +548,14 @@ namespace Shift
             }
 
             // Remove reference from ThreadList 
-            if (threadList.Count != 0)
+            if (threadList.Count > 0)
             {
-                var inDBjobIDs = new List<int>();
+                var inDBjobIDs = new List<string>();
                 jobList = jobDAL.GetJobs(threadList.Keys.ToList()); //get all jobs in threadList
 
                 // If jobs doesn't even exists in storage (zombie?), remove from threadList.
                 inDBjobIDs = jobList.Select(j => j.JobID).ToList();
-                var threadListKeys = new List<int>(threadList.Keys); //copy keys before removal
+                var threadListKeys = new List<string>(threadList.Keys); //copy keys before removal
                 foreach (var jobID in threadListKeys)
                 {
                     if (!inDBjobIDs.Contains(jobID))
@@ -586,12 +591,6 @@ namespace Shift
 
         private void CleanUpTasks()
         {
-            //Delete past completed jobs from storage
-            if (config.AutoDeletePeriod != null)
-            {
-                var count = jobDAL.Delete(config.AutoDeletePeriod.Value, config.AutoDeleteStatus);
-            }
-
             var jobList = jobDAL.GetJobsByProcessAndStatus(config.ProcessID, JobStatus.Running);
             foreach (var job in jobList)
             {
@@ -605,14 +604,14 @@ namespace Shift
                 }
             }
 
-            if (taskList.Count != 0)
+            if (taskList.Count > 0)
             {
-                var inDBjobIDs = new List<int>();
-                jobList = jobDAL.GetJobs(taskList.Keys.ToList()); //get all jobs in threadList
+                var inDBjobIDs = new List<string>();
+                jobList = jobDAL.GetJobs(taskList.Keys.ToList()); //get all jobs in taskList
 
-                // If jobs doesn't even exists in storage (zombie?), remove from threadList.
+                // If jobs doesn't even exists in storage (zombie?), remove from taskList.
                 inDBjobIDs = jobList.Select(j => j.JobID).ToList();
-                var taskListKeys = new List<int>(taskList.Keys); //copy keys before removal
+                var taskListKeys = new List<string>(taskList.Keys); //copy keys before removal
                 foreach (var jobID in taskListKeys)
                 {
                     if (!inDBjobIDs.Contains(jobID))

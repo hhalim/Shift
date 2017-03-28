@@ -16,7 +16,7 @@ namespace Shift.Entities
     {
 
         [Key]
-        public int JobID { get; set; } //PrimaryKey
+        public string JobID { get; set; } //PrimaryKey
 
         public string AppID { get; set; }
         public string UserID { get; set; }
@@ -37,6 +37,8 @@ namespace Shift.Entities
         public int? Percent { get; set; }
         public string Note { get; set; }
         public string Data { get; set; }
+
+        public long? Score { get; set; } //for sorting run-now
 
         [NotMapped]
         [Editable(false)]

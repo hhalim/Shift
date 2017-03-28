@@ -34,7 +34,7 @@ namespace Shift.Cache.Redis
             lazyConnection = new Lazy<ConnectionMultiplexer>(() => ConnectionMultiplexer.Connect(configurationString));
         }
 
-        public JobStatusProgress GetCachedProgress(int jobID)
+        public JobStatusProgress GetCachedProgress(string jobID)
         {
             var jsProgress = new JobStatusProgress();
 
@@ -49,7 +49,7 @@ namespace Shift.Cache.Redis
         }
 
         //Set Cached progress
-        public void SetCachedProgress(int jobID, int? percent, string note, string data)
+        public void SetCachedProgress(string jobID, int? percent, string note, string data)
         {
             var jobStatusProgressString = RedisDatabase.StringGet(KeyPrefix + jobID.ToString());
 
@@ -89,7 +89,7 @@ namespace Shift.Cache.Redis
             RedisDatabase.StringSetAsync(KeyPrefix + jsProgress.JobID.ToString(), JsonConvert.SerializeObject(jsProgress), flags: CommandFlags.FireAndForget);
         }
 
-        public void DeleteCachedProgress(int jobID)
+        public void DeleteCachedProgress(string jobID)
         {
             RedisDatabase.KeyDeleteAsync(KeyPrefix + jobID.ToString(), flags: CommandFlags.FireAndForget);
         }

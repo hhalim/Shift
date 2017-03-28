@@ -72,17 +72,17 @@ namespace Shift.DataLayer
         }
         #endregion
 
-        private int IncrementJobID()
+        private string IncrementJobID()
         {
             var id = RedisDatabase.StringIncrement(JobIDMax);
-            return (int)id;
+            return id.ToString();
         }
 
         #region insert/update job
         /// <summary>
         /// Add a new job in to queue.
         /// </summary>
-        public int? Add(string appID, string userID, string jobType, string jobName, Expression<Action> methodCall)
+        public string Add(string appID, string userID, string jobType, string jobName, Expression<Action> methodCall)
         {
             if (methodCall == null)
                 throw new ArgumentNullException("methodCall");
@@ -129,9 +129,9 @@ namespace Shift.DataLayer
             job.Parameters = Helpers.Encrypt(JsonConvert.SerializeObject(DALHelpers.SerializeArguments(args), SerializerSettings.Settings), encryptionKey); //ENCRYPT it!!!
             job.Created = now;
 
-            int? jobID = IncrementJobID();
-            job.JobID = jobID.GetValueOrDefault();
-            var key = JobKeyPrefix + jobID.GetValueOrDefault();
+            var jobID = IncrementJobID();
+            job.JobID = jobID;
+            var key = JobKeyPrefix + jobID;
             //add into HashSet
             var trn = RedisDatabase.CreateTransaction();
             var hashEntries = RedisHelpers.ToHashEntries(job);
@@ -139,10 +139,10 @@ namespace Shift.DataLayer
 
             //Add to sorted set
             //The JobsSorted acts as the only way to sort the Jobs data, it is similar to the SQL version using jobID field as a sort field.
-            var index = trn.SortedSetAddAsync(JobSorted, key, job.JobID);
+            var index = trn.SortedSetAddAsync(JobSorted, key, Convert.ToDouble(job.JobID));
 
             //Add to queue
-            var index2 = trn.SortedSetAddAsync(JobQueue, key, job.JobID);
+            var index2 = trn.SortedSetAddAsync(JobQueue, key, Convert.ToDouble(job.JobID));
 
             //Add to created
             var createdTS = ((DateTimeOffset)now).ToUnixTimeSeconds();
@@ -156,7 +156,7 @@ namespace Shift.DataLayer
         /// <summary>
         /// Update existing job, reset fields, return updated record count.
         /// </summary>
-        public int Update(int jobID, string appID, string userID, string jobType, string jobName, Expression<Action> methodCall)
+        public int Update(string jobID, string appID, string userID, string jobType, string jobName, Expression<Action> methodCall)
         {
             if (methodCall == null)
                 throw new ArgumentNullException("methodCall");
@@ -222,10 +222,10 @@ namespace Shift.DataLayer
             trn.HashSetAsync(key, hashEntries);
 
             //Update jobs-sorted
-            var index = trn.SortedSetAddAsync(JobSorted, key, job.JobID);
+            var index = trn.SortedSetAddAsync(JobSorted, key, Convert.ToDouble(job.JobID));
 
             //Update job-queue
-            var index2 = trn.SortedSetAddAsync(JobQueue, key, job.JobID);
+            var index2 = trn.SortedSetAddAsync(JobQueue, key, Convert.ToDouble(job.JobID));
 
             //Update job-created
             var createdTS = ((DateTimeOffset)now).ToUnixTimeSeconds();
@@ -245,7 +245,7 @@ namespace Shift.DataLayer
         /// <remarks>
         /// This works only for running jobs and jobs with no status. The server will attempt to 'stop' jobs marked as 'stop'.
         /// </remarks>
-        public int SetCommandStop(ICollection<int> jobIDs)
+        public int SetCommandStop(ICollection<string> jobIDs)
         {
             if (jobIDs.Count == 0)
                 return 0;
@@ -285,7 +285,7 @@ namespace Shift.DataLayer
         /// </summary>
         /// <remarks>
         /// </remarks>
-        public int SetCommandRunNow(ICollection<int> jobIDs)
+        public int SetCommandRunNow(ICollection<string> jobIDs)
         {
             if (jobIDs.Count == 0)
                 return 0;
@@ -316,7 +316,7 @@ namespace Shift.DataLayer
         /// <summary>
         /// Reset jobs, only affect non-running jobs.
         /// </summary>
-        public int Reset(ICollection<int> jobIDs)
+        public int Reset(ICollection<string> jobIDs)
         {
             if (jobIDs.Count == 0)
                 return 0;
@@ -354,7 +354,7 @@ namespace Shift.DataLayer
 
                     trn.KeyDeleteAsync(key); //delete entire job object
                     trn.HashSetAsync(key, hashEntries); //add it back
-                    trn.SortedSetAddAsync(JobQueue, key, jobID); //reset queue
+                    trn.SortedSetAddAsync(JobQueue, key, Convert.ToDouble(jobID)); //reset queue
 
                     if (trn.Execute())
                         count++;
@@ -367,7 +367,7 @@ namespace Shift.DataLayer
         /// <summary>
         /// Delete jobs, only affect non-running jobs.
         /// </summary>
-        public int Delete(ICollection<int> jobIDs)
+        public int Delete(ICollection<string> jobIDs)
         {
             if (jobIDs.Count == 0)
                 return 0;
@@ -427,7 +427,7 @@ namespace Shift.DataLayer
             return trn;
         }
 
-        private ITransaction CleanUpCommandAndStatusIndex(ITransaction trn, string processID, int jobID)
+        private ITransaction CleanUpCommandAndStatusIndex(ITransaction trn, string processID, string jobID)
         {
             var jobKey = JobKeyPrefix + jobID;
             trn = DeleteFromCommand(trn, JobCommand.Stop, processID, jobKey); //stop index
@@ -447,7 +447,7 @@ namespace Shift.DataLayer
             var maxDate = DateTime.Now.AddHours(-hours);
             var maxTS = ((DateTimeOffset)maxDate).ToUnixTimeSeconds();
 
-            var jobIDs = new List<int>();
+            var jobIDs = new List<string>();
             var sortedSetArray = RedisDatabase.SortedSetRangeByScoreWithScores(JobCreated, 0, maxTS, Exclude.Stop);
             foreach (var sortedSet in sortedSetArray)
             {
@@ -477,7 +477,7 @@ namespace Shift.DataLayer
         /// <summary>
         ///  Set job status to JobStatus.Stopped. 
         /// </summary>
-        public int SetToStopped(ICollection<int> jobIDs)
+        public int SetToStopped(ICollection<string> jobIDs)
         {
             if (jobIDs.Count == 0)
                 return 0;
@@ -644,7 +644,7 @@ namespace Shift.DataLayer
         /// </summary>
         /// <param name="jobID">The existing unique jobID</param>
         /// <returns>Job</returns>
-        public Job GetJob(int jobID)
+        public Job GetJob(string jobID)
         {
             var hashEntry = RedisDatabase.HashGetAll(JobKeyPrefix + jobID);
             var job = RedisHelpers.ConvertFromRedis<Job>(hashEntry);
@@ -656,7 +656,7 @@ namespace Shift.DataLayer
         /// </summary>
         /// <param name="jobIDs">group of jobIDs</param>
         /// <returns>List of Jobs</returns>
-        public IReadOnlyCollection<Job> GetJobs(IEnumerable<int> jobIDs)
+        public IReadOnlyCollection<Job> GetJobs(IEnumerable<string> jobIDs)
         {
             var jobList = new List<Job>();
             foreach (var jobID in jobIDs)
@@ -674,7 +674,7 @@ namespace Shift.DataLayer
         /// </summary>
         /// <param name="jobID">The existing unique jobID</param>
         /// <returns>JobView</returns>
-        public JobView GetJobView(int jobID)
+        public JobView GetJobView(string jobID)
         {
             var hashEntry = RedisDatabase.HashGetAll(JobKeyPrefix + jobID);
             var jobView = RedisHelpers.ConvertFromRedis<JobView>(hashEntry);
@@ -686,7 +686,7 @@ namespace Shift.DataLayer
         /// </summary>
         /// <param name="jobIDs"></param>
         /// <returns></returns>
-        public IReadOnlyCollection<Job> GetNonRunningJobsByIDs(IEnumerable<int> jobIDs)
+        public IReadOnlyCollection<Job> GetNonRunningJobsByIDs(IEnumerable<string> jobIDs)
         {
             var jobList = new List<Job>();
             foreach(var jobID in jobIDs)
@@ -709,9 +709,9 @@ namespace Shift.DataLayer
         /// <param name="processID">The processID owning the jobs</param>
         /// <param name="command">The command specified in JobCommand</param>
         /// <returns>List of JobIDs</returns>
-        public IReadOnlyCollection<int> GetJobIdsByProcessAndCommand(string processID, string command)
+        public IReadOnlyCollection<string> GetJobIdsByProcessAndCommand(string processID, string command)
         {
-            var jobIDs = new List<int>();
+            var jobIDs = new List<string>();
 
             var key = "";
             //get from index: job-[command]-index
@@ -735,14 +735,14 @@ namespace Shift.DataLayer
             return jobIDs;
         }
 
-        private IReadOnlyCollection<int> GetJobIDs(string[] values)
+        private IReadOnlyCollection<string> GetJobIDs(string[] values)
         {
-            var jobIDs = new List<int>();
+            var jobIDs = new List<string>();
             foreach (var item in values)
             {
                 var arr = item.Split(':');
                 if (arr.Count() == 2)
-                    jobIDs.Add(Convert.ToInt32(arr[1])); //arr[0] = "job" ; arr[1] = ####
+                    jobIDs.Add(arr[1]); //arr[0] = "job" ; arr[1] = ####
             }
             return jobIDs;
         }
@@ -808,7 +808,7 @@ namespace Shift.DataLayer
         /// <param name="jobID">job ID</param>
         /// <param name="processID">process ID</param>
         /// <returns>Updated record count, 0 or 1 record updated</returns>
-        public int SetToRunning(string processID, int jobID)
+        public int SetToRunning(string processID, string jobID)
         {
             var count = 0;
             var jspKey = JobStatusProcessTemplate
@@ -832,7 +832,7 @@ namespace Shift.DataLayer
         /// <param name="jobID">job ID</param>
         /// <param name="error">Error message</param>
         /// <returns>Updated record count, 0 or 1 record updated</returns>
-        public int SetError(string processID, int jobID, string error)
+        public int SetError(string processID, string jobID, string error)
         {
             var count = 0;
 
@@ -854,7 +854,7 @@ namespace Shift.DataLayer
         /// <param name="processID">process ID</param>
         /// <param name="jobID">job ID</param>
         /// <returns>Updated record count, 0 or 1 record updated</returns>
-        public int SetCompleted(string processID, int jobID)
+        public int SetCompleted(string processID, string jobID)
         {
             var count = 0;
 
@@ -982,7 +982,7 @@ namespace Shift.DataLayer
         /// <param name="note">Any type of note for the progress</param>
         /// <param name="data">Any data for the progress</param>
         /// <returns>0 for no insert/update, 1 for successful insert/update</returns>
-        public int SetProgress(int jobID, int? percent, string note, string data)
+        public int SetProgress(string jobID, int? percent, string note, string data)
         {
             var task = UpdateProgressAsync(jobID, percent, note, data);
             return task.Result; //Possible Deadlock unless the ConfigureAwait(continueOnCapturedContext:false)
@@ -996,7 +996,7 @@ namespace Shift.DataLayer
         /// <param name="note">Any type of note for the progress</param>
         /// <param name="data">Any data for the progress</param>
         /// <returns>0 for no update, 1 for successful update</returns>
-        public async Task<int> UpdateProgressAsync(int jobID, int? percent, string note, string data)
+        public async Task<int> UpdateProgressAsync(string jobID, int? percent, string note, string data)
         {
             var count = 0;
             var jobKey = JobKeyPrefix + jobID;
@@ -1014,7 +1014,7 @@ namespace Shift.DataLayer
 
         #region Cache
         /* Use Cache and DB to return progress */
-        public JobStatusProgress GetProgress(int jobID)
+        public JobStatusProgress GetProgress(string jobID)
         {
             //No cache, so always get direct from Redis
             var jsProgress = new JobStatusProgress();
@@ -1039,46 +1039,46 @@ namespace Shift.DataLayer
             return jsProgress;
         }
 
-        public JobStatusProgress GetCachedProgress(int jobID)
+        public JobStatusProgress GetCachedProgress(string jobID)
         {
             return GetProgress(jobID); //no cache in pure Redis
         }
 
         //Set Cached progress similar to the DB SetProgress()
         //Not needed in Redis
-        public void SetCachedProgress(int jobID, int? percent, string note, string data)
+        public void SetCachedProgress(string jobID, int? percent, string note, string data)
         {
                 return;
         }
 
         //Set cached progress status
         //Not needed in Redis
-        public void SetCachedProgressStatus(int jobID, JobStatus status)
+        public void SetCachedProgressStatus(string jobID, JobStatus status)
         {
                 return;
         }
 
         //Not needed in Redis
-        public void SetCachedProgressStatus(IEnumerable<int> jobIDs, JobStatus status)
+        public void SetCachedProgressStatus(IEnumerable<string> jobIDs, JobStatus status)
         {
                 return;
         }
 
         //Set cached progress error
         //Not needed in Redis
-        public void SetCachedProgressError(int jobID, string error)
+        public void SetCachedProgressError(string jobID, string error)
         {
                 return;
         }
 
         //Not needed in Redis
-        public void DeleteCachedProgress(int jobID)
+        public void DeleteCachedProgress(string jobID)
         {
                 return;
         }
 
         //Not needed in Redis
-        public void DeleteCachedProgress(IEnumerable<int> jobIDs)
+        public void DeleteCachedProgress(IEnumerable<string> jobIDs)
         {
                 return;
         }

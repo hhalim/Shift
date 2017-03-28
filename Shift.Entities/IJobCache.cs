@@ -9,11 +9,11 @@ namespace Shift.Entities
 {
     public interface IJobCache
     {
-        JobStatusProgress GetCachedProgress(int jobID);
-        void SetCachedProgress(int jobID, int? percent, string note, string data);
+        JobStatusProgress GetCachedProgress(string jobID);
+        void SetCachedProgress(string jobID, int? percent, string note, string data);
         void SetCachedProgressStatus(JobStatusProgress jsProgress, JobStatus status);
         void SetCachedProgressError(JobStatusProgress jsProgress, string error);
-        void DeleteCachedProgress(int jobID);
+        void DeleteCachedProgress(string jobID);
 
     }
 }

@@ -8,7 +8,7 @@ namespace Shift.Entities
 {
     public class JobViewList
     {
-        public int Total { get; set; }
-        public IList<JobView> Items { get; set; } 
+        public long Total { get; set; }
+        public ICollection<JobView> Items { get; set; } 
     }
 }

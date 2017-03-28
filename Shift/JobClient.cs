@@ -72,7 +72,7 @@ namespace Shift
         /// </summary>
         /// <param name="methodCall">Expression body for method call </param>
         /// <returns>JobID of the added job.</returns>
-        public int? Add(Expression<Action> methodCall)
+        public string Add(Expression<Action> methodCall)
         {
             return jobDAL.Add(null, null, null, null, methodCall);
         }
@@ -84,7 +84,7 @@ namespace Shift
         /// <param name="appID">Client application ID</param>
         /// <param name="methodCall">Expression body for method call </param>
         /// <returns>JobID of the added job.</returns>
-        public int? Add(string appID, Expression<Action> methodCall)
+        public string Add(string appID, Expression<Action> methodCall)
         {
             return jobDAL.Add(appID, null, null, null, methodCall);
         }
@@ -99,7 +99,7 @@ namespace Shift
         /// <param name="jobType">Job type category/group</param>
         /// <param name="methodCall">Expression body for method call </param>
         /// <returns>JobID of the added job.</returns>
-        public int? Add(string appID, string userID, string jobType, Expression<Action> methodCall)
+        public string Add(string appID, string userID, string jobType, Expression<Action> methodCall)
         {
             return jobDAL.Add(appID, userID, jobType, null, methodCall);
         }
@@ -114,7 +114,7 @@ namespace Shift
         /// <param name="jobName">Name for this job</param>
         /// <param name="methodCall">Expression body for method call </param>
         /// <returns>JobID of the added job.</returns>
-        public int? Add(string appID, string userID, string jobType, string jobName, Expression<Action> methodCall)
+        public string Add(string appID, string userID, string jobType, string jobName, Expression<Action> methodCall)
         {
             return jobDAL.Add(appID, userID, jobType, jobName, methodCall);
         }
@@ -126,7 +126,7 @@ namespace Shift
         /// <param name="jobID">Existing job ID</param>
         /// <param name="methodCall">Expression body for method call </param>
         /// <returns>Number of successfully updated job</returns>
-        public int Update(int jobID, Expression<Action> methodCall)
+        public int Update(string jobID, Expression<Action> methodCall)
         {
             return jobDAL.Update(jobID, null, null, null, null, methodCall);
         }
@@ -139,7 +139,7 @@ namespace Shift
         /// <param name="appID">Client application ID</param>
         /// <param name="methodCall">Expression body for method call </param>
         /// <returns>Number of successfully updated job</returns>
-        public int? Update(int jobID, string appID, Expression<Action> methodCall)
+        public int? Update(string jobID, string appID, Expression<Action> methodCall)
         {
             return jobDAL.Update(jobID, appID, null, null, null, methodCall);
         }
@@ -155,7 +155,7 @@ namespace Shift
         /// <param name="jobName">Name for this job</param>
         /// <param name="methodCall">Expression body for method call </param>
         /// <returns>Number of successfully updated job</returns>
-        public int Update(int jobID, string appID, string userID, string jobType, string jobName, Expression<Action> methodCall)
+        public int Update(string jobID, string appID, string userID, string jobType, string jobName, Expression<Action> methodCall)
         {
             return jobDAL.Update(jobID, appID, userID, jobType, jobName, methodCall);
         }
@@ -164,7 +164,7 @@ namespace Shift
         /// Sets "stop" command to already running or not running jobs.
         ///</summary>
         ///<returns>Number of affected jobs.</returns>
-        public int SetCommandStop(IList<int> jobIDs)
+        public int SetCommandStop(IList<string> jobIDs)
         {
             if (jobIDs == null || jobIDs.Count == 0)
                 return 0;
@@ -176,7 +176,7 @@ namespace Shift
         /// Sets "run-now" command to not running jobs.
         ///</summary>
         ///<returns>Number of affected jobs.</returns>
-        public int SetCommandRunNow(IList<int> jobIDs)
+        public int SetCommandRunNow(IList<string> jobIDs)
         {
             if (jobIDs == null || jobIDs.Count == 0)
                 return 0;
@@ -189,7 +189,7 @@ namespace Shift
         ///</summary>
         ///<param name="jobID"></param>
         ///<returns>Job</returns>
-        public Job GetJob(int jobID)
+        public Job GetJob(string jobID)
         {
             return jobDAL.GetJob(jobID);
         }
@@ -199,7 +199,7 @@ namespace Shift
         ///</summary>
         ///<param name="jobID"></param>
         ///<returns>JobView</returns>
-        public JobView GetJobView(int jobID)
+        public JobView GetJobView(string jobID)
         {
             return jobDAL.GetJobView(jobID);
         }
@@ -220,7 +220,7 @@ namespace Shift
         ///</summary>
         ///<param name="jobIDs">Job IDs collection.</param>
         ///<returns>Number of affected jobs.</returns>
-        public int ResetJobs(IList<int> jobIDs)
+        public int ResetJobs(IList<string> jobIDs)
         {
             if (jobIDs == null || jobIDs.Count == 0)
                 return 0;
@@ -234,7 +234,7 @@ namespace Shift
         ///</summary>
         ///<param name="jobIDs">Job IDs collection.</param>
         ///<returns>Number of affected jobs.</returns>
-        public int DeleteJobs(IList<int> jobIDs)
+        public int DeleteJobs(IList<string> jobIDs)
         {
             if (jobIDs == null || jobIDs.Count == 0)
                 return 0;
@@ -261,7 +261,7 @@ namespace Shift
         ///</summary>
         ///<param name="jobID"></param>
         ///<returns>JobStatusProgress</returns>
-        public JobStatusProgress GetProgress(int jobID)
+        public JobStatusProgress GetProgress(string jobID)
         {
             return jobDAL.GetProgress(jobID);
         }
@@ -271,7 +271,7 @@ namespace Shift
         ///</summary>
         ///<param name="jobID"></param>
         ///<returns>JobStatusProgress</returns>
-        public JobStatusProgress GetCachedProgress(int jobID)
+        public JobStatusProgress GetCachedProgress(string jobID)
         {
             return jobDAL.GetCachedProgress(jobID);
         }
