@@ -45,7 +45,7 @@ namespace Shift.DataLayer
             InitMongoDB();
         }
 
-        protected async void InitMongoDB()
+        protected void InitMongoDB()
         {
             if (!BsonClassMap.IsClassMapRegistered(typeof(Job)))
             {
@@ -73,9 +73,10 @@ namespace Shift.DataLayer
 
             database = client.GetDatabase("ShiftDB");
             var collection = database.GetCollection<Job>(JobCollectionName);
-            await collection.Indexes.CreateOneAsync(Builders<Job>.IndexKeys.Ascending(j => j.Created));
-            await collection.Indexes.CreateOneAsync(Builders<Job>.IndexKeys.Ascending(j => j.Status));
-            await collection.Indexes.CreateOneAsync(Builders<Job>.IndexKeys.Ascending(j => j.ProcessID));
+            collection.Indexes.CreateOne(Builders<Job>.IndexKeys.Ascending(j => j.Score));
+            collection.Indexes.CreateOne(Builders<Job>.IndexKeys.Ascending(j => j.Created));
+            collection.Indexes.CreateOne(Builders<Job>.IndexKeys.Ascending(j => j.Status));
+            collection.Indexes.CreateOne(Builders<Job>.IndexKeys.Ascending(j => j.ProcessID));
         }
 
         #endregion
@@ -133,7 +134,7 @@ namespace Shift.DataLayer
             job.Score = (new DateTimeOffset(now)).ToUnixTimeSeconds();
 
             var collection = database.GetCollection<Job>(JobCollectionName);
-            collection.InsertOneAsync(job).ConfigureAwait(false).GetAwaiter().GetResult();
+            collection.InsertOneAsync(job);
 
             return job.JobID;
         }
@@ -194,7 +195,7 @@ namespace Shift.DataLayer
             var collection = database.GetCollection<Job>(JobCollectionName);
             var filter = Builders<Job>.Filter.Eq(j => j.JobID, jobID);
 
-            var result = collection.ReplaceOneAsync(filter, job).ConfigureAwait(false).GetAwaiter().GetResult();
+            var result = collection.ReplaceOne(filter, job);
             if (result.IsAcknowledged)
                 count = (int)result.ModifiedCount;
 
@@ -221,7 +222,7 @@ namespace Shift.DataLayer
             var filter = blFilter.In(j => j.JobID, jobIDs) & (blFilter.Eq(j => j.Status, null) | blFilter.Eq(j => j.Status, JobStatus.Running));
             var update = Builders<Job>.Update.Set("Command", JobCommand.Stop);
 
-            var result = collection.UpdateManyAsync(filter, update).ConfigureAwait(false).GetAwaiter().GetResult();
+            var result = collection.UpdateMany(filter, update);
             if (result.IsAcknowledged)
                 count = (int)result.ModifiedCount;
 
@@ -249,7 +250,7 @@ namespace Shift.DataLayer
             listUpdate.Add(blUpdate.Set<long>("Score", 0));
             var update = blUpdate.Combine(listUpdate.ToArray());
 
-            var result = collection.UpdateManyAsync(filter, update).ConfigureAwait(false).GetAwaiter().GetResult();
+            var result = collection.UpdateMany(filter, update);
             if (result.IsAcknowledged)
                 count = (int)result.ModifiedCount;
 
@@ -270,7 +271,7 @@ namespace Shift.DataLayer
             var collection = database.GetCollection<JobView>(JobCollectionName);
             foreach (var jobID in jobIDs)
             {
-                var job = collection.Find(j => j.JobID == jobID).FirstOrDefaultAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+                var job = collection.Find(j => j.JobID == jobID).FirstOrDefault();
                 if(job != null)
                 {
                     var score = (new DateTimeOffset(job.Created.GetValueOrDefault())).ToUnixTimeSeconds();
@@ -290,7 +291,7 @@ namespace Shift.DataLayer
                     listUpdate.Add(blUpdate.Set<long>("Score", score));
                     var update = blUpdate.Combine(listUpdate.ToArray());
 
-                    var result = collection.UpdateOneAsync(filter, update).ConfigureAwait(false).GetAwaiter().GetResult();
+                    var result = collection.UpdateOne(filter, update);
                     if (result.IsAcknowledged)
                         count += (int)result.ModifiedCount;
                 }
@@ -313,7 +314,7 @@ namespace Shift.DataLayer
             var blFilter = Builders<Job>.Filter;
             var filter = blFilter.In(j => j.JobID, jobIDs) & (blFilter.Eq(j => j.Status, null) | !blFilter.Eq(j => j.Status, JobStatus.Running)); //Only NOT Running jobs
 
-            var result = collection.DeleteManyAsync(filter).ConfigureAwait(false).GetAwaiter().GetResult();
+            var result = collection.DeleteMany(filter);
             if (result.IsAcknowledged)
                 count = (int)result.DeletedCount;
 
@@ -326,18 +327,6 @@ namespace Shift.DataLayer
         /// <param name="hour">Job create hour in the past</param>
         /// <param name="statusList">A list of job's status to delete. Null job status is valid. Default is JobStatus.Completed.</param>
         public int Delete(int hour, ICollection<JobStatus?> statusList)
-        {
-            var count = DeleteAsync(hour, statusList).ConfigureAwait(false).GetAwaiter().GetResult();
-
-            return count;
-        }
-
-        /// <summary>
-        /// Asynchronous delete past jobs with specified status(es). 
-        /// </summary>
-        /// <param name="hour">Job create hour in the past</param>
-        /// <param name="statusList">A list of job's status to delete. Null job status is valid. Default is JobStatus.Completed.</param>
-        public async Task<int> DeleteAsync(int hour, ICollection<JobStatus?> statusList)
         {
             var count = 0;
             var collection = database.GetCollection<Job>(JobCollectionName);
@@ -373,17 +362,28 @@ namespace Shift.DataLayer
             FilterDefinition<Job> filter = null;
             if (statusFilter != null)
             {
-                filter = dateFilter & statusFilter;        
+                filter = dateFilter & statusFilter;
             }
             else
             {
                 filter = dateFilter;
             }
 
-            var result = await collection.DeleteManyAsync(filter).ConfigureAwait(false);
+            var result = collection.DeleteMany(filter);
             if (result.IsAcknowledged)
                 count = (int)result.DeletedCount;
 
+            return count;
+        }
+
+        /// <summary>
+        /// Asynchronous delete past jobs with specified status(es). 
+        /// </summary>
+        /// <param name="hour">Job create hour in the past</param>
+        /// <param name="statusList">A list of job's status to delete. Null job status is valid. Default is JobStatus.Completed.</param>
+        public async Task<int> DeleteAsync(int hour, ICollection<JobStatus?> statusList)
+        {
+            var count = await Task.Run(() => Delete(hour, statusList));
             return count;
         }
 
@@ -406,7 +406,7 @@ namespace Shift.DataLayer
             listUpdate.Add(blUpdate.Set("Status", JobStatus.Stopped));
             var update = blUpdate.Combine(listUpdate.ToArray());
 
-            var result = collection.UpdateManyAsync(filter, update).GetAwaiter().GetResult();
+            var result = collection.UpdateMany(filter, update);
             if (result.IsAcknowledged)
                 count = (int)result.ModifiedCount;
 
@@ -425,6 +425,7 @@ namespace Shift.DataLayer
         {
             return GetJobStatusCountAsync(appID, userID).ConfigureAwait(false).GetAwaiter().GetResult();
         }
+
         public async Task<IReadOnlyCollection<JobStatusCount>> GetJobStatusCountAsync(string appID, string userID)
         {
             var groupStatus = new Dictionary<string, JobStatusCount>();
@@ -449,11 +450,11 @@ namespace Shift.DataLayer
             IAsyncCursor<Job> cursor = null;
             if(filter == null)
             {
-                cursor = await collection.FindAsync(p => true).ConfigureAwait(false);
+                cursor = await collection.FindAsync(p => true);
             }
             else
             {
-                cursor = await collection.FindAsync(filter).ConfigureAwait(false);
+                cursor = await collection.FindAsync(filter);
             }
 
             using (cursor)
@@ -504,7 +505,7 @@ namespace Shift.DataLayer
         public Job GetJob(string jobID)
         {
             var collection = database.GetCollection<Job>(JobCollectionName);
-            return collection.Find(j => j.JobID == jobID).FirstOrDefaultAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+            return collection.Find(j => j.JobID == jobID).FirstOrDefault();
         }
 
         /// <summary>
@@ -515,7 +516,7 @@ namespace Shift.DataLayer
         public IReadOnlyCollection<Job> GetJobs(IEnumerable<string> jobIDs)
         {
             var collection = database.GetCollection<Job>(JobCollectionName);
-            return collection.Find(j => jobIDs.Contains(j.JobID)).ToListAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+            return collection.Find(j => jobIDs.Contains(j.JobID)).ToList();
         }
 
         /// <summary>
@@ -526,7 +527,7 @@ namespace Shift.DataLayer
         public JobView GetJobView(string jobID)
         {
             var collection = database.GetCollection<JobView>(JobCollectionName);
-            return collection.Find(j => j.JobID == jobID).FirstOrDefaultAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+            return collection.Find(j => j.JobID == jobID).FirstOrDefault();
         }
 
         /// <summary>
@@ -537,7 +538,7 @@ namespace Shift.DataLayer
         public IReadOnlyCollection<Job> GetNonRunningJobsByIDs(IEnumerable<string> jobIDs)
         {
             var collection = database.GetCollection<Job>(JobCollectionName);
-            return collection.Find(j => jobIDs.Contains(j.JobID) && j.Status == null).ToListAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+            return collection.Find(j => jobIDs.Contains(j.JobID) && j.Status == null).ToList();
         }
 
         /// <summary>
@@ -552,7 +553,7 @@ namespace Shift.DataLayer
             var fields = Builders<Job>.Projection.Include(j => j.JobID);
 
             var queryResult = collection.Find(j => (j.ProcessID == processID || j.ProcessID == null) && j.Command == command)
-                .Project<Job>(fields).ToListAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+                .Project<Job>(fields).ToList();
             var result = queryResult.Select(p => p.JobID).ToList();
 
             return result;
@@ -567,7 +568,7 @@ namespace Shift.DataLayer
         public IReadOnlyCollection<Job> GetJobsByProcessAndStatus(string processID, JobStatus status)
         {
             var collection = database.GetCollection<Job>(JobCollectionName);
-            var jobList = collection.Find(j => j.ProcessID == processID && j.Status == status).ToListAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+            var jobList = collection.Find(j => j.ProcessID == processID && j.Status == status).ToList();
             return jobList;
         }
 
@@ -588,8 +589,8 @@ namespace Shift.DataLayer
             var collection = database.GetCollection<JobView>(JobCollectionName);
             var query = collection.Find(j => true).SortBy(j => j.Created).SortBy(j => j.JobID);
 
-            var totalTask = query.CountAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-            var itemsTask = query.Skip(offset).Limit(pageSize).ToListAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+            var totalTask = query.Count();
+            var itemsTask = query.Skip(offset).Limit(pageSize).ToList();
 
             var jobViewList = new JobViewList();
             jobViewList.Total = totalTask;
@@ -619,7 +620,7 @@ namespace Shift.DataLayer
             listUpdate.Add(blUpdate.Set("Start", DateTime.Now));
             var update = blUpdate.Combine(listUpdate.ToArray());
 
-            var result = collection.UpdateOneAsync(filter, update).ConfigureAwait(false).GetAwaiter().GetResult();
+            var result = collection.UpdateOne(filter, update);
             if (result.IsAcknowledged)
                 count = (int)result.ModifiedCount;
 
@@ -646,7 +647,7 @@ namespace Shift.DataLayer
             listUpdate.Add(blUpdate.Set("Error", error));
             var update = blUpdate.Combine(listUpdate.ToArray());
 
-            var result = collection.UpdateOneAsync(filter, update).ConfigureAwait(false).GetAwaiter().GetResult();
+            var result = collection.UpdateOne(filter, update);
             if (result.IsAcknowledged)
                 count = (int)result.ModifiedCount;
 
@@ -671,7 +672,7 @@ namespace Shift.DataLayer
             listUpdate.Add(blUpdate.Set("End", DateTime.Now));
             var update = blUpdate.Combine(listUpdate.ToArray());
 
-            var result = collection.UpdateOneAsync(filter, update).ConfigureAwait(false).GetAwaiter().GetResult();
+            var result = collection.UpdateOne(filter, update);
             if (result.IsAcknowledged)
                 count = (int)result.ModifiedCount;
 
@@ -690,7 +691,7 @@ namespace Shift.DataLayer
             var collection = database.GetCollection<Job>(JobCollectionName);
             var builder = Builders<Job>.Filter;
             var filter = builder.Eq(j => j.ProcessID, processID) & builder.Eq(j => j.Status, JobStatus.Running);
-            runningCount = (int)collection.CountAsync(filter).ConfigureAwait(false).GetAwaiter().GetResult();
+            runningCount = (int)collection.Count(filter);
 
             return runningCount;
         }
@@ -704,13 +705,8 @@ namespace Shift.DataLayer
         /// <returns>List of jobs claimed by processID</returns>
         public IReadOnlyCollection<Job> ClaimJobsToRun(string processID, int maxNum)
         {
-            return ClaimJobsToRunAsync(processID, maxNum).ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public async Task<IReadOnlyCollection<Job>> ClaimJobsToRunAsync(string processID, int maxNum)
-        {
-            var jobList = await GetJobsToRunAsync(maxNum);
-            return await ClaimJobsToRunAsync(processID, jobList.ToList());
+            var jobList = GetJobsToRun(maxNum);
+            return ClaimJobsToRun(processID, jobList.ToList());
         }
 
         /// <summary>
@@ -721,11 +717,6 @@ namespace Shift.DataLayer
         /// <param name="jobList">List of jobs to claim</param>
         /// <returns>List of actual jobs claimed by processID</returns>
         public IReadOnlyCollection<Job> ClaimJobsToRun(string processID, ICollection<Job> jobList)
-        {
-            return ClaimJobsToRunAsync(processID, jobList).ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public async Task<IReadOnlyCollection<Job>> ClaimJobsToRunAsync(string processID, ICollection<Job> jobList)
         {
             var claimedJobs = new List<Job>();
 
@@ -739,7 +730,7 @@ namespace Shift.DataLayer
                     var filter = blFilter.Eq(j => j.JobID, job.JobID) & blFilter.Eq(j => j.Status, null) & blFilter.Eq(j=> j.ProcessID, null);
                     var update = Builders<Job>.Update.Set("ProcessID", processID);
 
-                    var result = await collection.UpdateOneAsync(filter, update);
+                    var result = collection.UpdateOne(filter, update);
                     if (result.IsAcknowledged)
                     {
                         count = (int)result.ModifiedCount;
@@ -769,15 +760,15 @@ namespace Shift.DataLayer
         /// </summary>
         /// <param name="maxNum">Maximum number to return</param>
         /// <returns>List of jobs</returns>
-        private async Task<IReadOnlyCollection<Job>> GetJobsToRunAsync(int maxNum)
+        private IReadOnlyCollection<Job> GetJobsToRun(int maxNum)
         {
             var jobList = new List<Job>();
  
             var collection = database.GetCollection<Job>(JobCollectionName);
-            jobList = await collection
+            jobList = collection
                 .Find(j => j.Status == null && j.ProcessID == null && (j.Command == JobCommand.RunNow || j.Command == null))
                 .SortBy(j => j.Score)
-                .Limit(maxNum).ToListAsync();
+                .Limit(maxNum).ToList();
 
             return jobList;
         }

@@ -263,13 +263,7 @@ namespace Shift
             }
 
             var thread = new Thread(() => ExecuteJob(processID, jobID, methodInfo, parameters, instance, null)); //Create the new Job thread
-
-            if (threadList.ContainsKey(jobID))
-            {
-                //already in threadList, has not been cleaned up, so replace with the new one
-                threadList.Remove(jobID);
-            }
-            threadList.Add(jobID, thread); //Keep track of running thread
+            threadList[jobID] = thread; //Keep track of running thread
             thread.Name = "Shift Thread " + thread.ManagedThreadId;
             thread.IsBackground = true; //keep the main process running https://msdn.microsoft.com/en-us/library/system.threading.thread.isbackground
 
@@ -294,17 +288,12 @@ namespace Shift
             }
             var tokenSource = new CancellationTokenSource();
             var token = tokenSource.Token;
-            if (taskList.ContainsKey(jobID))
-            {
-                //already in tokenSourceList, has not been cleaned up, so replace with the new one
-                taskList.Remove(jobID);
-            }
             var jobTask = new Task(() => ExecuteJob(processID, jobID, methodInfo, parameters, instance, token), token);
 
             var taskInfo = new TaskInfo();
             taskInfo.JobTask = jobTask;
             taskInfo.TokenSource = tokenSource;
-            taskList.Add(jobID, taskInfo); //Keep track of running thread
+            taskList[jobID] =  taskInfo; //Keep track of running thread
 
             jobTask.Start();
         }
@@ -327,7 +316,7 @@ namespace Shift
                 if (diffTs >= updateTs || progressInfo.Percent >= 100)
                 {
                     //Update DB and Cache
-                    jobDAL.UpdateProgressAsync(jobID, progressInfo.Percent, progressInfo.Note, progressInfo.Data); //async, don't wait/don't hold
+                    jobDAL.UpdateProgressAsync(jobID, progressInfo.Percent, progressInfo.Note, progressInfo.Data).ConfigureAwait(false); //async, don't wait/don't hold
                     start = DateTime.Now;
                 }
             });
@@ -516,7 +505,7 @@ namespace Shift
             //Delete past completed jobs from storage
             if (config.AutoDeletePeriod != null)
             {
-                var count = jobDAL.DeleteAsync(config.AutoDeletePeriod.Value, config.AutoDeleteStatus).GetAwaiter().GetResult();
+                var count = jobDAL.Delete(config.AutoDeletePeriod.Value, config.AutoDeleteStatus);
             }
 
             if (config.ThreadMode.ToLower() == ThreadMode.Thread)
