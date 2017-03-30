@@ -6,6 +6,7 @@ using Shift.Entities;
 using Shift.DataLayer;
 using Autofac;
 using Autofac.Features.ResolveAnything;
+using System.Threading.Tasks;
 
 [assembly: CLSCompliant(true)]
 namespace Shift
@@ -77,6 +78,11 @@ namespace Shift
             return jobDAL.Add(null, null, null, null, methodCall);
         }
 
+        public Task<string> AddAsync(Expression<Action> methodCall)
+        {
+            return jobDAL.AddAsync(null, null, null, null, methodCall);
+        }
+
         /// <summary>
         /// Add a method and parameters into the job table.
         /// Ref and out parameters are not supported.
@@ -87,6 +93,11 @@ namespace Shift
         public string Add(string appID, Expression<Action> methodCall)
         {
             return jobDAL.Add(appID, null, null, null, methodCall);
+        }
+
+        public Task<string> AddAsync(string appID, Expression<Action> methodCall)
+        {
+            return jobDAL.AddAsync(appID, null, null, null, methodCall);
         }
 
         /// <summary>
@@ -104,6 +115,11 @@ namespace Shift
             return jobDAL.Add(appID, userID, jobType, null, methodCall);
         }
 
+        public Task<string> AddAsync(string appID, string userID, string jobType, Expression<Action> methodCall)
+        {
+            return jobDAL.AddAsync(appID, userID, jobType, null, methodCall);
+        }
+
         /// <summary>
         /// Add a method and parameters into the job table with a custom name.
         /// Ref and out parameters are not supported.
@@ -119,6 +135,11 @@ namespace Shift
             return jobDAL.Add(appID, userID, jobType, jobName, methodCall);
         }
 
+        public Task<string> AddAsync(string appID, string userID, string jobType, string jobName, Expression<Action> methodCall)
+        {
+            return jobDAL.AddAsync(appID, userID, jobType, jobName, methodCall);
+        }
+
         /// <summary>
         /// Update a job's method and parameters.
         /// Ref and out parameters are not supported.
@@ -131,6 +152,11 @@ namespace Shift
             return jobDAL.Update(jobID, null, null, null, null, methodCall);
         }
 
+        public Task<int> UpdateAsync(string jobID, Expression<Action> methodCall)
+        {
+            return jobDAL.UpdateAsync(jobID, null, null, null, null, methodCall);
+        }
+
         /// <summary>
         /// Update a job's method and parameters.
         /// Ref and out parameters are not supported.
@@ -139,9 +165,14 @@ namespace Shift
         /// <param name="appID">Client application ID</param>
         /// <param name="methodCall">Expression body for method call </param>
         /// <returns>Number of successfully updated job</returns>
-        public int? Update(string jobID, string appID, Expression<Action> methodCall)
+        public int Update(string jobID, string appID, Expression<Action> methodCall)
         {
             return jobDAL.Update(jobID, appID, null, null, null, methodCall);
+        }
+
+        public Task<int> UpdateAsync(string jobID, string appID, Expression<Action> methodCall)
+        {
+            return jobDAL.UpdateAsync(jobID, appID, null, null, null, methodCall);
         }
 
         /// <summary>
@@ -160,6 +191,11 @@ namespace Shift
             return jobDAL.Update(jobID, appID, userID, jobType, jobName, methodCall);
         }
 
+        public Task<int> UpdateAsync(string jobID, string appID, string userID, string jobType, string jobName, Expression<Action> methodCall)
+        {
+            return jobDAL.UpdateAsync(jobID, appID, userID, jobType, jobName, methodCall);
+        }
+
         ///<summary>
         /// Sets "stop" command to already running or not running jobs.
         ///</summary>
@@ -170,6 +206,14 @@ namespace Shift
                 return 0;
 
             return jobDAL.SetCommandStop(jobIDs);
+        }
+
+        public Task<int> SetCommandStopAsync(IList<string> jobIDs)
+        {
+            if (jobIDs == null || jobIDs.Count == 0)
+                return Task.FromResult(0);
+
+            return jobDAL.SetCommandStopAsync(jobIDs);
         }
 
         ///<summary>
@@ -184,6 +228,14 @@ namespace Shift
             return jobDAL.SetCommandRunNow(jobIDs);
         }
 
+        public Task<int> SetCommandRunNowAsync(IList<string> jobIDs)
+        {
+            if (jobIDs == null || jobIDs.Count == 0)
+                return Task.FromResult(0);
+
+            return jobDAL.SetCommandRunNowAsync(jobIDs);
+        }
+
         ///<summary>
         /// Gets the job instance based on a unique job ID.
         ///</summary>
@@ -192,6 +244,11 @@ namespace Shift
         public Job GetJob(string jobID)
         {
             return jobDAL.GetJob(jobID);
+        }
+
+        public Task<Job> GetJobAsync(string jobID)
+        {
+            return jobDAL.GetJobAsync(jobID);
         }
 
         ///<summary>
@@ -204,6 +261,11 @@ namespace Shift
             return jobDAL.GetJobView(jobID);
         }
 
+        public Task<JobView> GetJobViewAsync(string jobID)
+        {
+            return jobDAL.GetJobViewAsync(jobID);
+        }
+
         /// <summary>
         /// Return job views based on page index and page size.
         /// </summary>
@@ -213,6 +275,11 @@ namespace Shift
         public JobViewList GetJobViews(int? pageIndex, int? pageSize)
         {
             return jobDAL.GetJobViews(pageIndex, pageSize);
+        }
+
+        public Task<JobViewList> GetJobViewsAsync(int? pageIndex, int? pageSize)
+        {
+            return jobDAL.GetJobViewsAsync(pageIndex, pageSize);
         }
 
         ///<summary>
@@ -229,6 +296,15 @@ namespace Shift
             return jobDAL.Reset(jobIDs);
         }
 
+        public Task<int> ResetJobsAsync(IList<string> jobIDs)
+        {
+            if (jobIDs == null || jobIDs.Count == 0)
+                return Task.FromResult(0);
+
+            jobDAL.DeleteCachedProgress(jobIDs);
+            return jobDAL.ResetAsync(jobIDs);
+        }
+
         ///<summary>
         /// Deletes non running jobs. 
         ///</summary>
@@ -243,6 +319,15 @@ namespace Shift
             return jobDAL.Delete(jobIDs);
         }
 
+        public Task<int> DeleteJobsAsync(IList<string> jobIDs)
+        {
+            if (jobIDs == null || jobIDs.Count == 0)
+                return Task.FromResult(0);
+
+            jobDAL.DeleteCachedProgress(jobIDs);
+            return jobDAL.DeleteAsync(jobIDs);
+        }
+
         ///<summary>
         /// Return counts of all job statuses (running, not running, completed, stopped, with errors).
         /// Useful for UI reporting of job statuses.
@@ -253,6 +338,11 @@ namespace Shift
         public IReadOnlyCollection<JobStatusCount> GetJobStatusCount(string appID, string userID)
         {
             return jobDAL.GetJobStatusCount(appID, userID);
+        }
+
+        public Task<IReadOnlyCollection<JobStatusCount>> GetJobStatusCountAsync(string appID, string userID)
+        {
+            return jobDAL.GetJobStatusCountAsync(appID, userID);
         }
 
         ///<summary>
@@ -266,6 +356,11 @@ namespace Shift
             return jobDAL.GetProgress(jobID);
         }
 
+        public Task<JobStatusProgress> GetProgressAsync(string jobID)
+        {
+            return jobDAL.GetProgressAsync(jobID);
+        }
+
         ///<summary>
         /// Gets the current progress of job from cache only.
         ///</summary>
@@ -274,6 +369,11 @@ namespace Shift
         public JobStatusProgress GetCachedProgress(string jobID)
         {
             return jobDAL.GetCachedProgress(jobID);
+        }
+
+        public Task<JobStatusProgress> GetCachedProgressAsync(string jobID)
+        {
+            return jobDAL.GetCachedProgressAsync(jobID);
         }
         #endregion
 

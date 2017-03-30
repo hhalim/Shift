@@ -2,6 +2,7 @@
 using Newtonsoft.Json;
 using Shift.Entities;
 using System;
+using System.Threading.Tasks;
 
 namespace Shift.Cache.Redis
 {
@@ -36,9 +37,28 @@ namespace Shift.Cache.Redis
 
         public JobStatusProgress GetCachedProgress(string jobID)
         {
+            return GetCachedProgressAsync(jobID, true).GetAwaiter().GetResult();
+        }
+
+        public Task<JobStatusProgress> GetCachedProgressAsync(string jobID)
+        {
+            return GetCachedProgressAsync(jobID, false);
+        }
+
+        private async Task<JobStatusProgress> GetCachedProgressAsync(string jobID, bool isSync)
+        {
             var jsProgress = new JobStatusProgress();
 
-            var jobStatusProgressString = RedisDatabase.StringGet(KeyPrefix + jobID.ToString());
+            var jobStatusProgressString = "";
+            if (isSync)
+            {
+                jobStatusProgressString = RedisDatabase.StringGet(KeyPrefix + jobID.ToString());
+            }
+            else
+            {
+                jobStatusProgressString = await RedisDatabase.StringGetAsync(KeyPrefix + jobID.ToString());
+            }
+
             if (!string.IsNullOrWhiteSpace(jobStatusProgressString))
             {
                 jsProgress = JsonConvert.DeserializeObject<JobStatusProgress>(jobStatusProgressString);

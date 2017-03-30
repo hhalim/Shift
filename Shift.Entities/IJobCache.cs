@@ -10,10 +10,10 @@ namespace Shift.Entities
     public interface IJobCache
     {
         JobStatusProgress GetCachedProgress(string jobID);
+        Task<JobStatusProgress> GetCachedProgressAsync(string jobID);
         void SetCachedProgress(string jobID, int? percent, string note, string data);
         void SetCachedProgressStatus(JobStatusProgress jsProgress, JobStatus status);
         void SetCachedProgressError(JobStatusProgress jsProgress, string error);
         void DeleteCachedProgress(string jobID);
-
     }
 }

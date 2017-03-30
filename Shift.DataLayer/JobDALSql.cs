@@ -12,6 +12,9 @@ using Dapper;
 
 namespace Shift.DataLayer
 {
+    //Async pattern based on Stephen Cleary #4 answer in http://stackoverflow.com/a/32512090/2437862
+    // 4) Pass in a flag argument. (to indicate synchronous or async action)
+
     public class JobDALSql : IJobDAL
     {
         private string connectionString;
@@ -39,6 +42,15 @@ namespace Shift.DataLayer
         /// Add a new job in to queue.
         /// </summary>
         public string Add(string appID, string userID, string jobType, string jobName, Expression<Action> methodCall)
+        {
+            return AddAsync(appID, userID, jobType, jobName, methodCall, true).GetAwaiter().GetResult();
+        }
+
+        public Task<string> AddAsync(string appID, string userID, string jobType, string jobName, Expression<Action> methodCall) {
+            return AddAsync(appID, userID, jobType, jobName, methodCall, false);
+        }
+
+        private async Task<string> AddAsync(string appID, string userID, string jobType, string jobName, Expression<Action> methodCall, bool isSync)
         {
             if (methodCall == null)
                 throw new ArgumentNullException("methodCall");
@@ -91,7 +103,15 @@ namespace Shift.DataLayer
                 var query = @"INSERT INTO [Job] ([AppID], [UserID], [JobType], [JobName], [InvokeMeta], [Parameters], [Created]) 
                               VALUES(@AppID, @UserID, @JobType, @JobName, @InvokeMeta, @Parameters, @Created);
                               SELECT CAST(SCOPE_IDENTITY() as int); ";
-                jobID = connection.Query<string>(query, job).SingleOrDefault();
+                if (isSync)
+                {
+                    jobID = connection.Query<string>(query, job).SingleOrDefault();
+                }
+                else
+                {
+                    var taskResult = await connection.QueryAsync<string>(query, job);
+                    jobID = taskResult.FirstOrDefault();
+                }
             }
 
             return jobID;
@@ -101,6 +121,16 @@ namespace Shift.DataLayer
         /// Update existing job, reset fields, return updated record count.
         /// </summary>
         public int Update(string jobID, string appID, string userID, string jobType, string jobName, Expression<Action> methodCall)
+        {
+            return UpdateAsync(jobID, appID, userID, jobType, jobName, methodCall, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> UpdateAsync(string jobID, string appID, string userID, string jobType, string jobName, Expression<Action> methodCall)
+        {
+            return UpdateAsync(jobID, appID, userID, jobType, jobName, methodCall, false);
+        }
+
+        private async Task<int> UpdateAsync(string jobID, string appID, string userID, string jobType, string jobName, Expression<Action> methodCall, bool isSync)
         {
             if (methodCall == null)
                 throw new ArgumentNullException("methodCall");
@@ -158,7 +188,14 @@ namespace Shift.DataLayer
                     var query2 = @"DELETE  
                             FROM JobProgress
                             WHERE JobID = @jobID; ";
-                    connection.Execute(query2, new { jobID }, trn);
+                    if(isSync)
+                    {
+                        connection.Execute(query2, new { jobID }, trn);
+                    }
+                    else
+                    {
+                        await connection.ExecuteAsync(query2, new { jobID }, trn);
+                    }
 
                     var query = @"
                             UPDATE [Job]
@@ -177,7 +214,14 @@ namespace Shift.DataLayer
                                 ,[Created] = @Created
                             WHERE JobID = @JobID AND (Status != @Status OR Status IS NULL);
                             ";
-                    count = connection.Execute(query, values, trn);
+                    if (isSync)
+                    {
+                        count = connection.Execute(query, values, trn);
+                    }
+                    else
+                    {
+                        count = await connection.ExecuteAsync(query, values, trn);
+                    }
 
                     trn.Commit();
                 }
@@ -196,6 +240,16 @@ namespace Shift.DataLayer
         /// </remarks>
         public int SetCommandStop(ICollection<string> jobIDs)
         {
+            return SetCommandStopAsync(jobIDs, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> SetCommandStopAsync(ICollection<string> jobIDs)
+        {
+            return SetCommandStopAsync(jobIDs, false);
+        }
+
+        private async Task<int> SetCommandStopAsync(ICollection<string> jobIDs, bool isSync)
+        {
             if (jobIDs.Count == 0)
                 return 0;
 
@@ -208,7 +262,14 @@ namespace Shift.DataLayer
                             WHERE JobID IN @ids 
                             AND (Status = @status OR Status IS NULL);
                             ";
-                return connection.Execute(sql, new { command = JobCommand.Stop, ids = jobIDs.ToArray(), status = JobStatus.Running });
+                if (isSync)
+                {
+                    return connection.Execute(sql, new { command = JobCommand.Stop, ids = jobIDs.ToArray(), status = JobStatus.Running });
+                }
+                else
+                {
+                    return await connection.ExecuteAsync(sql, new { command = JobCommand.Stop, ids = jobIDs.ToArray(), status = JobStatus.Running });
+                }
             }
         }
 
@@ -218,6 +279,16 @@ namespace Shift.DataLayer
         /// <remarks>
         /// </remarks>
         public int SetCommandRunNow(ICollection<string> jobIDs)
+        {
+            return SetCommandRunNowAsync(jobIDs, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> SetCommandRunNowAsync(ICollection<string> jobIDs)
+        {
+            return SetCommandRunNowAsync(jobIDs, false);
+        }
+
+        private async Task<int> SetCommandRunNowAsync(ICollection<string> jobIDs, bool isSync)
         {
             if (jobIDs.Count == 0)
                 return 0;
@@ -232,7 +303,14 @@ namespace Shift.DataLayer
                             AND Status IS NULL
                             AND ProcessID IS NULL;
                             ";
-                return connection.Execute(sql, new { command = JobCommand.RunNow, ids = jobIDs.ToArray() });
+                if (isSync)
+                {
+                    return connection.Execute(sql, new { command = JobCommand.RunNow, ids = jobIDs.ToArray() });
+                }
+                else
+                {
+                    return await connection.ExecuteAsync(sql, new { command = JobCommand.RunNow, ids = jobIDs.ToArray() });
+                }
             }
         }
         #endregion
@@ -242,6 +320,16 @@ namespace Shift.DataLayer
         /// Reset jobs, only affect non-running jobs.
         /// </summary>
         public int Reset(ICollection<string> jobIDs)
+        {
+            return ResetAsync(jobIDs, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> ResetAsync(ICollection<string> jobIDs)
+        {
+            return ResetAsync(jobIDs, false);
+        }
+
+        private async Task<int> ResetAsync(ICollection<string> jobIDs, bool isSync)
         {
             var count = 0;
             if (jobIDs.Count == 0)
@@ -267,8 +355,15 @@ namespace Shift.DataLayer
                             [Percent] = NULL, 
                             Note = NULL,
                             Data = NULL
-                            WHERE JobID IN @ids; "; 
-                        connection.Execute(sql, new { ids = notRunning.ToArray() }, trn);
+                            WHERE JobID IN @ids; ";
+                        if (isSync)
+                        {
+                            connection.Execute(sql, new { ids = notRunning.ToArray() }, trn);
+                        }
+                        else
+                        {
+                            await connection.ExecuteAsync(sql, new { ids = notRunning.ToArray() }, trn);
+                        }
 
                         sql = @"UPDATE Job 
                         SET 
@@ -279,7 +374,14 @@ namespace Shift.DataLayer
                         [Start] = NULL, 
                         [End] = NULL 
                         WHERE JobID IN @ids; ";
-                        count = connection.Execute(sql, new { ids = notRunning.ToArray() }, trn);
+                        if (isSync)
+                        {
+                            count = connection.Execute(sql, new { ids = notRunning.ToArray() }, trn);
+                        }
+                        else
+                        {
+                            count = await connection.ExecuteAsync(sql, new { ids = notRunning.ToArray() }, trn);
+                        }
                     }
 
                     trn.Commit();
@@ -293,6 +395,16 @@ namespace Shift.DataLayer
         /// Delete jobs, only affect non-running jobs.
         /// </summary>
         public int Delete(ICollection<string> jobIDs)
+        {
+            return DeleteAsync(jobIDs, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> DeleteAsync(ICollection<string> jobIDs)
+        {
+            return DeleteAsync(jobIDs, false);
+        }
+
+        private async Task<int> DeleteAsync(ICollection<string> jobIDs, bool isSync)
         {
             if (jobIDs.Count == 0)
                 return 0;
@@ -319,13 +431,27 @@ namespace Shift.DataLayer
                         sql = @"DELETE  
                             FROM JobProgress
                             WHERE JobID IN @ids; ";
-                        connection.Execute(sql, new { ids = notRunning.ToArray() }, trn);
+                        if (isSync)
+                        {
+                            connection.Execute(sql, new { ids = notRunning.ToArray() }, trn);
+                        }
+                        else
+                        {
+                            await connection.ExecuteAsync(sql, new { ids = notRunning.ToArray() }, trn);
+                        }
 
                         //Delete Job
                         sql = @"DELETE  
                             FROM Job
                             WHERE JobID IN @ids; ";
-                        count = connection.Execute(sql, new { ids = notRunning.ToArray() }, trn);
+                        if (isSync)
+                        {
+                            count = connection.Execute(sql, new { ids = notRunning.ToArray() }, trn);
+                        }
+                        else
+                        {
+                            count = await connection.ExecuteAsync(sql, new { ids = notRunning.ToArray() }, trn);
+                        }
                     }
 
                     trn.Commit();
@@ -341,6 +467,21 @@ namespace Shift.DataLayer
         /// <param name="hour">Job create hour in the past</param>
         /// <param name="statusList">A list of job's status to delete. Null job status is valid. Default is JobStatus.Completed.</param>
         public int Delete(int hour, ICollection<JobStatus?> statusList)
+        {
+            return DeleteAsync(hour, statusList, true).GetAwaiter().GetResult();
+        }
+
+        /// <summary>
+        /// Asynchronous delete past jobs with specified status(es). 
+        /// </summary>
+        /// <param name="hour">Job create hour in the past</param>
+        /// <param name="statusList">A list of job's status to delete. Null job status is valid. Default is JobStatus.Completed.</param>
+        public Task<int> DeleteAsync(int hour, ICollection<JobStatus?> statusList)
+        {
+            return DeleteAsync(hour, statusList, false);
+        }
+
+        private async Task<int> DeleteAsync(int hour, ICollection<JobStatus?> statusList, bool isSync)
         {
             var whereQuery = "j.Created < DATEADD(hour, -@hour, GETDATE())";
 
@@ -376,10 +517,19 @@ namespace Shift.DataLayer
                             FROM Job j
                             WHERE  " + whereQuery 
                             + " ORDER BY j.Created, j.JobID; "; // FIFO deletion
-                var deleteIDs = connection.Query<string>(sql, new { hour }).ToList();
+                var deleteIDs = new List<string>();
+                if (isSync)
+                {
+                    deleteIDs = connection.Query<string>(sql, new { hour }).ToList();
+                }
+                else
+                {
+                    var taskResult = await connection.QueryAsync<string>(sql, new { hour });
+                    deleteIDs = taskResult.ToList();
+                }
 
                 //Delete Cached progress
-                DeleteCachedProgress(deleteIDs);
+                DeleteCachedProgress(deleteIDs); //already async
 
                 using (var trn = connection.BeginTransaction())
                 {
@@ -389,13 +539,27 @@ namespace Shift.DataLayer
                         sql = @"DELETE  
                             FROM JobProgress
                             WHERE JobID IN @ids; ";
-                        connection.Execute(sql, new { ids = deleteIDs.ToArray() }, trn);
+                        if (isSync)
+                        {
+                            connection.Execute(sql, new { ids = deleteIDs.ToArray() }, trn);
+                        }
+                        else
+                        {
+                            await connection.ExecuteAsync(sql, new { ids = deleteIDs.ToArray() }, trn);
+                        }
 
                         //Delete Job
                         sql = @"DELETE  
                             FROM Job
                             WHERE JobID IN @ids; ";
-                        count = connection.Execute(sql, new { ids = deleteIDs.ToArray() }, trn);
+                        if (isSync)
+                        {
+                            count = connection.Execute(sql, new { ids = deleteIDs.ToArray() }, trn);
+                        }
+                        else
+                        {
+                            count = await connection.ExecuteAsync(sql, new { ids = deleteIDs.ToArray() }, trn);
+                        }
                     }
 
                     trn.Commit();
@@ -406,20 +570,19 @@ namespace Shift.DataLayer
         }
 
         /// <summary>
-        /// Asynchronous delete past jobs with specified status(es). 
-        /// </summary>
-        /// <param name="hour">Job create hour in the past</param>
-        /// <param name="statusList">A list of job's status to delete. Null job status is valid. Default is JobStatus.Completed.</param>
-        public async Task<int> DeleteAsync(int hour, ICollection<JobStatus?> statusList)
-        {
-            var count = await Task.Run(() => Delete(hour, statusList));
-            return count;
-        }
-
-        /// <summary>
         ///  Mark job status to JobStatus.Stopped. 
         /// </summary>
         public int SetToStopped(ICollection<string> jobIDs)
+        {
+            return SetToStoppedAsync(jobIDs, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> SetToStoppedAsync(ICollection<string> jobIDs)
+        {
+            return SetToStoppedAsync(jobIDs, false);
+        }
+
+        private async Task<int> SetToStoppedAsync(ICollection<string> jobIDs, bool isSync)
         {
             if (jobIDs.Count == 0)
                 return 0;
@@ -432,7 +595,14 @@ namespace Shift.DataLayer
                             Command = NULL, 
                             Status = @status
                             WHERE JobID IN @ids; ";
-                return connection.Execute(sql, new { status = JobStatus.Stopped, ids = jobIDs.ToArray() });
+                if (isSync)
+                {
+                    return connection.Execute(sql, new { status = JobStatus.Stopped, ids = jobIDs.ToArray() });
+                }
+                else
+                {
+                    return await connection.ExecuteAsync(sql, new { status = JobStatus.Stopped, ids = jobIDs.ToArray() });
+                }
             }
         }
 
@@ -445,6 +615,15 @@ namespace Shift.DataLayer
         /// <param name="userID"></param>
         /// <returns>JobStatusCount</returns>
         public IReadOnlyCollection<JobStatusCount> GetJobStatusCount(string appID, string userID)
+        {
+            return GetJobStatusCountAsync(appID, userID, true).GetAwaiter().GetResult();
+        }
+
+        public Task<IReadOnlyCollection<JobStatusCount>> GetJobStatusCountAsync(string appID, string userID)
+        {
+            return GetJobStatusCountAsync(appID, userID, false);
+        }
+        private async Task<IReadOnlyCollection<JobStatusCount>> GetJobStatusCountAsync(string appID, string userID, bool isSync)
         {
             var countList = new List<JobStatusCount>();
             using (var connection = new SqlConnection(connectionString))
@@ -479,8 +658,16 @@ namespace Shift.DataLayer
                           FROM [Job]
                           GROUP BY [Status]; ";
                 }
+                if (isSync)
+                {
 
-                countList = connection.Query<JobStatusCount>(sql, new { appID, userID }).ToList();
+                    countList = connection.Query<JobStatusCount>(sql, new { appID, userID }).ToList();
+                }
+                else
+                {
+                    var taskResult = await connection.QueryAsync<JobStatusCount>(sql, new { appID, userID });
+                    countList = taskResult.ToList();
+                }
             }
 
             return countList;
@@ -496,13 +683,32 @@ namespace Shift.DataLayer
         /// <returns>Job</returns>
         public Job GetJob(string jobID)
         {
+            return GetJobAsync(jobID, true).GetAwaiter().GetResult();
+        }
+
+        public Task<Job> GetJobAsync(string jobID)
+        {
+            return GetJobAsync(jobID, false);
+        }
+
+        private async Task<Job> GetJobAsync(string jobID, bool isSync)
+        {
             using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
                 var sql = @"SELECT *
                             FROM Job 
                             WHERE JobID = @jobID; ";
-                return connection.Query<Job>(sql, new { jobID }).FirstOrDefault();
+                if (isSync)
+                {
+                    return connection.Query<Job>(sql, new { jobID }).FirstOrDefault();
+                }
+                else
+                {
+                    var taskResult = await connection.QueryAsync<Job>(sql, new { jobID });
+                    return taskResult.FirstOrDefault();
+                }
+
             }
         }
 
@@ -513,6 +719,16 @@ namespace Shift.DataLayer
         /// <returns>List of Jobs</returns>
         public IReadOnlyCollection<Job> GetJobs(IEnumerable<string> jobIDs)
         {
+            return GetJobsAsync(jobIDs, true).GetAwaiter().GetResult();
+        }
+
+        public Task<IReadOnlyCollection<Job>> GetJobsAsync(IEnumerable<string> jobIDs)
+        {
+            return GetJobsAsync(jobIDs, false);
+        }
+
+        private async Task<IReadOnlyCollection<Job>> GetJobsAsync(IEnumerable<string> jobIDs, bool isSync)
+        {
             var jobList = new List<Job>();
             using (var connection = new SqlConnection(connectionString))
             {
@@ -520,7 +736,15 @@ namespace Shift.DataLayer
                 var sql = @"SELECT *
                             FROM Job 
                             WHERE JobID IN @ids; ";
-                jobList = connection.Query<Job>(sql, new { ids = jobIDs.ToArray() }).ToList();
+                if (isSync)
+                {
+                    jobList = connection.Query<Job>(sql, new { ids = jobIDs.ToArray() }).ToList();
+                }
+                else
+                {
+                    var taskResult = await connection.QueryAsync<Job>(sql, new { ids = jobIDs.ToArray() });
+                    jobList = taskResult.ToList();
+                }
             }
 
             return jobList;
@@ -533,13 +757,31 @@ namespace Shift.DataLayer
         /// <returns>JobView</returns>
         public JobView GetJobView(string jobID)
         {
+            return GetJobViewAsync(jobID, true).GetAwaiter().GetResult();
+        }
+
+        public Task<JobView>GetJobViewAsync(string jobID)
+        {
+            return GetJobViewAsync(jobID, false);
+        }
+
+        private async Task<JobView> GetJobViewAsync(string jobID, bool isSync)
+        {
             using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
                 var sql = @"SELECT *
                             FROM JobView 
                             WHERE JobID = @jobID; ";
-                return connection.Query<JobView>(sql, new { jobID }).FirstOrDefault();
+                if (isSync)
+                {
+                    return connection.Query<JobView>(sql, new { jobID }).FirstOrDefault();
+                }
+                else
+                {
+                    var taskResult = await connection.QueryAsync<JobView>(sql, new { jobID });
+                    return taskResult.FirstOrDefault();
+                }
             }
         }
 
@@ -550,6 +792,16 @@ namespace Shift.DataLayer
         /// <returns></returns>
         public IReadOnlyCollection<Job> GetNonRunningJobsByIDs(IEnumerable<string> jobIDs)
         {
+            return GetNonRunningJobsByIDsAsync(jobIDs, true).GetAwaiter().GetResult();
+        }
+
+        public Task<IReadOnlyCollection<Job>> GetNonRunningJobsByIDsAsync(IEnumerable<string> jobIDs)
+        {
+            return GetNonRunningJobsByIDsAsync(jobIDs, false);
+        }
+
+        private async Task<IReadOnlyCollection<Job>> GetNonRunningJobsByIDsAsync(IEnumerable<string> jobIDs, bool isSync)
+        {
             var jobList = new List<Job>();
             using (var connection = new SqlConnection(connectionString))
             {
@@ -558,8 +810,15 @@ namespace Shift.DataLayer
                             FROM Job j
                             WHERE j.JobID IN @ids 
                             AND j.Status IS NULL; ";
-                jobList = connection.Query<Job>(sql, new { ids = jobIDs.ToArray() }).ToList();
-
+                if (isSync)
+                {
+                    jobList = connection.Query<Job>(sql, new { ids = jobIDs.ToArray() }).ToList();
+                }
+                else
+                {
+                    var taskResult = await connection.QueryAsync<Job>(sql, new { ids = jobIDs.ToArray() });
+                    jobList = taskResult.ToList();
+                }
             }
             return jobList;
         }
@@ -572,6 +831,16 @@ namespace Shift.DataLayer
         /// <returns>List of JobIDs</returns>
         public IReadOnlyCollection<string> GetJobIdsByProcessAndCommand(string processID, string command)
         {
+            return GetJobIdsByProcessAndCommandAsync(processID, command, true).GetAwaiter().GetResult();
+        }
+
+        public Task<IReadOnlyCollection<string>> GetJobIdsByProcessAndCommandAsync(string processID, string command)
+        {
+            return GetJobIdsByProcessAndCommandAsync(processID, command, false);
+        }
+
+        private async Task<IReadOnlyCollection<string>> GetJobIdsByProcessAndCommandAsync(string processID, string command, bool isSync)
+        {
             var jobIds = new List<string>();
             using (var connection = new SqlConnection(connectionString))
             {
@@ -580,7 +849,15 @@ namespace Shift.DataLayer
                             FROM Job j
                             WHERE (j.ProcessID = @processID OR j.ProcessID IS NULL)
                             AND j.Command = @command; ";
-                jobIds = connection.Query<string>(sql, new { processID, command }).ToList();
+                if (isSync)
+                {
+                    jobIds = connection.Query<string>(sql, new { processID, command }).ToList();
+                }
+                else
+                {
+                    var taskResult = await connection.QueryAsync<string>(sql, new { processID, command });
+                    jobIds = taskResult.ToList();
+                }
             }
 
             return jobIds;
@@ -594,6 +871,16 @@ namespace Shift.DataLayer
         /// <returns>List of Jobs</returns>
         public IReadOnlyCollection<Job> GetJobsByProcessAndStatus(string processID, JobStatus status)
         {
+            return GetJobsByProcessAndStatusAsync(processID, status, true).GetAwaiter().GetResult();
+        }
+
+        public Task<IReadOnlyCollection<Job>> GetJobsByProcessAndStatusAsync(string processID, JobStatus status)
+        {
+            return GetJobsByProcessAndStatusAsync(processID, status, false);
+        }
+
+        private async Task<IReadOnlyCollection<Job>> GetJobsByProcessAndStatusAsync(string processID, JobStatus status, bool isSync)
+        {
             var jobList = new List<Job>();
             using (var connection = new SqlConnection(connectionString))
             {
@@ -602,7 +889,15 @@ namespace Shift.DataLayer
                             FROM Job j
                             WHERE j.ProcessID = @processID
                             AND j.Status = @status; ";
-                jobList = connection.Query<Job>(sql, new { processID, status }).ToList();
+                if (isSync)
+                {
+                    jobList = connection.Query<Job>(sql, new { processID, status }).ToList();
+                }
+                else
+                {
+                    var taskResult = await connection.QueryAsync<Job>(sql, new { processID, status });
+                    jobList = taskResult.ToList();
+                }
             }
 
             return jobList;
@@ -615,6 +910,16 @@ namespace Shift.DataLayer
         /// <param name="pageSize">Page size</param>
         /// <returns>Total count of job views and list of JobViews</returns>
         public JobViewList GetJobViews(int? pageIndex, int? pageSize)
+        {
+            return GetJobViewsAsync(pageIndex, pageSize, true).GetAwaiter().GetResult();
+        }
+
+        public Task<JobViewList> GetJobViewsAsync(int? pageIndex, int? pageSize)
+        {
+            return GetJobViewsAsync(pageIndex, pageSize, false);
+        }
+
+        private async Task<JobViewList> GetJobViewsAsync(int? pageIndex, int? pageSize, bool isSync)
         {
             var result = new List<JobView>();
             var totalCount = 0;
@@ -630,10 +935,21 @@ namespace Shift.DataLayer
                                 FROM JobView jv 
                                 ORDER BY jv.Created, jv.JobID
                                 OFFSET " + offset + " ROWS FETCH NEXT " + pageSize + " ROWS ONLY;";
-                using (var multiResult = connection.QueryMultiple(sqlQuery))
+                if (isSync)
                 {
-                    totalCount = multiResult.Read<int>().Single();
-                    result = multiResult.Read<JobView>().ToList();
+                    using (var multiResult = connection.QueryMultiple(sqlQuery))
+                    {
+                        totalCount = multiResult.Read<int>().Single();
+                        result = multiResult.Read<JobView>().ToList();
+                    }
+                }
+                else
+                {
+                    using (var multiResult = await connection.QueryMultipleAsync(sqlQuery))
+                    {
+                        totalCount = multiResult.Read<int>().Single();
+                        result = multiResult.Read<JobView>().ToList();
+                    }
                 }
             }
 
@@ -642,7 +958,16 @@ namespace Shift.DataLayer
             {
                 if (row.Status == JobStatus.Running)
                 {
-                    var cached = GetCachedProgress(row.JobID);
+                    JobStatusProgress cached = null;
+                    if (isSync)
+                    {
+                        cached = GetCachedProgress(row.JobID);
+                    }
+                    else
+                    {
+                        cached = await GetCachedProgressAsync(row.JobID); 
+                    }
+
                     if (cached != null)
                     {
                         row.Status = cached.Status;
@@ -672,12 +997,29 @@ namespace Shift.DataLayer
         /// <returns>Updated record count, 0 or 1 record updated</returns>
         public int SetToRunning(string processID, string jobID)
         {
+            return SetToRunningAsync(processID, jobID, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> SetToRunningAsync(string processID, string jobID)
+        {
+            return SetToRunningAsync(processID, jobID, false);
+        }
+
+        private async Task<int> SetToRunningAsync(string processID, string jobID, bool isSync)
+        {
             var count = 0;
             using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
                 var sql = "UPDATE [Job] SET Status = @status, [Start] = @start WHERE JobID = @jobID AND ProcessID = @processID;";
-                count = connection.Execute(sql, new { status = JobStatus.Running, start = DateTime.Now, jobID, processID });
+                if (isSync)
+                {
+                    count = connection.Execute(sql, new { status = JobStatus.Running, start = DateTime.Now, jobID, processID });
+                }
+                else
+                {
+                    count = await connection.ExecuteAsync(sql, new { status = JobStatus.Running, start = DateTime.Now, jobID, processID });
+                }
             }
 
             return count;
@@ -692,13 +1034,30 @@ namespace Shift.DataLayer
         /// <returns>Updated record count, 0 or 1 record updated</returns>
         public int SetError(string processID, string jobID, string error)
         {
+            return SetErrorAsync(processID, jobID, error, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> SetErrorAsync(string processID, string jobID, string error)
+        {
+            return SetErrorAsync(processID, jobID, error, false);
+        }
+
+        private async Task<int> SetErrorAsync(string processID, string jobID, string error, bool isSync)
+        {
             var count = 0;
             using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
 
                 var sql = "UPDATE [Job] SET [Error] = @error, [Status] = @status WHERE JobID = @jobID AND ProcessID = @processID;";
-                count = connection.Execute(sql, new { error, status=JobStatus.Error, jobID, processID });
+                if (isSync)
+                {
+                    count = connection.Execute(sql, new { error, status = JobStatus.Error, jobID, processID });
+                }
+                else
+                {
+                    count = await connection.ExecuteAsync(sql, new { error, status = JobStatus.Error, jobID, processID });
+                }
             }
 
             return count;
@@ -712,12 +1071,29 @@ namespace Shift.DataLayer
         /// <returns>Updated record count, 0 or 1 record updated</returns>
         public int SetCompleted(string processID, string jobID)
         {
+            return SetCompletedAsync(processID, jobID, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> SetCompletedAsync(string processID, string jobID)
+        {
+            return SetCompletedAsync(processID, jobID, false);
+        }
+
+        private async Task<int> SetCompletedAsync(string processID, string jobID, bool isSync)
+        {
             var count = 0;
             using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
                 var sql = "UPDATE [Job] SET Status = @status, [End] = @end WHERE JobID = @jobID AND ProcessID = @processID;";
-                count = connection.Execute(sql, new { status = JobStatus.Completed, end = DateTime.Now, jobID, processID });
+                if (isSync)
+                {
+                    count = connection.Execute(sql, new { status = JobStatus.Completed, end = DateTime.Now, jobID, processID });
+                }
+                else
+                {
+                    count = await connection.ExecuteAsync(sql, new { status = JobStatus.Completed, end = DateTime.Now, jobID, processID });
+                }
             }
 
             return count;
@@ -730,7 +1106,17 @@ namespace Shift.DataLayer
         /// <returns>Total count of running jobs.</returns>
         public int CountRunningJobs(string processID)
         {
-            var runningCount = 0;
+            return CountRunningJobsAsync(processID, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> CountRunningJobsAsync(string processID)
+        {
+            return CountRunningJobsAsync(processID, false);
+        }
+
+        private async Task<int> CountRunningJobsAsync(string processID, bool isSync)
+        {
+            var count = 0;
             using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
@@ -738,10 +1124,18 @@ namespace Shift.DataLayer
                             FROM Job j
                             WHERE j.Status = @status 
                             AND j.ProcessID = @processID; ";
-                runningCount = connection.Query<int>(sql, new { status = JobStatus.Running, processID }).FirstOrDefault();
+                if (isSync)
+                {
+                    count = connection.Query<int>(sql, new { status = JobStatus.Running, processID }).FirstOrDefault();
+                }
+                else
+                {
+                    var taskResult = await connection.QueryAsync<int>(sql, new { status = JobStatus.Running, processID });
+                    count = taskResult.FirstOrDefault();
+                }
             }
 
-            return runningCount;
+            return count;
         }
 
         /// <summary>
@@ -757,6 +1151,12 @@ namespace Shift.DataLayer
             return ClaimJobsToRun(processID, jobList.ToList());
         }
 
+        public async Task<IReadOnlyCollection<Job>> ClaimJobsToRunAsync(string processID, int maxNum)
+        {
+            var jobList = await GetJobsToRunAsync(maxNum);
+            return await ClaimJobsToRunAsync(processID, jobList.ToList());
+        }
+
         /// <summary>
         /// Attempt to claim specific jobs to be owned by processID.
         /// Use Optimistic Concurrency, don't claim job if it's already running or claimed by someone else.
@@ -765,6 +1165,16 @@ namespace Shift.DataLayer
         /// <param name="jobList">List of jobs to claim</param>
         /// <returns>List of actual jobs claimed by processID</returns>
         public IReadOnlyCollection<Job> ClaimJobsToRun(string processID, ICollection<Job> jobList)
+        {
+            return ClaimJobsToRunAsync(processID, jobList, true).GetAwaiter().GetResult();
+        }
+
+        public Task<IReadOnlyCollection<Job>> ClaimJobsToRunAsync(string processID, ICollection<Job> jobList)
+        {
+            return ClaimJobsToRunAsync(processID, jobList, false);
+        }
+
+        private async Task<IReadOnlyCollection<Job>> ClaimJobsToRunAsync(string processID, ICollection<Job> jobList, bool isSync)
         {
             var claimedJobs = new List<Job>();
             using (var connection = new SqlConnection(connectionString))
@@ -780,7 +1190,15 @@ namespace Shift.DataLayer
                                 WHERE Status IS NULL 
                                 AND ProcessID IS NULL
                                 AND [jobID] = @jobID; ";
-                        count = connection.Execute(sql, new { processID, job.JobID });
+                        if (isSync)
+                        {
+                            count = connection.Execute(sql, new { processID, job.JobID });
+                        } 
+                        else
+                        {
+                            count = await connection.ExecuteAsync(sql, new { processID, job.JobID });
+                        }
+
                         job.ProcessID = processID; //set it similar to DB record!
                     }
                     catch (Exception exc)
@@ -809,6 +1227,16 @@ namespace Shift.DataLayer
         /// <returns>List of jobs</returns>
         private IReadOnlyCollection<Job> GetJobsToRun(int maxNum)
         {
+            return GetJobsToRunAsync(maxNum, true).GetAwaiter().GetResult();
+        }
+
+        private Task<IReadOnlyCollection<Job>> GetJobsToRunAsync(int maxNum)
+        {
+            return GetJobsToRunAsync(maxNum, false);
+        }
+
+        private async Task<IReadOnlyCollection<Job>> GetJobsToRunAsync(int maxNum, bool isSync)
+        {
             var jobList = new List<Job>();
             using (var connection = new SqlConnection(connectionString))
             {
@@ -820,7 +1248,15 @@ namespace Shift.DataLayer
                             AND (j.Command = @runNow OR j.Command IS NULL)
                             ORDER BY j.Command DESC, j.Created, j.JobID
                             OFFSET 0 ROWS FETCH NEXT @maxNum ROWS ONLY; ";
-                jobList = connection.Query<Job>(sql, new { runNow = JobCommand.RunNow, maxNum }).ToList();
+                if (isSync)
+                {
+                    jobList = connection.Query<Job>(sql, new { runNow = JobCommand.RunNow, maxNum }).ToList();
+                }
+                else
+                {
+                    var taskResult = await connection.QueryAsync<Job>(sql, new { runNow = JobCommand.RunNow, maxNum });
+                    jobList = taskResult.ToList();
+                }
             }
 
             return jobList;
@@ -836,6 +1272,16 @@ namespace Shift.DataLayer
         /// <returns>0 for no insert/update, 1 for successful insert/update</returns>
         public int SetProgress(string jobID, int? percent, string note, string data)
         {
+            return SetProgressAsync(jobID, percent, note, data, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> SetProgressAsync(string jobID, int? percent, string note, string data)
+        {
+            return SetProgressAsync(jobID, percent, note, data, false);
+        }
+
+        private async Task<int> SetProgressAsync(string jobID, int? percent, string note, string data, bool isSync)
+        {
             var count = 0;
             using (var connection = new SqlConnection(connectionString))
             {
@@ -846,16 +1292,31 @@ namespace Shift.DataLayer
                     //INSERT
                     var sql = @"INSERT INTO JobProgress ([JobID], [Percent], [Note], [Data]) 
                                 VALUES ( @jobID, @percent, @note, @data ); ";
-                    count = connection.Execute(sql, new { jobID, percent, note, data });
+                    if (isSync)
+                    {
+                        count = connection.Execute(sql, new { jobID, percent, note, data });
+                    }
+                    else
+                    {
+                        count = await connection.ExecuteAsync(sql, new { jobID, percent, note, data });
+                    }
                 }
                 else
                 {
                     //UPDATE
                     var sql = @"UPDATE [JobProgress] SET [Percent] = @percent, Note = @note, Data = @data 
                                 WHERE JobID = @jobID; ";
-                    count = connection.Execute(sql, new { percent, note, data, jobID });
+                    if (isSync)
+                    {
+                        count = connection.Execute(sql, new { percent, note, data, jobID });
+                    }
+                    else
+                    {
+                        count = await connection.ExecuteAsync(sql, new { percent, note, data, jobID });
+                    }
                 }
             }
+
 
             return count;
         }
@@ -890,12 +1351,39 @@ namespace Shift.DataLayer
         /* Use Cache and DB to return progress */
         public JobStatusProgress GetProgress(string jobID)
         {
-            var jsProgress = GetCachedProgress(jobID);
+            return GetProgressAsync(jobID, true).GetAwaiter().GetResult();
+        }
+
+        public Task<JobStatusProgress> GetProgressAsync(string jobID)
+        {
+            return GetProgressAsync(jobID, false);
+        }
+
+        private async Task<JobStatusProgress> GetProgressAsync(string jobID, bool isSync)
+        {
+            JobStatusProgress jsProgress = null;
+            if (isSync)
+            {
+                jsProgress = GetCachedProgress(jobID);
+            }
+            else
+            {
+                jsProgress = await GetCachedProgressAsync(jobID);
+            }
+
             if (jsProgress == null)
             {
                 jsProgress = new JobStatusProgress();
                 //try to get from DB
-                var jobView = GetJobView(jobID);
+                JobView jobView = null;
+                if (isSync)
+                {
+                    jobView = GetJobView(jobID);
+                }
+                else
+                {
+                    jobView = await GetJobViewAsync(jobID);
+                }
                 if (jobView != null)
                 {
                     jsProgress.JobID = jobView.JobID;
@@ -921,6 +1409,13 @@ namespace Shift.DataLayer
             if (jobCache == null)
                 return null;
             return jobCache.GetCachedProgress(jobID);
+        }
+
+        public Task<JobStatusProgress> GetCachedProgressAsync(string jobID)
+        {
+            if (jobCache == null)
+                return Task.FromResult((JobStatusProgress)null); //Can not return null, must return Task<(object)null> http://stackoverflow.com/a/18145226/2437862
+            return jobCache.GetCachedProgressAsync(jobID);
         }
 
         //Set Cached progress similar to the DB SetProgress()
@@ -966,7 +1461,6 @@ namespace Shift.DataLayer
             jobCache.SetCachedProgressError(jsProgress, error);
         }
 
-
         public void DeleteCachedProgress(string jobID)
         {
             if (jobCache == null)
@@ -985,6 +1479,7 @@ namespace Shift.DataLayer
                 DeleteCachedProgress(jobID);
             }
         }
+
 
         #endregion 
     }
