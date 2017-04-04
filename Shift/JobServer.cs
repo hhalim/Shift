@@ -87,7 +87,7 @@ namespace Shift
         /// </summary>
         private void Initialize()
         {
-            if (config.ThreadMode == ThreadMode.Thread)
+            if (config.ThreadMode.ToLower() == ThreadMode.Thread)
             {
                 this.threadList = new Dictionary<string, Thread>();
             }
@@ -150,7 +150,7 @@ namespace Shift
                 timer.Elapsed += async (sender, e) =>
                 {
                     await StopJobsAsync();
-                    RunJobs();
+                    await RunJobsAsync();
                 };
 
                 timer2 = new System.Timers.Timer();
@@ -212,16 +212,27 @@ namespace Shift
         /// </summary>
         public void RunJobs()
         {
+            RunJobsAsync(true).GetAwaiter().GetResult();
+        }
+
+        public Task RunJobsAsync()
+        {
+            return RunJobsAsync(false);
+        }
+
+        private async Task RunJobsAsync(bool isSync)
+        {
             //Check max jobs count
-            var runningCount = jobDAL.CountRunningJobs(config.ProcessID);
+            var runningCount = isSync ? jobDAL.CountRunningJobs(config.ProcessID) : await jobDAL.CountRunningJobsAsync(config.ProcessID);
             if (runningCount >= config.MaxRunnableJobs)
             {
                 return;
             }
 
             var rowsToGet = config.MaxRunnableJobs - runningCount;
-            var claimedJobs = jobDAL.ClaimJobsToRun(config.ProcessID, rowsToGet);
-            RunJobs(claimedJobs);
+            var claimedJobs = isSync ? jobDAL.ClaimJobsToRun(config.ProcessID, rowsToGet) : await jobDAL.ClaimJobsToRunAsync(config.ProcessID, rowsToGet);
+
+            RunClaimedJobsAsync(claimedJobs, isSync);
         }
 
         /// <summary>
@@ -231,15 +242,25 @@ namespace Shift
         ///<param name="jobIDs">List of job IDs to run.</param>
         public void RunJobs(IEnumerable<string> jobIDs)
         {
-            //Try to start the selected jobs, ignoring MaxRunableJobs
-            var jobList = jobDAL.GetNonRunningJobsByIDs(jobIDs);
-            var claimedJobs = jobDAL.ClaimJobsToRun(config.ProcessID, jobList.ToList());
+            RunJobsAsync(jobIDs, true).GetAwaiter().GetResult();
+        }
 
-            RunJobs(claimedJobs);
+        public Task RunJobsAsync(IEnumerable<string> jobIDs)
+        {
+            return RunJobsAsync(jobIDs, false);
+        }
+
+        private async Task RunJobsAsync(IEnumerable<string> jobIDs, bool isSync)
+        {
+            //Try to start the selected jobs, ignoring MaxRunableJobs
+            var jobList = isSync ? jobDAL.GetNonRunningJobsByIDs(jobIDs) : await jobDAL.GetNonRunningJobsByIDsAsync(jobIDs);
+            var claimedJobs = isSync ? jobDAL.ClaimJobsToRun(config.ProcessID, jobList.ToList()) : await jobDAL.ClaimJobsToRunAsync(config.ProcessID, jobList.ToList());
+
+            RunClaimedJobsAsync(claimedJobs, isSync);
         }
 
         //Finally Run the Jobs
-        protected void RunJobs(IEnumerable<Job> jobList)
+        private void RunClaimedJobsAsync(IEnumerable<Job> jobList, bool isSync)
         {
             if (jobList.Count() == 0)
                 return;
@@ -250,14 +271,7 @@ namespace Shift
                 {
                     var decryptedParameters = Entities.Helpers.Decrypt(job.Parameters, config.EncryptionKey);
 
-                    if (config.ThreadMode.ToLower() == ThreadMode.Thread)
-                    {
-                        CreateThread(job.ProcessID, job.JobID, job.InvokeMeta, decryptedParameters); //Use the DecryptedParameters, NOT encrypted Parameters
-                    }
-                    else 
-                    {
-                        CreateTask(job.ProcessID, job.JobID, job.InvokeMeta, decryptedParameters); //Use the DecryptedParameters, NOT encrypted Parameters
-                    }
+                    CreateTaskOrThread(config.ThreadMode, job.ProcessID, job.JobID, job.InvokeMeta, decryptedParameters, isSync); //Use the DecryptedParameters, NOT encrypted Parameters
                 }
                 catch (Exception exc)
                 {
@@ -265,7 +279,10 @@ namespace Shift
                     var error = job.Error + " Invoke error: " + exc.ToString();
                     jobDAL.SetCachedProgressError(job.JobID, error);
                     var processID = string.IsNullOrWhiteSpace(job.ProcessID) ? config.ProcessID : job.ProcessID;
-                    jobDAL.SetError(processID, job.JobID, error);
+                    if(isSync)
+                        jobDAL.SetError(processID, job.JobID, error);
+                    else
+                        jobDAL.SetErrorAsync(processID, job.JobID, error);
                 }
             }
         }
@@ -291,7 +308,7 @@ namespace Shift
         }
 
         //Create the thread that will run the job
-        private void CreateThread(string processID, string jobID, string invokeMeta, string parameters)
+        private void CreateTaskOrThread(string threadMode, string processID, string jobID, string invokeMeta, string parameters, bool isSync)
         {
             var invokeMetaObj = JsonConvert.DeserializeObject<InvokeMeta>(invokeMeta, SerializerSettings.Settings);
 
@@ -308,46 +325,43 @@ namespace Shift
                 instance = Helpers.CreateInstance(type); //create object method instance
             }
 
-            var thread = new Thread(() => ExecuteJob(processID, jobID, methodInfo, parameters, instance, null)); //Create the new Job thread
-            threadList[jobID] = thread; //Keep track of running thread
-            thread.Name = "Shift Thread " + thread.ManagedThreadId;
-            thread.IsBackground = true; //keep the main process running https://msdn.microsoft.com/en-us/library/system.threading.thread.isbackground
+            if (threadMode.ToLower() == ThreadMode.Thread)
+            {
+                Thread thread;
+                if (isSync)
+                    thread = new Thread(() => ExecuteJobAsync(processID, jobID, methodInfo, parameters, instance, null, true).GetAwaiter().GetResult()); //Create the new Job thread
+                else
+                    thread = new Thread(async () => await ExecuteJobAsync(processID, jobID, methodInfo, parameters, instance, null, false)); //Create the new Job thread
 
-            thread.Start();
+                threadList[jobID] = thread; //Keep track of running thread
+                thread.Name = "Shift Thread " + thread.ManagedThreadId;
+                thread.IsBackground = true; //keep the main process running https://msdn.microsoft.com/en-us/library/system.threading.thread.isbackground
+
+                thread.Start();
+            }
+            else
+            {
+                var tokenSource = new CancellationTokenSource();
+                var token = tokenSource.Token;
+                //Don't use ConfigureWait(false), since some tasks don't have Cancellation token and must use the original context to return after completion
+                Task jobTask = new Task(() => ExecuteJobAsync(processID, jobID, methodInfo, parameters, instance, token, isSync).GetAwaiter().GetResult(), token); 
+
+                var taskInfo = new TaskInfo();
+                taskInfo.JobTask = jobTask;
+                taskInfo.TokenSource = tokenSource;
+                taskList[jobID] = taskInfo; //Keep track of running thread
+
+                jobTask.Start();
+            }
         }
 
-        private void CreateTask(string processID, string jobID, string invokeMeta, string parameters)
-        {
-            var invokeMetaObj = JsonConvert.DeserializeObject<InvokeMeta>(invokeMeta, SerializerSettings.Settings);
-
-            var type = GetTypeFromAllAssemblies(invokeMetaObj.Type);
-            var parameterTypes = JsonConvert.DeserializeObject<Type[]>(invokeMetaObj.ParameterTypes, SerializerSettings.Settings);
-            var methodInfo = Helpers.GetNonOpenMatchingMethod(type, invokeMetaObj.Method, parameterTypes);
-            if (methodInfo == null)
-            {
-                throw new InvalidOperationException(string.Format("The type '{0}' has no method with signature '{1}({2})'", type.FullName, invokeMetaObj.Method, string.Join(", ", parameterTypes.Select(x => x.Name))));
-            }
-            object instance = null;
-            if (!methodInfo.IsStatic) //not static?
-            {
-                instance = Helpers.CreateInstance(type); //create object method instance
-            }
-            var tokenSource = new CancellationTokenSource();
-            var token = tokenSource.Token;
-            var jobTask = new Task(() => ExecuteJob(processID, jobID, methodInfo, parameters, instance, token), token);
-
-            var taskInfo = new TaskInfo();
-            taskInfo.JobTask = jobTask;
-            taskInfo.TokenSource = tokenSource;
-            taskList[jobID] =  taskInfo; //Keep track of running thread
-
-            jobTask.Start();
-        }
-
-        private IProgress<ProgressInfo> UpdateProgressEvent(string jobID)
+        private async Task<IProgress<ProgressInfo>> UpdateProgressEventAsync(string jobID, bool isSync)
         {
             //Insert a progress row first for the related jobID if it doesn't exist
-            jobDAL.SetProgress(jobID, null, null, null);
+            if(isSync)
+                jobDAL.SetProgress(jobID, null, null, null);
+            else
+                await jobDAL.SetProgressAsync(jobID, null, null, null);
             jobDAL.SetCachedProgress(jobID, null, null, null);
 
             var start = DateTime.Now;
@@ -370,15 +384,18 @@ namespace Shift
             return progress;
         }
 
-        private void ExecuteJob(string processID, string jobID, MethodInfo methodInfo, string parameters, object instance, CancellationToken? token)
+        private async Task ExecuteJobAsync(string processID, string jobID, MethodInfo methodInfo, string parameters, object instance, CancellationToken? token, bool isSync)
         {
             try
             {
                 //Set job to Running
-                jobDAL.SetToRunning(processID, jobID);
+                if (isSync)
+                    jobDAL.SetToRunning(processID, jobID);
+                else
+                    await jobDAL.SetToRunningAsync(processID, jobID);
                 jobDAL.SetCachedProgressStatus(jobID, JobStatus.Running);
 
-                var progress = UpdateProgressEvent(jobID); //Need this to update the progress of the job's
+                var progress = isSync ? UpdateProgressEventAsync(jobID, true).GetAwaiter().GetResult() : await UpdateProgressEventAsync(jobID, false); //Need this to update the progress of the job's
 
                 //Invoke Method
                 if(token == null)
@@ -393,14 +410,17 @@ namespace Shift
             {
                 if (exc.InnerException is OperationCanceledException)
                 {
-                    throw exc.InnerException;
+                    throw exc.InnerException; //handle by CancelTaskAndWaitAsync
                 }
                 else
                 {
                     var job = jobDAL.GetJob(jobID);
                     var error = job.Error + " " + exc.ToString();
                     jobDAL.SetCachedProgressError(job.JobID, error);
-                    jobDAL.SetError(processID, job.JobID, error);
+                    if(isSync)
+                        jobDAL.SetError(processID, job.JobID, error);
+                    else
+                        await jobDAL.SetErrorAsync(processID, job.JobID, error);
 
                     return; //can't throw to another thread so quit here
                 }
@@ -412,7 +432,10 @@ namespace Shift
                 {
                     var error = job.Error + " " + txc.ToString();
                     jobDAL.SetCachedProgressError(job.JobID, error);
-                    jobDAL.SetError(processID, job.JobID, error);
+                    if (isSync)
+                        jobDAL.SetError(processID, job.JobID, error);
+                    else
+                        await jobDAL.SetErrorAsync(processID, job.JobID, error);
                 }
                 return; //can't throw to another thread so quit here
             }
@@ -421,12 +444,19 @@ namespace Shift
                 var job = jobDAL.GetJob(jobID);
                 var error = job.Error + " " + exc.ToString();
                 jobDAL.SetCachedProgressError(job.JobID, error);
-                jobDAL.SetError(processID, job.JobID, error);
+                if (isSync)
+                    jobDAL.SetError(processID, job.JobID, error);
+                else
+                    await jobDAL.SetErrorAsync(processID, job.JobID, error);
 
                 return; //can't throw to another thread so quit here
             }
 
-            jobDAL.SetCompleted(processID, jobID);
+            if (isSync)
+                jobDAL.SetCompleted(processID, jobID);
+            else
+                await jobDAL.SetCompletedAsync(processID, jobID);
+            
             jobDAL.SetCachedProgressStatus(jobID, JobStatus.Completed);
             var rsTask = Task.Delay(60000).ContinueWith(_ =>
             {
@@ -481,7 +511,7 @@ namespace Shift
                     var taskInfo = taskList.ContainsKey(jobID) ? taskList[jobID] : null;
                     if (taskInfo != null)
                     {
-                        Task.Run(() => CancelTaskAndWaitAsync(jobID, taskList)); //run another thread to do the waiting for job to finish
+                        Task.Run(async () => await CancelTaskAndWaitAsync(jobID, taskList)); //run another thread to do the waiting for job to finish
                     }
                     else
                     {
