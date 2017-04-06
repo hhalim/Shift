@@ -26,7 +26,7 @@ namespace Shift
                     }
                     break;
                 case StorageMode.Redis:
-                    //builder.RegisterType<JobDALRedis>().As<IJobDAL>().UsingConstructor(typeof(string), typeof(string)).WithParameters(parameters);
+                    builder.RegisterType<JobDALRedis>().As<IJobDAL>().UsingConstructor(typeof(string), typeof(string)).WithParameters(parameters);
                     break;
                 case StorageMode.MongoDB:
                     //builder.RegisterType<JobDALMongo>().As<IJobDAL>().UsingConstructor(typeof(string), typeof(string)).WithParameters(parameters);

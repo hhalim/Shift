@@ -292,7 +292,7 @@ namespace Shift
             if (jobIDs == null || jobIDs.Count == 0)
                 return 0;
 
-            jobDAL.DeleteCachedProgress(jobIDs);
+            jobDAL.DeleteCachedProgressAsync(jobIDs);
             return jobDAL.Reset(jobIDs);
         }
 
@@ -301,7 +301,7 @@ namespace Shift
             if (jobIDs == null || jobIDs.Count == 0)
                 return Task.FromResult(0);
 
-            jobDAL.DeleteCachedProgress(jobIDs);
+            jobDAL.DeleteCachedProgressAsync(jobIDs);
             return jobDAL.ResetAsync(jobIDs);
         }
 
@@ -315,7 +315,7 @@ namespace Shift
             if (jobIDs == null || jobIDs.Count == 0)
                 return 0;
 
-            jobDAL.DeleteCachedProgress(jobIDs);
+            jobDAL.DeleteCachedProgressAsync(jobIDs);
             return jobDAL.Delete(jobIDs);
         }
 
@@ -324,7 +324,7 @@ namespace Shift
             if (jobIDs == null || jobIDs.Count == 0)
                 return Task.FromResult(0);
 
-            jobDAL.DeleteCachedProgress(jobIDs);
+            jobDAL.DeleteCachedProgressAsync(jobIDs);
             return jobDAL.DeleteAsync(jobIDs);
         }
 

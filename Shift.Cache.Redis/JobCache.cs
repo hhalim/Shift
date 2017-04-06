@@ -10,6 +10,7 @@ namespace Shift.Cache.Redis
     {
         const string KeyPrefix = "job-progress:";
         private readonly Lazy<ConnectionMultiplexer> lazyConnection;
+        private IDatabase _IDatabase;
 
         public ConnectionMultiplexer Connection
         {
@@ -23,7 +24,12 @@ namespace Shift.Cache.Redis
         {
             get
             {
-                return Connection.GetDatabase();
+                if (_IDatabase == null)
+                {
+                    Connection.PreserveAsyncOrder = false;
+                    _IDatabase = Connection.GetDatabase();
+                }
+                return _IDatabase;
             }
         }
  
@@ -69,7 +75,7 @@ namespace Shift.Cache.Redis
         }
 
         //Set Cached progress
-        public void SetCachedProgress(string jobID, int? percent, string note, string data)
+        public Task SetCachedProgressAsync(string jobID, int? percent, string note, string data)
         {
             var jobStatusProgressString = RedisDatabase.StringGet(KeyPrefix + jobID.ToString());
 
@@ -89,29 +95,29 @@ namespace Shift.Cache.Redis
             jsProgress.Data = data;
             jsProgress.Updated = DateTime.Now;
 
-            RedisDatabase.StringSetAsync(KeyPrefix + jobID.ToString(), JsonConvert.SerializeObject(jsProgress), flags: CommandFlags.FireAndForget);
+            return RedisDatabase.StringSetAsync(KeyPrefix + jobID.ToString(), JsonConvert.SerializeObject(jsProgress), flags: CommandFlags.FireAndForget);
         }
 
-        public void SetCachedProgressStatus(JobStatusProgress jsProgress, JobStatus status)
+        public Task SetCachedProgressStatusAsync(JobStatusProgress jsProgress, JobStatus status)
         {
             //Update running/stop status only if it exists in DB
             jsProgress.Status = status;
             jsProgress.Updated = DateTime.Now;
-            RedisDatabase.StringSetAsync(KeyPrefix + jsProgress.JobID.ToString(), JsonConvert.SerializeObject(jsProgress), flags: CommandFlags.FireAndForget);
+            return RedisDatabase.StringSetAsync(KeyPrefix + jsProgress.JobID.ToString(), JsonConvert.SerializeObject(jsProgress), flags: CommandFlags.FireAndForget);
         }
 
         //Set cached progress error
-        public void SetCachedProgressError(JobStatusProgress jsProgress, string error)
+        public Task SetCachedProgressErrorAsync(JobStatusProgress jsProgress, string error)
         {
             jsProgress.Status = JobStatus.Error;
             jsProgress.Error = error;
             jsProgress.Updated = DateTime.Now;
-            RedisDatabase.StringSetAsync(KeyPrefix + jsProgress.JobID.ToString(), JsonConvert.SerializeObject(jsProgress), flags: CommandFlags.FireAndForget);
+            return RedisDatabase.StringSetAsync(KeyPrefix + jsProgress.JobID.ToString(), JsonConvert.SerializeObject(jsProgress), flags: CommandFlags.FireAndForget);
         }
 
-        public void DeleteCachedProgress(string jobID)
+        public Task DeleteCachedProgressAsync(string jobID)
         {
-            RedisDatabase.KeyDeleteAsync(KeyPrefix + jobID.ToString(), flags: CommandFlags.FireAndForget);
+            return RedisDatabase.KeyDeleteAsync(KeyPrefix + jobID.ToString(), flags: CommandFlags.FireAndForget);
         }
 
 

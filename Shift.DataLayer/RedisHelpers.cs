@@ -15,10 +15,14 @@ namespace Shift.DataLayer
         public static HashEntry[] ToHashEntries(this object obj)
         {
             PropertyInfo[] properties = obj.GetType().GetProperties();
-            return properties
-                .Where(x => x.GetValue(obj) != null) // <-- PREVENT NullReferenceException
-                .Select(property => new HashEntry(property.Name, property.GetValue(obj)
-                .ToString())).ToArray();
+            var entries = new List<HashEntry>();
+            foreach(var item in properties)
+            {
+                var value = item.GetValue(obj);
+                entries.Add(new HashEntry(item.Name, value == null || DBNull.Value.Equals(value) ? "" : Convert.ToString(value)));
+            }
+
+            return entries.ToArray();
         }
 
         //Deserialize from Redis format
@@ -42,8 +46,31 @@ namespace Shift.DataLayer
 
         public static object GetValue(Type t, object value)
         {
-            if (value == null || DBNull.Value.Equals(value) )
-                return null;
+            //is type nullable?
+            if(Nullable.GetUnderlyingType(t) != null)
+            {
+                if (value == null || DBNull.Value.Equals(value) )
+                    return null;
+            }
+
+            //Int32/64 does not understand value == null?
+            if(t.IsAssignableFrom(typeof(Int32)) && Nullable.GetUnderlyingType(t) != null)
+            {
+                Int32 intResult;
+                if (Int32.TryParse(Convert.ToString(value), out intResult))
+                    return intResult;
+                else
+                    return null;
+            }
+
+            if (t.IsAssignableFrom(typeof(Int64)) && Nullable.GetUnderlyingType(t) != null)
+            {
+                Int64 intResult;
+                if (Int64.TryParse(Convert.ToString(value), out intResult))
+                    return intResult;
+                else
+                    return null;
+            }
 
             t = Nullable.GetUnderlyingType(t) ?? t;
 

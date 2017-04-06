@@ -464,26 +464,21 @@ namespace Shift.DataLayer
         /// <summary>
         /// Delete past jobs with specified status(es). 
         /// </summary>
-        /// <param name="hour">Job create hour in the past</param>
+        /// <param name="hours">Job create hours in the past</param>
         /// <param name="statusList">A list of job's status to delete. Null job status is valid. Default is JobStatus.Completed.</param>
-        public int Delete(int hour, ICollection<JobStatus?> statusList)
+        public int Delete(int hours, ICollection<JobStatus?> statusList)
         {
-            return DeleteAsync(hour, statusList, true).GetAwaiter().GetResult();
+            return DeleteAsync(hours, statusList, true).GetAwaiter().GetResult();
         }
 
-        /// <summary>
-        /// Asynchronous delete past jobs with specified status(es). 
-        /// </summary>
-        /// <param name="hour">Job create hour in the past</param>
-        /// <param name="statusList">A list of job's status to delete. Null job status is valid. Default is JobStatus.Completed.</param>
-        public Task<int> DeleteAsync(int hour, ICollection<JobStatus?> statusList)
+        public Task<int> DeleteAsync(int hours, ICollection<JobStatus?> statusList)
         {
-            return DeleteAsync(hour, statusList, false);
+            return DeleteAsync(hours, statusList, false);
         }
 
-        private async Task<int> DeleteAsync(int hour, ICollection<JobStatus?> statusList, bool isSync)
+        private async Task<int> DeleteAsync(int hours, ICollection<JobStatus?> statusList, bool isSync)
         {
-            var whereQuery = "j.Created < DATEADD(hour, -@hour, GETDATE())";
+            var whereQuery = "j.Created < DATEADD(hour, -@hours, GETDATE())";
 
             //build where status
             if (statusList != null)
@@ -520,16 +515,16 @@ namespace Shift.DataLayer
                 var deleteIDs = new List<string>();
                 if (isSync)
                 {
-                    deleteIDs = connection.Query<string>(sql, new { hour }).ToList();
+                    deleteIDs = connection.Query<string>(sql, new { hours }).ToList();
                 }
                 else
                 {
-                    var taskResult = await connection.QueryAsync<string>(sql, new { hour });
+                    var taskResult = await connection.QueryAsync<string>(sql, new { hours });
                     deleteIDs = taskResult.ToList();
                 }
 
                 //Delete Cached progress
-                DeleteCachedProgress(deleteIDs); //already async
+                DeleteCachedProgressAsync(deleteIDs); 
 
                 using (var trn = connection.BeginTransaction())
                 {
@@ -606,6 +601,10 @@ namespace Shift.DataLayer
             }
         }
 
+        #endregion
+
+        #region Count Status
+
         /// <summary>
         /// Return Job Status Count based on appID and/or userID.
         /// Must use unique appID for multi tenant client apps.
@@ -623,6 +622,7 @@ namespace Shift.DataLayer
         {
             return GetJobStatusCountAsync(appID, userID, false);
         }
+
         private async Task<IReadOnlyCollection<JobStatusCount>> GetJobStatusCountAsync(string appID, string userID, bool isSync)
         {
             var countList = new List<JobStatusCount>();
@@ -1085,7 +1085,7 @@ namespace Shift.DataLayer
             using (var connection = new SqlConnection(connectionString))
             {
                 connection.Open();
-                var sql = "UPDATE [Job] SET Status = @status, [End] = @end WHERE JobID = @jobID AND ProcessID = @processID;";
+                var sql = "UPDATE [Job] SET Command = '', Status = @status, [End] = @end WHERE JobID = @jobID AND ProcessID = @processID;";
                 if (isSync)
                 {
                     count = connection.Execute(sql, new { status = JobStatus.Completed, end = DateTime.Now, jobID, processID });
@@ -1205,7 +1205,10 @@ namespace Shift.DataLayer
                     {
                         //just mark error, don't stop
                         var error = job.Error + " ClaimJobsToRun error: " + exc.ToString();
-                        SetError(processID, job.JobID, error); //set error in storage
+                        if (isSync)
+                            SetError(processID, job.JobID, error); //set error in storage
+                        else
+                            await SetErrorAsync(processID, job.JobID, error); 
                         job.Status = JobStatus.Error;
                         job.Error = error;
                         continue;
@@ -1419,65 +1422,72 @@ namespace Shift.DataLayer
         }
 
         //Set Cached progress similar to the DB SetProgress()
-        public void SetCachedProgress(string jobID, int? percent, string note, string data)
+        public async Task SetCachedProgressAsync(string jobID, int? percent, string note, string data)
         {
             if (jobCache == null)
                 return;
-            jobCache.SetCachedProgress(jobID, percent, note, data);
+
+            await jobCache.SetCachedProgressAsync(jobID, percent, note, data);
         }
 
         //Set cached progress status
-        public void SetCachedProgressStatus(string jobID, JobStatus status)
+        public async Task SetCachedProgressStatusAsync(string jobID, JobStatus status)
         {
             if (jobCache == null)
                 return;
 
-            var jsProgress = GetProgress(jobID);
+            var jsProgress = await GetProgressAsync(jobID);
             if (jsProgress != null && jsProgress.ExistsInDB)
             {
                 //Update CACHE running/stop status only if it exists in DB
-                jobCache.SetCachedProgressStatus(jsProgress, status);
+                await jobCache.SetCachedProgressStatusAsync(jsProgress, status);
             }
         }
 
-        public void SetCachedProgressStatus(IEnumerable<string> jobIDs, JobStatus status)
+        public async Task SetCachedProgressStatusAsync(IEnumerable<string> jobIDs, JobStatus status)
         {
             if (jobCache == null)
                 return;
 
+            var taskList = new List<Task>();
             foreach (var jobID in jobIDs)
             {
-                SetCachedProgressStatus(jobID, status);
+                var task = SetCachedProgressStatusAsync(jobID, status);
+                taskList.Add(task);
             }
+            await Task.WhenAll(taskList.ToArray());
         }
 
         //Set cached progress error
-        public void SetCachedProgressError(string jobID, string error)
+        public async Task SetCachedProgressErrorAsync(string jobID, string error)
         {
             if (jobCache == null)
                 return;
 
-            var jsProgress = GetProgress(jobID);
-            jobCache.SetCachedProgressError(jsProgress, error);
+            var jsProgress = await GetProgressAsync(jobID);
+            await jobCache.SetCachedProgressErrorAsync(jsProgress, error);
         }
 
-        public void DeleteCachedProgress(string jobID)
+        public async Task DeleteCachedProgressAsync(string jobID)
         {
             if (jobCache == null)
                 return;
 
-            jobCache.DeleteCachedProgress(jobID);
+            await jobCache.DeleteCachedProgressAsync(jobID);
         }
 
-        public void DeleteCachedProgress(IEnumerable<string> jobIDs)
+        public async Task DeleteCachedProgressAsync(IEnumerable<string> jobIDs)
         {
             if (jobCache == null)
                 return;
 
+            var taskList = new List<Task>();
             foreach (var jobID in jobIDs)
             {
-                DeleteCachedProgress(jobID);
+                var task = DeleteCachedProgressAsync(jobID);
+                taskList.Add(task);
             }
+            await Task.WhenAll(taskList.ToArray());
         }
 
 

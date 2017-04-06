@@ -11,9 +11,9 @@ namespace Shift.Entities
     {
         JobStatusProgress GetCachedProgress(string jobID);
         Task<JobStatusProgress> GetCachedProgressAsync(string jobID);
-        void SetCachedProgress(string jobID, int? percent, string note, string data);
-        void SetCachedProgressStatus(JobStatusProgress jsProgress, JobStatus status);
-        void SetCachedProgressError(JobStatusProgress jsProgress, string error);
-        void DeleteCachedProgress(string jobID);
+        Task SetCachedProgressAsync(string jobID, int? percent, string note, string data);
+        Task SetCachedProgressStatusAsync(JobStatusProgress jsProgress, JobStatus status);
+        Task SetCachedProgressErrorAsync(JobStatusProgress jsProgress, string error);
+        Task DeleteCachedProgressAsync(string jobID);
     }
 }

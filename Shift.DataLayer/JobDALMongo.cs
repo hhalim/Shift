@@ -668,6 +668,7 @@ namespace Shift.DataLayer
             var filter = blFilter.Eq(j => j.JobID, jobID) & blFilter.Eq(j => j.ProcessID, processID);
             var blUpdate = Builders<Job>.Update;
             var listUpdate = new List<UpdateDefinition<Job>>();
+            listUpdate.Add(blUpdate.Set("Command", ""));
             listUpdate.Add(blUpdate.Set("Status", JobStatus.Completed));
             listUpdate.Add(blUpdate.Set("End", DateTime.Now));
             var update = blUpdate.Combine(listUpdate.ToArray());

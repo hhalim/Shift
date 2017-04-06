@@ -43,21 +43,20 @@ namespace Shift.DataLayer
         const string JobCommandProcessTemplate = "job-[command]:[processid]";
         const string JobStatusProcessTemplate = "job-[status]:[processid]";
 
+        private IDatabase _IDatabase;
         private readonly Lazy<ConnectionMultiplexer> lazyConnection;
-
-        public ConnectionMultiplexer Connection
-        {
-            get
-            {
-                return lazyConnection.Value;
-            }
-        }
 
         public IDatabase RedisDatabase
         {
             get
             {
-                return Connection.GetDatabase();
+                if (_IDatabase == null)
+                {
+                    var connection = lazyConnection.Value;
+                    connection.PreserveAsyncOrder = false;
+                    _IDatabase = connection.GetDatabase();
+                }
+                return _IDatabase;
             }
         }
 
@@ -83,6 +82,16 @@ namespace Shift.DataLayer
         /// Add a new job in to queue.
         /// </summary>
         public string Add(string appID, string userID, string jobType, string jobName, Expression<Action> methodCall)
+        {
+            return AddAsync(appID, userID, jobType, jobName, methodCall, true).GetAwaiter().GetResult();
+        }
+
+        public Task<string> AddAsync(string appID, string userID, string jobType, string jobName, Expression<Action> methodCall)
+        {
+            return AddAsync(appID, userID, jobType, jobName, methodCall, false);
+        }
+
+        private async Task<string> AddAsync(string appID, string userID, string jobType, string jobName, Expression<Action> methodCall, bool isSync)
         {
             if (methodCall == null)
                 throw new ArgumentNullException("methodCall");
@@ -148,7 +157,10 @@ namespace Shift.DataLayer
             var createdTS = ((DateTimeOffset)now).ToUnixTimeSeconds();
             var index3 = trn.SortedSetAddAsync(JobCreated, key, createdTS);
 
-            trn.Execute();
+            if (isSync)
+                trn.Execute();
+            else
+                await trn.ExecuteAsync();
 
             return jobID;
         }
@@ -157,6 +169,16 @@ namespace Shift.DataLayer
         /// Update existing job, reset fields, return updated record count.
         /// </summary>
         public int Update(string jobID, string appID, string userID, string jobType, string jobName, Expression<Action> methodCall)
+        {
+            return UpdateAsync(jobID, appID, userID, jobType, jobName, methodCall, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> UpdateAsync(string jobID, string appID, string userID, string jobType, string jobName, Expression<Action> methodCall)
+        {
+            return UpdateAsync(jobID, appID, userID, jobType, jobName, methodCall, false);
+        }
+
+        private async Task<int> UpdateAsync(string jobID, string appID, string userID, string jobType, string jobName, Expression<Action> methodCall, bool isSync)
         {
             if (methodCall == null)
                 throw new ArgumentNullException("methodCall");
@@ -195,7 +217,7 @@ namespace Shift.DataLayer
             var key = JobKeyPrefix + jobID;
 
             //Running check
-            var status = RedisDatabase.HashGet(key, JobFields.Status);
+            var status = isSync ? RedisDatabase.HashGet(key, JobFields.Status) : await RedisDatabase.HashGetAsync(key, JobFields.Status);
             if ((int)status == (int)JobStatus.Running)
                 return 0; //Unable to update if still running.
 
@@ -231,9 +253,16 @@ namespace Shift.DataLayer
             var createdTS = ((DateTimeOffset)now).ToUnixTimeSeconds();
             var index3 = trn.SortedSetAddAsync(JobCreated, key, createdTS);
 
-            if (trn.Execute())
-                count++;
-
+            if (isSync)
+            {
+                if (trn.Execute())
+                    count++;
+            } 
+            else
+            {
+                if (await trn.ExecuteAsync())
+                    count++;
+            }
             return count;
         }
         #endregion
@@ -247,6 +276,16 @@ namespace Shift.DataLayer
         /// </remarks>
         public int SetCommandStop(ICollection<string> jobIDs)
         {
+            return SetCommandStopAsync(jobIDs, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> SetCommandStopAsync(ICollection<string> jobIDs)
+        {
+            return SetCommandStopAsync(jobIDs, false);
+        }
+
+        private async Task<int> SetCommandStopAsync(ICollection<string> jobIDs, bool isSync)
+        {
             if (jobIDs.Count == 0)
                 return 0;
 
@@ -258,7 +297,7 @@ namespace Shift.DataLayer
                 var jobKey = JobKeyPrefix + jobID;
 
                 //Check status is null or status = running 
-                var job = GetJob(jobID);
+                var job =  isSync ? GetJob(jobID) : await GetJobAsync(jobID);
                 if (job.Status == null || job.Status == JobStatus.Running)
                 {
                     var trn = RedisDatabase.CreateTransaction();
@@ -272,8 +311,17 @@ namespace Shift.DataLayer
                         trn.SetAddAsync(jobStopProcess, jobKey); //set job-[command]:[processID] job:123 ""
                     }
                     trn.HashSetAsync(jobKey, JobFields.Command, JobCommand.Stop);
-                    if (trn.Execute())
-                        count++;
+
+                    if (isSync)
+                    {
+                        if (trn.Execute())
+                            count++;
+                    }
+                    else
+                    {
+                        if (await trn.ExecuteAsync())
+                            count++;
+                    }
                 }
             }
 
@@ -287,6 +335,16 @@ namespace Shift.DataLayer
         /// </remarks>
         public int SetCommandRunNow(ICollection<string> jobIDs)
         {
+            return SetCommandRunNowAsync(jobIDs, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> SetCommandRunNowAsync(ICollection<string> jobIDs)
+        {
+            return SetCommandRunNowAsync(jobIDs, false);
+        }
+
+        private async Task<int> SetCommandRunNowAsync(ICollection<string> jobIDs, bool isSync)
+        {
             if (jobIDs.Count == 0)
                 return 0;
 
@@ -296,15 +354,24 @@ namespace Shift.DataLayer
                 var key = JobKeyPrefix + jobID.ToString();
 
                 //Check status null and processID = empty
-                var job = GetJob(jobID);
+                var job = isSync ? GetJob(jobID) : await GetJobAsync(jobID);
                 if (job.Status == null && string.IsNullOrWhiteSpace(job.ProcessID))
                 {
                     var trn = RedisDatabase.CreateTransaction();
                     trn.HashSetAsync(key, JobFields.Command, JobCommand.RunNow);
                     //Set queue sort to 0
                     trn.SortedSetAddAsync(JobQueue, key, 0);
-                    if (trn.Execute())
-                        count++;
+
+                    if (isSync)
+                    {
+                        if (trn.Execute())
+                            count++;
+                    }
+                    else
+                    {
+                        if (await trn.ExecuteAsync())
+                            count++;
+                    }
                 }
             }
 
@@ -318,6 +385,16 @@ namespace Shift.DataLayer
         /// </summary>
         public int Reset(ICollection<string> jobIDs)
         {
+            return ResetAsync(jobIDs, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> ResetAsync(ICollection<string> jobIDs)
+        {
+            return ResetAsync(jobIDs, false);
+        }
+
+        private async Task<int> ResetAsync(ICollection<string> jobIDs, bool isSync)
+        {
             if (jobIDs.Count == 0)
                 return 0;
 
@@ -328,23 +405,24 @@ namespace Shift.DataLayer
                 var key = JobKeyPrefix + jobID.ToString();
 
                 //Check status null and status != running
-                var jobHash = RedisDatabase.HashGetAll(key);
+                var jobHash = isSync ? RedisDatabase.HashGetAll(key) : await RedisDatabase.HashGetAllAsync(key);
+
                 var job = RedisHelpers.ConvertFromRedis<JobView>(jobHash);
                 if (job.Status == null || job.Status != JobStatus.Running)
                 {
                     var processID = job.ProcessID; //used to delete job-stop:[processid] keys
 
                     //reset progress
-                    job.Data = null;
+                    job.Data = "";
                     job.Percent = null;
-                    job.Note = null;
+                    job.Note = "";
 
                     //reset job
                     var score = ((DateTimeOffset)job.Created).ToUnixTimeSeconds(); //reset score to created
-                    job.ProcessID = null;
-                    job.Command = null;
+                    job.ProcessID = "";
+                    job.Command = "";
                     job.Status = null;
-                    job.Error = null;
+                    job.Error = "";
                     job.Start = null;
                     job.End = null;
                     var hashEntries = RedisHelpers.ToHashEntries(job);
@@ -352,12 +430,19 @@ namespace Shift.DataLayer
                     var trn = RedisDatabase.CreateTransaction();
                     trn = CleanUpCommandAndStatusIndex(trn, processID, jobID);
 
-                    trn.KeyDeleteAsync(key); //delete entire job object
                     trn.HashSetAsync(key, hashEntries); //add it back
                     trn.SortedSetAddAsync(JobQueue, key, Convert.ToDouble(jobID)); //reset queue
 
-                    if (trn.Execute())
-                        count++;
+                    if (isSync)
+                    {
+                        if (trn.Execute())
+                            count++;
+                    }
+                    else
+                    {
+                        if (await trn.ExecuteAsync())
+                            count++;
+                    }
                 }
             }
 
@@ -369,6 +454,16 @@ namespace Shift.DataLayer
         /// </summary>
         public int Delete(ICollection<string> jobIDs)
         {
+            return DeleteAsync(jobIDs, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> DeleteAsync(ICollection<string> jobIDs)
+        {
+            return DeleteAsync(jobIDs, false);
+        }
+
+        private async Task<int> DeleteAsync(ICollection<string> jobIDs, bool isSync)
+        {
             if (jobIDs.Count == 0)
                 return 0;
 
@@ -379,7 +474,7 @@ namespace Shift.DataLayer
                 var jobKey = JobKeyPrefix + jobID.ToString();
 
                 //Check status is null or status != running 
-                var job = GetJob(jobID);
+                var job = isSync ? GetJob(jobID) : await GetJobAsync(jobID);
                 if (job.Status == null || job.Status != JobStatus.Running)
                 {
                     var trn = RedisDatabase.CreateTransaction();
@@ -388,8 +483,16 @@ namespace Shift.DataLayer
                     trn.SortedSetRemoveAsync(JobSorted, jobKey);
                     trn.SortedSetRemoveAsync(JobCreated, jobKey);
                     trn.KeyDeleteAsync(jobKey);
-                    if (trn.Execute())
-                        count++;
+                    if (isSync)
+                    {
+                        if (trn.Execute())
+                            count++;
+                    }
+                    else
+                    {
+                        if (await trn.ExecuteAsync())
+                            count++;
+                    }
                 }
             }
 
@@ -444,14 +547,26 @@ namespace Shift.DataLayer
         /// <param name="statusList">A list of job's status to delete. Null job status is valid. Default is JobStatus.Completed.</param>
         public int Delete(int hours, ICollection<JobStatus?> statusList)
         {
+            return DeleteAsync(hours, statusList, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> DeleteAsync(int hours, ICollection<JobStatus?> statusList)
+        {
+            return DeleteAsync(hours, statusList, false);
+        }
+
+        private async Task<int> DeleteAsync(int hours, ICollection<JobStatus?> statusList, bool isSync)
+        {
             var maxDate = DateTime.Now.AddHours(-hours);
             var maxTS = ((DateTimeOffset)maxDate).ToUnixTimeSeconds();
 
             var jobIDs = new List<string>();
-            var sortedSetArray = RedisDatabase.SortedSetRangeByScoreWithScores(JobCreated, 0, maxTS, Exclude.Stop);
+            var sortedSetArray = isSync ? RedisDatabase.SortedSetRangeByScoreWithScores(JobCreated, 0, maxTS, Exclude.Stop)
+                : await RedisDatabase.SortedSetRangeByScoreWithScoresAsync(JobCreated, 0, maxTS, Exclude.Stop);
             foreach (var sortedSet in sortedSetArray)
             {
-                var hashEntry = RedisDatabase.HashGetAll(sortedSet.Element.ToString());
+                var hashEntry = isSync ? RedisDatabase.HashGetAll(sortedSet.Element.ToString())
+                    : await RedisDatabase.HashGetAllAsync(sortedSet.Element.ToString());
                 var job = RedisHelpers.ConvertFromRedis<Job>(hashEntry);
                 if(statusList.Contains(job.Status))
                 {
@@ -459,18 +574,8 @@ namespace Shift.DataLayer
                 }
             }
             
-            var count = Delete(jobIDs); //Delete jobs, except the running jobs, can't delete running ones unless they're stopped first
-            return count;
-        }
+            var count = isSync ? Delete(jobIDs): await DeleteAsync(jobIDs); //Delete jobs, except the running jobs, can't delete running ones unless they're stopped first
 
-        /// <summary>
-        /// Asynchronous delete past jobs with specified status(es). 
-        /// </summary>
-        /// <param name="hour">Job create hour in the past</param>
-        /// <param name="statusList">A list of job's status to delete. Null job status is valid. Default is JobStatus.Completed.</param>
-        public async Task<int> DeleteAsync(int hour, ICollection<JobStatus?> statusList)
-        {
-            var count = await Task.Run(() => Delete(hour, statusList));
             return count;
         }
 
@@ -478,6 +583,16 @@ namespace Shift.DataLayer
         ///  Set job status to JobStatus.Stopped. 
         /// </summary>
         public int SetToStopped(ICollection<string> jobIDs)
+        {
+            return SetToStoppedAsync(jobIDs, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> SetToStoppedAsync(ICollection<string> jobIDs)
+        {
+            return SetToStoppedAsync(jobIDs, false);
+        }
+
+        private async Task<int> SetToStoppedAsync(ICollection<string> jobIDs, bool isSync)
         {
             if (jobIDs.Count == 0)
                 return 0;
@@ -493,11 +608,19 @@ namespace Shift.DataLayer
                 trn.SortedSetRemoveAsync(JobQueue, jobKey); //remove from JobQueue
 
                 //delete from job-stop-index and job-stop:processid
-                var job = GetJob(jobID);
+                var job = isSync ? GetJob(jobID) : await GetJobAsync(jobID);
                 trn = CleanUpCommandAndStatusIndex(trn, job.ProcessID, jobID);
 
-                if (trn.Execute())
-                    count++;
+                if (isSync)
+                {
+                    if (trn.Execute())
+                        count++;
+                }
+                else
+                {
+                    if (await trn.ExecuteAsync())
+                        count++;
+                }
             }
 
             return count;
@@ -515,23 +638,33 @@ namespace Shift.DataLayer
         /// <returns>JobStatusCount</returns>
         public IReadOnlyCollection<JobStatusCount> GetJobStatusCount(string appID, string userID)
         {
+            return GetJobStatusCountAsync(appID, userID, true).GetAwaiter().GetResult();
+        }
+
+        public Task<IReadOnlyCollection<JobStatusCount>> GetJobStatusCountAsync(string appID, string userID)
+        {
+            return GetJobStatusCountAsync(appID, userID, false);
+        }
+
+        private async Task<IReadOnlyCollection<JobStatusCount>> GetJobStatusCountAsync(string appID, string userID, bool isSync)
+        {
             if (!string.IsNullOrWhiteSpace(appID) && !string.IsNullOrWhiteSpace(userID))
             {
-                return GroupStatusCount(appID, userID);
+                return await GroupStatusCountAsync(appID, userID, isSync);
             }
             else if (!string.IsNullOrWhiteSpace(appID) && string.IsNullOrWhiteSpace(userID)) //appID not null, userID is null
             {
-                return GroupStatusCountByAppID(appID);
+                return await GroupStatusCountByAppIDAsync(appID, isSync);
             }
             else if (string.IsNullOrWhiteSpace(appID) && !string.IsNullOrWhiteSpace(userID)) //appID is null, userID not null
             {
-                return GroupStatusCountByUserID(userID);
+                return await GroupStatusCountByUserIDAsync(userID, isSync);
             }
 
-            return GroupStatusCount();
+            return await GroupStatusCountAsync(isSync);
         }
 
-        private IReadOnlyCollection<JobStatusCount> GroupStatusCount(string appID, string userID)
+        private async Task<IReadOnlyCollection<JobStatusCount>> GroupStatusCountAsync(string appID, string userID, bool isSync)
         {
             var groupStatus = new Dictionary<string, JobStatusCount>();
             var result = RedisDatabase.SortedSetScan(JobSorted, JobKeyPrefix + "*");
@@ -541,19 +674,19 @@ namespace Shift.DataLayer
                 var key = item.Element;
                 var score = item.Score;
 
-                var hashEntries = RedisDatabase.HashGetAll(key.ToString());
+                var hashEntries = isSync ? RedisDatabase.HashGetAll(key.ToString()) : await RedisDatabase.HashGetAllAsync(key.ToString());
                 var job = RedisHelpers.ConvertFromRedis<Job>(hashEntries);
 
                 if (job.AppID == appID && job.UserID == userID)
                 {
-                    GroupStatusCount(groupStatus, job);
+                    GatherGroupStatusCount(groupStatus, job);
                 }
             }
 
             return groupStatus.Values.ToList();
         }
 
-        private IReadOnlyCollection<JobStatusCount> GroupStatusCountByAppID(string appID)
+        private async Task<IReadOnlyCollection<JobStatusCount>> GroupStatusCountByAppIDAsync(string appID, bool isSync)
         {
             var groupStatus = new Dictionary<string, JobStatusCount>();
             var result = RedisDatabase.SortedSetScan(JobSorted, JobKeyPrefix + "*");
@@ -563,19 +696,19 @@ namespace Shift.DataLayer
                 var key = item.Element;
                 var score = item.Score;
 
-                var hashEntries = RedisDatabase.HashGetAll(key.ToString());
+                var hashEntries = isSync ? RedisDatabase.HashGetAll(key.ToString()) : await RedisDatabase.HashGetAllAsync(key.ToString());
                 var job = RedisHelpers.ConvertFromRedis<Job>(hashEntries);
 
                 if (job.AppID == appID)
                 {
-                    GroupStatusCount(groupStatus, job);
+                    GatherGroupStatusCount(groupStatus, job);
                 }
             }
 
             return groupStatus.Values.ToList();
         }
 
-        private IReadOnlyCollection<JobStatusCount> GroupStatusCountByUserID(string userID)
+        private async Task<IReadOnlyCollection<JobStatusCount>> GroupStatusCountByUserIDAsync(string userID, bool isSync)
         {
             var groupStatus = new Dictionary<string, JobStatusCount>();
             var result = RedisDatabase.SortedSetScan(JobSorted, JobKeyPrefix + "*");
@@ -585,19 +718,19 @@ namespace Shift.DataLayer
                 var key = item.Element;
                 var score = item.Score;
 
-                var hashEntries = RedisDatabase.HashGetAll(key.ToString());
+                var hashEntries = isSync ? RedisDatabase.HashGetAll(key.ToString()) : await RedisDatabase.HashGetAllAsync(key.ToString());
                 var job = RedisHelpers.ConvertFromRedis<Job>(hashEntries);
 
                 if (job.UserID == userID)
                 {
-                    GroupStatusCount(groupStatus, job);
+                    GatherGroupStatusCount(groupStatus, job);
                 }
             }
 
             return groupStatus.Values.ToList();
         }
 
-        private IReadOnlyCollection<JobStatusCount> GroupStatusCount()
+        private async Task<IReadOnlyCollection<JobStatusCount>> GroupStatusCountAsync(bool isSync)
         {
             var groupStatus = new Dictionary<string, JobStatusCount>();
             var result = RedisDatabase.SortedSetScan(JobSorted, JobKeyPrefix + "*");
@@ -607,16 +740,16 @@ namespace Shift.DataLayer
                 var key = item.Element;
                 var score = item.Score;
 
-                var hashEntries = RedisDatabase.HashGetAll(key.ToString());
+                var hashEntries = isSync ? RedisDatabase.HashGetAll(key.ToString()) : await RedisDatabase.HashGetAllAsync(key.ToString());
                 var job = RedisHelpers.ConvertFromRedis<Job>(hashEntries);
 
-                GroupStatusCount(groupStatus, job);
+                GatherGroupStatusCount(groupStatus, job);
             }
 
             return groupStatus.Values.ToList();
         }
 
-        private static void GroupStatusCount(IDictionary<string, JobStatusCount> groupStatus, Job job)
+        private static void GatherGroupStatusCount(IDictionary<string, JobStatusCount> groupStatus, Job job)
         {
             var jsCount = new JobStatusCount();
             if (job.Status == null)
@@ -646,7 +779,17 @@ namespace Shift.DataLayer
         /// <returns>Job</returns>
         public Job GetJob(string jobID)
         {
-            var hashEntry = RedisDatabase.HashGetAll(JobKeyPrefix + jobID);
+            return GetJobAsync(jobID, true).GetAwaiter().GetResult();
+        }
+
+        public Task<Job> GetJobAsync(string jobID)
+        {
+            return GetJobAsync(jobID, false);
+        }
+
+        private async Task<Job> GetJobAsync(string jobID, bool isSync)
+        {
+            var hashEntry = isSync ? RedisDatabase.HashGetAll(JobKeyPrefix + jobID) : await RedisDatabase.HashGetAllAsync(JobKeyPrefix + jobID);
             var job = RedisHelpers.ConvertFromRedis<Job>(hashEntry);
             return job;
         }
@@ -658,10 +801,20 @@ namespace Shift.DataLayer
         /// <returns>List of Jobs</returns>
         public IReadOnlyCollection<Job> GetJobs(IEnumerable<string> jobIDs)
         {
+            return GetJobsAsync(jobIDs, true).GetAwaiter().GetResult();
+        }
+
+        public Task<IReadOnlyCollection<Job>> GetJobsAsync(IEnumerable<string> jobIDs)
+        {
+            return GetJobsAsync(jobIDs, false);
+        }
+
+        private async Task<IReadOnlyCollection<Job>> GetJobsAsync(IEnumerable<string> jobIDs, bool isSync)
+        {
             var jobList = new List<Job>();
             foreach (var jobID in jobIDs)
             {
-                var hashEntry = RedisDatabase.HashGetAll(JobKeyPrefix + jobID);
+                var hashEntry = isSync ? RedisDatabase.HashGetAll(JobKeyPrefix + jobID) : await RedisDatabase.HashGetAllAsync(JobKeyPrefix + jobID);
                 var job = RedisHelpers.ConvertFromRedis<Job>(hashEntry);
                 jobList.Add(job);
             }
@@ -676,7 +829,17 @@ namespace Shift.DataLayer
         /// <returns>JobView</returns>
         public JobView GetJobView(string jobID)
         {
-            var hashEntry = RedisDatabase.HashGetAll(JobKeyPrefix + jobID);
+            return GetJobViewAsync(jobID, true).GetAwaiter().GetResult();
+        }
+
+        public Task<JobView> GetJobViewAsync(string jobID)
+        {
+            return GetJobViewAsync(jobID, false);
+        }
+
+        private async Task<JobView> GetJobViewAsync(string jobID, bool isSync)
+        {
+            var hashEntry = isSync ? RedisDatabase.HashGetAll(JobKeyPrefix + jobID) : await RedisDatabase.HashGetAllAsync(JobKeyPrefix + jobID);
             var jobView = RedisHelpers.ConvertFromRedis<JobView>(hashEntry);
             return jobView;
         }
@@ -688,14 +851,28 @@ namespace Shift.DataLayer
         /// <returns></returns>
         public IReadOnlyCollection<Job> GetNonRunningJobsByIDs(IEnumerable<string> jobIDs)
         {
+            return GetNonRunningJobsByIDsAsync(jobIDs, true).GetAwaiter().GetResult();
+        }
+
+        public Task<IReadOnlyCollection<Job>> GetNonRunningJobsByIDsAsync(IEnumerable<string> jobIDs)
+        {
+            return GetNonRunningJobsByIDsAsync(jobIDs, false);
+        }
+
+        private async Task<IReadOnlyCollection<Job>> GetNonRunningJobsByIDsAsync(IEnumerable<string> jobIDs, bool isSync)
+        {
             var jobList = new List<Job>();
             foreach(var jobID in jobIDs)
             {
                 var jobKey = JobKeyPrefix + jobID;
-                var score = RedisDatabase.SortedSetScore(JobQueue, jobKey);
+                var score = isSync ? RedisDatabase.SortedSetScore(JobQueue, jobKey) : await RedisDatabase.SortedSetScoreAsync(JobQueue, jobKey);
                 if (score != null) {
-                    RedisDatabase.SortedSetRemove(JobQueue, jobKey);
-                    var job = GetJob(jobID);
+                    if(isSync)
+                        RedisDatabase.SortedSetRemove(JobQueue, jobKey);
+                    else
+                        await RedisDatabase.SortedSetRemoveAsync(JobQueue, jobKey);
+
+                    var job = isSync ? GetJob(jobID) : await GetJobAsync(jobID);
                     jobList.Add(job);
                 }
             }
@@ -711,12 +888,22 @@ namespace Shift.DataLayer
         /// <returns>List of JobIDs</returns>
         public IReadOnlyCollection<string> GetJobIdsByProcessAndCommand(string processID, string command)
         {
+            return GetJobIdsByProcessAndCommandAsync(processID, command, true).GetAwaiter().GetResult();
+        }
+
+        public Task<IReadOnlyCollection<string>> GetJobIdsByProcessAndCommandAsync(string processID, string command)
+        {
+            return GetJobIdsByProcessAndCommandAsync(processID, command, false);
+        }
+
+        private  async Task<IReadOnlyCollection<string>> GetJobIdsByProcessAndCommandAsync(string processID, string command, bool isSync)
+        {
             var jobIDs = new List<string>();
 
             var key = "";
             //get from index: job-[command]-index
             key = JobCommandIndexTemplate.Replace("[command]", command.ToLower());
-            var elements = RedisDatabase.SetMembers(key);
+            var elements = isSync ? RedisDatabase.SetMembers(key) : await RedisDatabase.SetMembersAsync(key);
             if (elements != null && elements.Count() > 0)
             {
                 jobIDs = GetJobIDs(RedisHelpers.ToStringArray(elements)).ToList();
@@ -725,7 +912,7 @@ namespace Shift.DataLayer
             key = JobCommandProcessTemplate
                 .Replace("[command]", command.ToLower())
                 .Replace("[processid]", processID);
-            elements = RedisDatabase.SetMembers(key);
+            elements = isSync ? RedisDatabase.SetMembers(key) : await RedisDatabase.SetMembersAsync(key);
             if (elements != null && elements.Count() > 0)
             {
                 var jobIDs2 = GetJobIDs(RedisHelpers.ToStringArray(elements)).ToList();
@@ -755,15 +942,25 @@ namespace Shift.DataLayer
         /// <returns>List of Jobs</returns>
         public IReadOnlyCollection<Job> GetJobsByProcessAndStatus(string processID, JobStatus status)
         {
+            return GetJobsByProcessAndStatusAsync(processID, status, true).GetAwaiter().GetResult();
+        }
+
+        public Task<IReadOnlyCollection<Job>> GetJobsByProcessAndStatusAsync(string processID, JobStatus status)
+        {
+            return GetJobsByProcessAndStatusAsync(processID, status, false);
+        }
+
+        private async Task<IReadOnlyCollection<Job>> GetJobsByProcessAndStatusAsync(string processID, JobStatus status, bool isSync)
+        {
             var key = JobStatusProcessTemplate
                 .Replace("[status]", status.ToString().ToLower())
                 .Replace("[processid]", processID);
-            var elements = RedisHelpers.ToStringArray(RedisDatabase.SetMembers(key));
+            var elements = isSync ? RedisHelpers.ToStringArray(RedisDatabase.SetMembers(key)) : RedisHelpers.ToStringArray(await RedisDatabase.SetMembersAsync(key));
             var jobList = new List<Job>();
             if (elements != null && elements.Count() > 0)
             {
                 var jobIDs = GetJobIDs(elements);
-                jobList = GetJobs(jobIDs).ToList();
+                jobList = (isSync ? GetJobs(jobIDs) : await GetJobsAsync(jobIDs)).ToList();
             }
 
             return jobList;
@@ -777,6 +974,16 @@ namespace Shift.DataLayer
         /// <returns>Total count of job views and list of JobViews</returns>
         public JobViewList GetJobViews(int? pageIndex, int? pageSize)
         {
+            return GetJobViewsAsync(pageIndex, pageSize, true).GetAwaiter().GetResult();
+        }
+
+        public Task<JobViewList> GetJobViewsAsync(int? pageIndex, int? pageSize)
+        {
+            return GetJobViewsAsync(pageIndex, pageSize, false);
+        }
+
+        private async Task<JobViewList> GetJobViewsAsync(int? pageIndex, int? pageSize, bool isSync)
+        {
             var result = new List<JobView>();
 
             pageIndex = pageIndex == null || pageIndex == 0 ? 1 : pageIndex; //default to 1
@@ -784,14 +991,16 @@ namespace Shift.DataLayer
 
             var start = (pageIndex.Value - 1) * pageSize.Value;
             var stop = (pageIndex.Value * pageSize.Value) - 1;
-            var sortedSetArray = RedisDatabase.SortedSetRangeByRankWithScores(JobSorted, start, stop, Order.Ascending);
+            var sortedSetArray = isSync ? RedisDatabase.SortedSetRangeByRankWithScores(JobSorted, start, stop, Order.Ascending)
+                : await RedisDatabase.SortedSetRangeByRankWithScoresAsync(JobSorted, start, stop, Order.Ascending);
+
             foreach(var sortedSet in sortedSetArray)
             {
-                var hashEntry = RedisDatabase.HashGetAll(sortedSet.Element.ToString());
+                var hashEntry = isSync ? RedisDatabase.HashGetAll(sortedSet.Element.ToString()) : await RedisDatabase.HashGetAllAsync(sortedSet.Element.ToString());
                 var jobView = RedisHelpers.ConvertFromRedis<JobView>(hashEntry);
                 result.Add(jobView);
             }
-            var totalCount = RedisDatabase.SortedSetLength(JobSorted);
+            var totalCount = isSync ? RedisDatabase.SortedSetLength(JobSorted) : await RedisDatabase.SortedSetLengthAsync(JobSorted);
 
             var jobViewList = new JobViewList();
             jobViewList.Total= (int)totalCount;
@@ -810,6 +1019,16 @@ namespace Shift.DataLayer
         /// <returns>Updated record count, 0 or 1 record updated</returns>
         public int SetToRunning(string processID, string jobID)
         {
+            return SetToRunningAsync(processID, jobID, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> SetToRunningAsync(string processID, string jobID)
+        {
+            return SetToRunningAsync(processID, jobID, false);
+        }
+
+        private async Task<int> SetToRunningAsync(string processID, string jobID, bool isSync)
+        {
             var count = 0;
             var jspKey = JobStatusProcessTemplate
                 .Replace("[status]", JobStatus.Running.ToString().ToLower())
@@ -819,8 +1038,16 @@ namespace Shift.DataLayer
             var trn = RedisDatabase.CreateTransaction();
             trn.HashSetAsync(jobKey, new HashEntry[] { new HashEntry(JobFields.Status, (int)JobStatus.Running), new HashEntry(JobFields.Start, DateTime.Now.ToString()) });
             trn.SetAddAsync(jspKey, jobKey); //set index
-            if (trn.Execute())
-                count++;
+            if (isSync)
+            {
+                if (trn.Execute())
+                    count++;
+            }
+            else
+            {
+                if (await trn.ExecuteAsync())
+                    count++;
+            }
 
             return count;
         }
@@ -834,6 +1061,16 @@ namespace Shift.DataLayer
         /// <returns>Updated record count, 0 or 1 record updated</returns>
         public int SetError(string processID, string jobID, string error)
         {
+            return SetErrorAsync(processID, jobID, error, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> SetErrorAsync(string processID, string jobID, string error)
+        {
+            return SetErrorAsync(processID, jobID, error, false);
+        }
+
+        private async Task<int> SetErrorAsync(string processID, string jobID, string error, bool isSync)
+        {
             var count = 0;
 
             var jobKey = JobKeyPrefix + jobID;
@@ -842,8 +1079,16 @@ namespace Shift.DataLayer
             trn.HashSetAsync(jobKey, new HashEntry[] { new HashEntry(JobFields.Status, (int)JobStatus.Error), new HashEntry(JobFields.Error, error) });
             trn.SortedSetRemoveAsync(JobQueue, jobKey); //Remove from queue
             trn = CleanUpCommandAndStatusIndex(trn, processID, jobID); //Remove from all stop/running indexes
-            if(trn.Execute())
-                count++;
+            if (isSync)
+            {
+                if (trn.Execute())
+                    count++;
+            }
+            else
+            {
+                if (await trn.ExecuteAsync())
+                    count++;
+            }
 
             return count;
         }
@@ -856,18 +1101,38 @@ namespace Shift.DataLayer
         /// <returns>Updated record count, 0 or 1 record updated</returns>
         public int SetCompleted(string processID, string jobID)
         {
+            return SetCompletedAsync(processID, jobID, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> SetCompletedAsync(string processID, string jobID)
+        {
+            return SetCompletedAsync(processID, jobID, false);
+        }
+
+        private async Task<int> SetCompletedAsync(string processID, string jobID, bool isSync)
+        {
             var count = 0;
 
-            var jspKey = JobStatusProcessTemplate
-            .Replace("[status]", JobStatus.Running.ToString().ToLower())
-            .Replace("[processid]", processID);
             var jobKey = JobKeyPrefix + jobID;
 
             var trn = RedisDatabase.CreateTransaction();
-            trn.HashSetAsync(jobKey, new HashEntry[] { new HashEntry(JobFields.Status, (int)JobStatus.Completed), new HashEntry(JobFields.End, DateTime.Now.ToString()) });
-            trn.SetRemoveAsync(jspKey, jobKey);
-            if (trn.Execute())
-                count++;
+            trn.HashSetAsync(jobKey, new HashEntry[] {
+                new HashEntry(JobFields.Status, (int)JobStatus.Completed)
+                , new HashEntry(JobFields.Command, "")
+                , new HashEntry(JobFields.End, DateTime.Now.ToString())
+            });
+            trn = CleanUpCommandAndStatusIndex(trn, processID, jobID);
+
+            if (isSync)
+            {
+                if (trn.Execute())
+                    count++;
+            }
+            else
+            {
+                if (await trn.ExecuteAsync())
+                    count++;
+            }
 
             return count;
         }
@@ -879,11 +1144,21 @@ namespace Shift.DataLayer
         /// <returns>Total count of running jobs.</returns>
         public int CountRunningJobs(string processID)
         {
+            return CountRunningJobsAsync(processID, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> CountRunningJobsAsync(string processID)
+        {
+            return CountRunningJobsAsync(processID, false);
+        }
+
+        private async Task<int> CountRunningJobsAsync(string processID, bool isSync)
+        {
             var count = 0;
             var jspKey = JobStatusProcessTemplate
             .Replace("[status]", JobStatus.Running.ToString().ToLower())
             .Replace("[processid]", processID);
-            count = Convert.ToInt32(RedisDatabase.SetLength(jspKey));
+            count = Convert.ToInt32(isSync ? RedisDatabase.SetLength(jspKey) : await RedisDatabase.SetLengthAsync(jspKey));
 
             return count;
         }
@@ -901,6 +1176,12 @@ namespace Shift.DataLayer
             return ClaimJobsToRun(processID, jobList.ToList());
         }
 
+        public async Task<IReadOnlyCollection<Job>> ClaimJobsToRunAsync(string processID, int maxNum)
+        {
+            var jobList = await GetJobsToRunAsync(maxNum);
+            return await ClaimJobsToRunAsync(processID, jobList.ToList());
+        }
+
         /// <summary>
         /// Attempt to claim specific jobs to be owned by processID.
         /// Use Optimistic Concurrency, don't claim job if it's already running or claimed by someone else.
@@ -910,27 +1191,38 @@ namespace Shift.DataLayer
         /// <returns>List of actual jobs claimed by processID</returns>
         public IReadOnlyCollection<Job> ClaimJobsToRun(string processID, ICollection<Job> jobList)
         {
+            return ClaimJobsToRunAsync(processID, jobList, true).GetAwaiter().GetResult();
+        }
+
+        public Task<IReadOnlyCollection<Job>> ClaimJobsToRunAsync(string processID, ICollection<Job> jobList)
+        {
+            return ClaimJobsToRunAsync(processID, jobList, false);
+        }
+
+        private async Task<IReadOnlyCollection<Job>> ClaimJobsToRunAsync(string processID, ICollection<Job> jobList, bool isSync)
+        {
             var claimedJobs = new List<Job>();
             foreach (var job in jobList)
             {
                 try
                 {
                     var key = JobKeyPrefix + job.JobID;
-                    if (RedisDatabase.HashSet(key, JobFields.ProcessID, processID, When.NotExists))
-                    {
-                        job.ProcessID = processID; //the job object is old, so set with the new processID
-                    }
+                    var result = isSync ? RedisDatabase.HashSet(key, JobFields.ProcessID, processID) : await RedisDatabase.HashSetAsync(key, JobFields.ProcessID, processID);
                 }
                 catch (Exception exc)
                 {
                     //just mark error, don't stop
                     var error = job.Error + " ClaimJobsToRun error: " + exc.ToString();
-                    SetError(processID, job.JobID, error); //set error in storage
+                    if(isSync)
+                        SetError(processID, job.JobID, error); //set error in storage
+                    else
+                        await SetErrorAsync(processID, job.JobID, error); 
                     job.Status = JobStatus.Error;
                     job.Error = error;
                     continue;
                 }
 
+                job.ProcessID = processID; //the job object is old, so set with the new processID
                 claimedJobs.Add(job);
             }
 
@@ -945,26 +1237,45 @@ namespace Shift.DataLayer
         /// <returns>List of jobs</returns>
         private IReadOnlyCollection<Job> GetJobsToRun(int maxNum)
         {
+            return GetJobsToRunAsync(maxNum, true).GetAwaiter().GetResult();
+        }
+
+        private Task<IReadOnlyCollection<Job>> GetJobsToRunAsync(int maxNum)
+        {
+            return GetJobsToRunAsync(maxNum, false);
+        }
+
+        private async Task<IReadOnlyCollection<Job>> GetJobsToRunAsync(int maxNum, bool isSync)
+        {
             var jobList = new List<Job>();
 
             var start = 0;
             var stop = maxNum - 1; //0 based index
 
-            var trn = RedisDatabase.CreateTransaction();
-            var resultSortedSet = trn.SortedSetRangeByRankWithScoresAsync(JobQueue, start, stop, Order.Ascending);
-            trn.SortedSetRemoveRangeByRankAsync(JobQueue, start, stop); //remove from queue
-            if (trn.Execute())
+            //var resultSortedSet = isSync ? RedisDatabase.SortedSetRangeByRankWithScores(JobQueue, start, stop, Order.Ascending) 
+            //    : await RedisDatabase.SortedSetRangeByRankWithScoresAsync(JobQueue, start, stop, Order.Ascending);
+            //var count = isSync ? RedisDatabase.SortedSetRemoveRangeByRank(JobQueue, start, stop) :
+            //    await RedisDatabase.SortedSetRemoveRangeByRankAsync(JobQueue, start, stop); //remove from queue
+            var trn = RedisDatabase.CreateTransaction(); //Need the PreserveAsyncOrder = true !!!
+            var taskResult = trn.SortedSetRangeByRankWithScoresAsync(JobQueue, start, stop, Order.Ascending);
+            trn.SortedSetRemoveRangeByRankAsync(JobQueue, start, stop);
+            var successTrn = false;
+            if (isSync)
+                successTrn = trn.Execute();
+            else
+                successTrn = await trn.ExecuteAsync();
+            if (successTrn)
             {
-                trn.WaitAll();
-                foreach (var sortedSet in resultSortedSet.Result)
+                var resultSortedSet = await taskResult;
+                foreach (var sortedSet in resultSortedSet)
                 {
                     var jobKey = sortedSet.Element.ToString();
-                    var hashEntry = RedisDatabase.HashGetAll(jobKey);
+                    var hashEntry = isSync ? RedisDatabase.HashGetAll(jobKey) : await RedisDatabase.HashGetAllAsync(jobKey);
                     var job = RedisHelpers.ConvertFromRedis<Job>(hashEntry);
 
                     //conditions
-                    if (job.Status == null && job.ProcessID == null &&
-                        (job.Command == null || job.Command == JobCommand.RunNow))
+                    if (job.Status == null && string.IsNullOrWhiteSpace(job.ProcessID) &&
+                        (string.IsNullOrWhiteSpace(job.Command) || job.Command == JobCommand.RunNow))
                     {
                         jobList.Add(job);
                     }
@@ -984,8 +1295,12 @@ namespace Shift.DataLayer
         /// <returns>0 for no insert/update, 1 for successful insert/update</returns>
         public int SetProgress(string jobID, int? percent, string note, string data)
         {
-            var task = UpdateProgressAsync(jobID, percent, note, data);
-            return task.Result; //Possible Deadlock unless the ConfigureAwait(continueOnCapturedContext:false)
+            return UpdateProgressAsync(jobID, percent, note, data, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> SetProgressAsync(string jobID, int? percent, string note, string data)
+        {
+            return UpdateProgressAsync(jobID, percent, note, data, false);
         }
 
         /// <summary>
@@ -996,7 +1311,12 @@ namespace Shift.DataLayer
         /// <param name="note">Any type of note for the progress</param>
         /// <param name="data">Any data for the progress</param>
         /// <returns>0 for no update, 1 for successful update</returns>
-        public async Task<int> UpdateProgressAsync(string jobID, int? percent, string note, string data)
+        public Task<int> UpdateProgressAsync(string jobID, int? percent, string note, string data)
+        {
+            return UpdateProgressAsync(jobID, percent, note, data, false);
+        }
+
+        private async Task<int> UpdateProgressAsync(string jobID, int? percent, string note, string data, bool isSync)
         {
             var count = 0;
             var jobKey = JobKeyPrefix + jobID;
@@ -1004,8 +1324,17 @@ namespace Shift.DataLayer
             trn.HashSetAsync(jobKey, JobFields.Percent, percent);
             trn.HashSetAsync(jobKey, JobFields.Note, note);
             trn.HashSetAsync(jobKey, JobFields.Data, data);
-            if (await trn.ExecuteAsync().ConfigureAwait(continueOnCapturedContext:false))
-                count++;
+
+            if (isSync)
+            {
+                if (trn.Execute())
+                    count++;
+            }
+            else
+            {
+                if (await trn.ExecuteAsync())
+                    count++;
+            }
             return count;
         }
 
@@ -1016,10 +1345,20 @@ namespace Shift.DataLayer
         /* Use Cache and DB to return progress */
         public JobStatusProgress GetProgress(string jobID)
         {
+            return GetProgressAsync(jobID, true).GetAwaiter().GetResult();
+        }
+
+        public Task<JobStatusProgress> GetProgressAsync(string jobID)
+        {
+            return GetProgressAsync(jobID, false);
+        }
+
+        private async Task<JobStatusProgress> GetProgressAsync(string jobID, bool isSync)
+        {
             //No cache, so always get direct from Redis
             var jsProgress = new JobStatusProgress();
             //try to get from DB
-            var jobView = GetJobView(jobID);
+            var jobView = isSync ? GetJobView(jobID) : await GetJobViewAsync(jobID);
             if (jobView != null)
             {
                 jsProgress.JobID = jobView.JobID;
@@ -1044,41 +1383,46 @@ namespace Shift.DataLayer
             return GetProgress(jobID); //no cache in pure Redis
         }
 
+        public Task<JobStatusProgress> GetCachedProgressAsync(string jobID)
+        {
+            return GetProgressAsync(jobID); //no cache in pure Redis
+        }
+
         //Set Cached progress similar to the DB SetProgress()
         //Not needed in Redis
-        public void SetCachedProgress(string jobID, int? percent, string note, string data)
+        public async Task SetCachedProgressAsync(string jobID, int? percent, string note, string data)
         {
                 return;
         }
 
         //Set cached progress status
         //Not needed in Redis
-        public void SetCachedProgressStatus(string jobID, JobStatus status)
+        public async Task SetCachedProgressStatusAsync(string jobID, JobStatus status)
         {
                 return;
         }
 
         //Not needed in Redis
-        public void SetCachedProgressStatus(IEnumerable<string> jobIDs, JobStatus status)
+        public async Task SetCachedProgressStatusAsync(IEnumerable<string> jobIDs, JobStatus status)
         {
                 return;
         }
 
         //Set cached progress error
         //Not needed in Redis
-        public void SetCachedProgressError(string jobID, string error)
+        public async Task SetCachedProgressErrorAsync(string jobID, string error)
         {
                 return;
         }
 
         //Not needed in Redis
-        public void DeleteCachedProgress(string jobID)
+        public async Task DeleteCachedProgressAsync(string jobID)
         {
                 return;
         }
 
         //Not needed in Redis
-        public void DeleteCachedProgress(IEnumerable<string> jobIDs)
+        public async Task DeleteCachedProgressAsync(IEnumerable<string> jobIDs)
         {
                 return;
         }

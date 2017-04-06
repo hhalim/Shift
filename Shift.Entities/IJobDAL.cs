@@ -77,12 +77,12 @@ namespace Shift.Entities
         Task<JobStatusProgress> GetProgressAsync(string jobID); //All cached progress are async, except this one that touched DB
         JobStatusProgress GetCachedProgress(string jobID);
         Task<JobStatusProgress> GetCachedProgressAsync(string jobID);
-        void SetCachedProgress(string jobID, int? percent, string note, string data);
-        void SetCachedProgressStatus(string jobID, JobStatus status);
-        void SetCachedProgressStatus(IEnumerable<string> jobIDs, JobStatus status);
-        void SetCachedProgressError(string jobID, string error);
-        void DeleteCachedProgress(string jobID);
-        void DeleteCachedProgress(IEnumerable<string> jobIDs);
+        Task SetCachedProgressAsync(string jobID, int? percent, string note, string data);
+        Task SetCachedProgressStatusAsync(string jobID, JobStatus status);
+        Task SetCachedProgressStatusAsync(IEnumerable<string> jobIDs, JobStatus status);
+        Task SetCachedProgressErrorAsync(string jobID, string error);
+        Task DeleteCachedProgressAsync(string jobID);
+        Task DeleteCachedProgressAsync(IEnumerable<string> jobIDs);
         #endregion
     }
 }

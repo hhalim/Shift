@@ -44,5 +44,7 @@ namespace Shift
         public IList<JobStatus?> AutoDeleteStatus { get; set; } = new List<JobStatus?> { JobStatus.Completed }; //Jobs with status to delete
 
         public string ThreadMode { get; set; } = Shift.ThreadMode.Task; //task = Task.Run or thread = Thread.Create
+
+        public bool PollingOnce { get; set; } = false; //Poll server only once, useful for debugging
     }
 }
