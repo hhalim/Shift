@@ -92,6 +92,7 @@
     <Compile Include="Common\ExpressionUtil\TypeBinaryExpressionFingerprint.cs" />
     <Compile Include="Common\ExpressionUtil\UnaryExpressionFingerprint.cs" />
     <Compile Include="DALHelpers.cs" />
+    <Compile Include="JobDALMongo.cs" />
     <Compile Include="JobDALRedis.cs" />
     <Compile Include="JobDALSql.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

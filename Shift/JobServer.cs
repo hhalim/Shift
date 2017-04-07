@@ -385,28 +385,51 @@ namespace Shift
         private async Task<IProgress<ProgressInfo>> UpdateProgressEventAsync(string jobID, bool isSync)
         {
             //Insert a progress row first for the related jobID if it doesn't exist
-            if(isSync)
+            if (isSync)
+            {
                 jobDAL.SetProgress(jobID, null, null, null);
+            }
             else
+            {
                 await jobDAL.SetProgressAsync(jobID, null, null, null);
-            jobDAL.SetCachedProgressAsync(jobID, null, null, null).ConfigureAwait(false);
+            }
+            await jobDAL.SetCachedProgressAsync(jobID, null, null, null).ConfigureAwait(false);
 
             var start = DateTime.Now;
             var updateTs = config.ProgressDBInterval ?? new TimeSpan(0, 0, 10); //default to 10 sec interval for updating DB
 
             //SynchronousProgress is event based and called regularly by the running job
-            var progress = new SynchronousProgress<ProgressInfo>(progressInfo =>
+            SynchronousProgress<ProgressInfo> progress;
+            if (isSync)
             {
-                jobDAL.SetCachedProgressAsync(jobID, progressInfo.Percent, progressInfo.Note, progressInfo.Data).ConfigureAwait(false);
-
-                var diffTs = DateTime.Now - start;
-                if (diffTs >= updateTs || progressInfo.Percent >= 100)
+                progress = new SynchronousProgress<ProgressInfo>(progressInfo =>
                 {
-                    //Update DB and Cache
-                    jobDAL.UpdateProgressAsync(jobID, progressInfo.Percent, progressInfo.Note, progressInfo.Data).ConfigureAwait(false); //async, don't wait/don't hold
-                    start = DateTime.Now;
-                }
-            });
+                    jobDAL.SetCachedProgressAsync(jobID, progressInfo.Percent, progressInfo.Note, progressInfo.Data).ConfigureAwait(false);
+
+                    var diffTs = DateTime.Now - start;
+                    if (diffTs >= updateTs || progressInfo.Percent >= 100)
+                    {
+                        //Update DB and Cache
+                        jobDAL.UpdateProgressAsync(jobID, progressInfo.Percent, progressInfo.Note, progressInfo.Data).ConfigureAwait(false); //async, don't wait/don't hold
+                        start = DateTime.Now;
+                    }
+                });
+            }
+            else
+            {
+                progress = new SynchronousProgress<ProgressInfo>(async progressInfo =>
+                {
+                    await jobDAL.SetCachedProgressAsync(jobID, progressInfo.Percent, progressInfo.Note, progressInfo.Data).ConfigureAwait(false);
+
+                    var diffTs = DateTime.Now - start;
+                    if (diffTs >= updateTs || progressInfo.Percent >= 100)
+                    {
+                        //Update DB and Cache
+                        await jobDAL.UpdateProgressAsync(jobID, progressInfo.Percent, progressInfo.Note, progressInfo.Data).ConfigureAwait(false); //async, don't wait/don't hold
+                        start = DateTime.Now;
+                    }
+                });
+            }
 
             return progress;
         }
@@ -422,7 +445,7 @@ namespace Shift
                     await jobDAL.SetToRunningAsync(processID, jobID);
                 jobDAL.SetCachedProgressStatusAsync(jobID, JobStatus.Running);
 
-                var progress = isSync ? UpdateProgressEventAsync(jobID, true).GetAwaiter().GetResult() : await UpdateProgressEventAsync(jobID, false).ConfigureAwait(false); //Need this to update the progress of the job's
+                var progress = isSync ? UpdateProgressEventAsync(jobID, true).GetAwaiter().GetResult() : await UpdateProgressEventAsync(jobID, false); //Need this to update the progress of the job's
 
                 //Invoke Method
                 if(token == null)
