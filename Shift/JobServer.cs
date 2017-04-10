@@ -373,12 +373,15 @@ namespace Shift
 
                 var taskInfo = new TaskInfo();
                 taskInfo.TokenSource = tokenSource;
+                //Keep track of running thread, 
+                //Register in TaskList right away if NOT the CleanUp() method may mark running Task as Error, because it's running but not in list!!!
+                taskList[jobID] = taskInfo;
                 if (isSync) 
                     jobTask = Task.Run(() => ExecuteJobAsync(processID, jobID, methodInfo, parameters, instance, token, isSync).GetAwaiter().GetResult(), token);
                 else
                     jobTask = Task.Run(async () => await ExecuteJobAsync(processID, jobID, methodInfo, parameters, instance, token, isSync), token);
                 taskInfo.JobTask = jobTask;
-                taskList[jobID] = taskInfo; //Keep track of running thread
+                taskList[jobID] = taskInfo; //re-update with filled Task
             }
         }
 
