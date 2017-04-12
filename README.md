@@ -10,7 +10,7 @@ Shift background or long running jobs into reliable and durable processes out of
 - Optional progress tracking for each running jobs.
 - Scale out with multiple shift servers to run large number of jobs.
 - Optional encryption for serialized data.
-- Redis persistent storage by default. Optional Microsoft SQL server for storage. 
+- Redis persistent storage by default. Optional MongoDB or Microsoft SQL server for storage options. 
 - Run Shift Server in your own .NET apps, Azure WebJobs, or Windows services. Check out the [Shift.WinService](https://github.com/hhalim/Shift.WinService) and [Shift.WebJob](https://github.com/hhalim/Shift.WebJob) projects.
 
 The client component allows client apps to add jobs and send commands to Shift server to stop, delete, reset, and run jobs.
@@ -48,3 +48,4 @@ Shift uses the following open source projects:
 - [Dapper](https://github.com/StackExchange/Dapper)
 - [StackExchange.Redis](https://github.com/StackExchange/StackExchange.Redis)
 - [Json.NET](http://james.newtonking.com/json)
+
