@@ -273,7 +273,7 @@ namespace Shift
                 {
                     var decryptedParameters = Entities.Helpers.Decrypt(job.Parameters, config.EncryptionKey);
 
-                    CreateTaskOrThread(job.ProcessID, job.JobID, job.InvokeMeta, decryptedParameters, isSync); //Use the DecryptedParameters, NOT encrypted Parameters
+                    CreateTask(job.ProcessID, job.JobID, job.InvokeMeta, decryptedParameters, isSync); //Use the DecryptedParameters, NOT encrypted Parameters
                 }
                 catch (Exception exc)
                 {
@@ -306,7 +306,7 @@ namespace Shift
         }
 
         //Create the thread that will run the job
-        private void CreateTaskOrThread(string processID, string jobID, string invokeMeta, string parameters, bool isSync)
+        private void CreateTask(string processID, string jobID, string invokeMeta, string parameters, bool isSync)
         {
             var invokeMetaObj = JsonConvert.DeserializeObject<InvokeMeta>(invokeMeta, SerializerSettings.Settings);
 
@@ -379,13 +379,12 @@ namespace Shift
             //SynchronousProgress is event based and called regularly by the running job
             SynchronousProgress<ProgressInfo> progress = new SynchronousProgress<ProgressInfo>(progressInfo =>
             {
-                jobDAL.SetCachedProgressAsync(jobID, progressInfo.Percent, progressInfo.Note, progressInfo.Data).ConfigureAwait(false);
+                jobDAL.SetCachedProgressAsync(jobID, progressInfo.Percent, progressInfo.Note, progressInfo.Data).ConfigureAwait(false); //Update Cache
 
                 var diffTs = DateTime.Now - start;
                 if (diffTs >= updateTs || progressInfo.Percent >= 100)
                 {
-                    //Update DB and Cache
-                    jobDAL.UpdateProgressAsync(jobID, progressInfo.Percent, progressInfo.Note, progressInfo.Data).ConfigureAwait(false); //async, don't wait/don't hold
+                    jobDAL.UpdateProgressAsync(jobID, progressInfo.Percent, progressInfo.Note, progressInfo.Data).ConfigureAwait(false); //Update DB async, don't wait/don't hold
                     start = DateTime.Now;
                 }
             });
