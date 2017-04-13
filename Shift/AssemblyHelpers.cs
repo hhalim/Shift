@@ -147,9 +147,19 @@ namespace Shift
             }
 
             var asmList = AppDomain.CurrentDomain.GetAssemblies();
+            var fullName = args.Name; 
             var asm = (from item in asmList
-                       where args.Name == item.GetName().FullName || args.Name == item.GetName().Name
+                       where fullName == item.GetName().FullName || fullName == item.GetName().Name
                        select item).FirstOrDefault();
+
+            //try to use simpler name, version may not match, but this allows jobs to still run with different version
+            if (asm== null)
+            {
+                var shortName = args.Name.Split(',').FirstOrDefault(); 
+                asm = (from item in asmList
+                        where shortName == item.GetName().Name
+                        select item).FirstOrDefault();
+            }
 
             if (asm == null)
                 return null; //let the original code blows up, instead of throwing exception here.     
