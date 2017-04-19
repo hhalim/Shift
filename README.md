@@ -1,5 +1,5 @@
 # Shift
-Shift background or long running jobs into reliable and durable processes out of the client app. Shift enables your app to easily run long running jobs in physically separate infrastructures. 
+Shift background or long running jobs into reliable and durable workers out of your main application. Shift enables your application to easily run long running jobs in separate infrastructures. 
 
 **Features:**
 - Open source and free - including commercial use.
@@ -36,7 +36,7 @@ Two deployable and runnable server apps projects are also provided as a starting
 
 ## Demos
 Please check out the demo apps first to provide better understanding on how to integrate Shift into your own .NET application. There is the ASP.NET MVC demo that shows Shift client and server running in the same ASP.Net process, and the simpler console Shift client and server apps demo. The console apps are two separate projects that demonstrate the client and the server working in two different processes.
-- ASP.NET MVC demo: [Shift.Demo.MVC](https://github.com/hhalim/Shift.Demo.MVC)
+- ASP.NET MVC demo: [Shift.Demo.Mvc](https://github.com/hhalim/Shift.Demo.Mvc) or ASP.NET MVC Core version: [Shift.Demo.Mvc.Core](https://github.com/hhalim/Shift.Demo.Mvc.Core)
 - Console apps demo: [Shift.Demo.Client](https://github.com/hhalim/Shift.Demo.Client) and [Shift.Demo.Server](https://github.com/hhalim/Shift.Demo.Server)
 
 ## Quick Start and More
@@ -48,4 +48,5 @@ Shift uses the following open source projects:
 - [Dapper](https://github.com/StackExchange/Dapper)
 - [StackExchange.Redis](https://github.com/StackExchange/StackExchange.Redis)
 - [Json.NET](http://james.newtonking.com/json)
+- [MongoDB C# Driver](https://github.com/mongodb/mongo-csharp-driver)
 
