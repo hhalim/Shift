@@ -292,7 +292,7 @@ namespace Shift.DataLayer
             var count = 0;
             var command = JobCommand.Stop.ToString().ToLower();
             var jobStopIndex = JobCommandIndexTemplate.Replace("[command]", command);
-            var jobStopProcess = JobCommandProcessTemplate.Replace("[command]", command);
+            var jobStopProcessCommand = JobCommandProcessTemplate.Replace("[command]", command);
             foreach (var jobID in jobIDs) {
                 var jobKey = JobKeyPrefix + jobID;
 
@@ -307,7 +307,7 @@ namespace Shift.DataLayer
                     }
                     else
                     {
-                        jobStopProcess = jobStopProcess.Replace("[processid]", job.ProcessID);
+                        var jobStopProcess = jobStopProcessCommand.Replace("[processid]", job.ProcessID);
                         trn.SetAddAsync(jobStopProcess, jobKey); //set job-[command]:[processID] job:123 ""
                     }
                     trn.HashSetAsync(jobKey, JobFields.Command, JobCommand.Stop);

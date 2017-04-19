@@ -18,7 +18,7 @@ namespace Shift
         [Required]
         public string StorageMode { get; set; } = Shift.StorageMode.Redis; //mssql, redis, etc... 
 
-        //Maximum jobs to run for each server
+        //Maximum jobs to run for each worker
         public int MaxRunnableJobs { get; set; } = 100;
 
         //Points to a text file with list of DLLs to load, one DLL per line. 
@@ -40,9 +40,13 @@ namespace Shift
         public int ServerTimerInterval { get; set; } = 5000; //interval timer for server running jobs
         public int ServerTimerInterval2 { get; set; } = 10000; //interval timer2 for server running cleanup
 
-        public int? AutoDeletePeriod { get; set; } = 168; //Default = 7 days; hours before jobs are deleted 
+        public int? AutoDeletePeriod { get; set; } //Default = null; hours before jobs are deleted 
         public IList<JobStatus?> AutoDeleteStatus { get; set; } = new List<JobStatus?> { JobStatus.Completed }; //Jobs with status to delete
 
         public bool PollingOnce { get; set; } = false; //Poll server only once, useful for debugging
+
+        public int Workers { get; set; } = 1; //How many workers per server.
+        public bool ForceStopServer { get; set; } = false;//If true, no waiting for all running jobs to stop before shutting down server 
+        public int StopServerDelay { get; set; } = 30000; //Delay shut down
     }
 }
