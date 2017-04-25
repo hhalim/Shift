@@ -17,7 +17,6 @@ namespace Shift
     {
         private ServerConfig config = null;
         private IJobDAL jobDAL = null;
-        private readonly IContainer container;
         private Dictionary<string, TaskInfo> taskList = null; //reference to Tasks
 
         private int workerID;
@@ -234,20 +233,24 @@ namespace Shift
                 else
                 {
                     var job = isSync ? jobDAL.GetJob(jobID) : await jobDAL.GetJobAsync(jobID);
-                    var error = job.Error + " " + exc.ToString();
-                    var count = isSync ? SetErrorAsync(processID, job.JobID, error, isSync).GetAwaiter().GetResult()
-                        : await SetErrorAsync(processID, job.JobID, error, isSync);
-
+                    if (job != null)
+                    {
+                        var error = job.Error + " " + exc.ToString();
+                        var count = isSync ? SetErrorAsync(processID, job.JobID, error, isSync).GetAwaiter().GetResult()
+                            : await SetErrorAsync(processID, job.JobID, error, isSync);
+                    }
                     throw exc;
                 }
             }
             catch (Exception exc)
             {
                 var job = isSync ? jobDAL.GetJob(jobID) : await jobDAL.GetJobAsync(jobID);
-                var error = job.Error + " " + exc.ToString();
-                var count = isSync ? SetErrorAsync(processID, job.JobID, error, isSync).GetAwaiter().GetResult()
-                    : await SetErrorAsync(processID, job.JobID, error, isSync);
-
+                if (job != null)
+                {
+                    var error = job.Error + " " + exc.ToString();
+                    var count = isSync ? SetErrorAsync(processID, job.JobID, error, isSync).GetAwaiter().GetResult()
+                        : await SetErrorAsync(processID, job.JobID, error, isSync);
+                }
                 throw exc;
             }
 
@@ -406,7 +409,7 @@ namespace Shift
                 }
             }
 
-            //Get all running process
+            //Get all running process with ProcessID
             var jobList = isSync ? jobDAL.GetJobsByProcessAndStatus(workerProcessID, JobStatus.Running) : await jobDAL.GetJobsByProcessAndStatusAsync(workerProcessID, JobStatus.Running);
             foreach (var job in jobList)
             {

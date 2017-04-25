@@ -182,6 +182,7 @@ namespace Shift.DataLayer
             var count = 0;
             using (var connection = new SqlConnection(connectionString))
             {
+                connection.Open();
                 using (var trn = connection.BeginTransaction())
                 {
                     //Delete job Progress

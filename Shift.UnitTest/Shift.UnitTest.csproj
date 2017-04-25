@@ -35,7 +35,15 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Autofac, Version=4.5.0.0, Culture=neutral, PublicKeyToken=17863af14b0044da, processorArchitecture=MSIL">
+      <HintPath>..\packages\Autofac.4.5.0\lib\net45\Autofac.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="System" />
+    <Reference Include="System.Runtime.InteropServices.RuntimeInformation, Version=4.0.1.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Runtime.InteropServices.RuntimeInformation.4.3.0\lib\net45\System.Runtime.InteropServices.RuntimeInformation.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
   </ItemGroup>
   <Choose>
     <When Condition="('$(VisualStudioVersion)' == '10.0' or '$(VisualStudioVersion)' == '') and '$(TargetFrameworkVersion)' == 'v3.5'">
@@ -53,18 +61,39 @@
   </Choose>
   <ItemGroup>
     <Compile Include="AssemblyHelpersTest.cs" />
+    <Compile Include="MongoJobClientTest.cs" />
+    <Compile Include="MongoJobClientAsyncTest.cs" />
+    <Compile Include="MongoJobServerAsyncTest.cs" />
+    <Compile Include="SqlJobServerAsyncTest.cs" />
+    <Compile Include="RedisJobServerAsyncTest.cs" />
+    <Compile Include="MongoJobServerTest.cs" />
+    <Compile Include="SqlJobServerTest.cs" />
+    <Compile Include="SqlJobClientAsyncTest.cs" />
+    <Compile Include="SqlJobClientTest.cs" />
+    <Compile Include="RedisJobClientAsyncTest.cs" />
+    <Compile Include="RedisJobClientTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RedisHelperTest.cs" />
+    <Compile Include="RedisJobServerTest.cs" />
+    <Compile Include="TestJob.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Shift.DataLayer\Shift.DataLayer.csproj">
       <Project>{4E74E7C7-4EA1-425C-B467-1DB4A5F99A37}</Project>
       <Name>Shift.DataLayer</Name>
     </ProjectReference>
+    <ProjectReference Include="..\Shift.Entities\Shift.Entities.csproj">
+      <Project>{1A8A0E83-4815-40E8-8CA5-B12D25A768F4}</Project>
+      <Name>Shift.Entities</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Shift\Shift.csproj">
       <Project>{872D6183-8E6A-4FA0-8037-5FA628AE182D}</Project>
       <Name>Shift</Name>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="app.config" />
+    <None Include="packages.config" />
   </ItemGroup>
   <Choose>
     <When Condition="'$(VisualStudioVersion)' == '10.0' And '$(IsCodedUITest)' == 'True'">

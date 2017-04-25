@@ -6,9 +6,6 @@ using Shift.DataLayer;
 
 namespace Shift.UnitTest.DataLayer
 {
-    /// <summary>
-    /// Summary description for RedisHelperTest1
-    /// </summary>
     [TestClass]
     public class RedisHelperTest
     {

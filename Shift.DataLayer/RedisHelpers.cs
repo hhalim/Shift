@@ -26,8 +26,11 @@ namespace Shift.DataLayer
         }
 
         //Deserialize from Redis format
-        public static T ConvertFromRedis<T>(this HashEntry[] hashEntries)
+        public static T ConvertFromRedis<T>(this HashEntry[] hashEntries) 
         {
+            if (!hashEntries.Any())
+                return default(T); //null for nullable value, 0 for int, '\0' for char etc
+
             PropertyInfo[] properties = typeof(T).GetProperties();
             var obj = Activator.CreateInstance(typeof(T));
             foreach (var property in properties)
