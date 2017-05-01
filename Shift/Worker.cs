@@ -15,21 +15,29 @@ namespace Shift
 {
     public class Worker
     {
-        private ServerConfig config = null;
         private IJobDAL jobDAL = null;
         private Dictionary<string, TaskInfo> taskList = null; //reference to Tasks
 
         private int workerID;
         private string workerProcessID;
+        private int maxRunnableJobs;
+        private string encryptionKey;
+        private TimeSpan? progressDBInterval;
+        private int? autoDeletePeriod;
+        private IList<JobStatus?> autoDeleteStatus;
 
         public Worker(ServerConfig config, IContainer container, int workerID)
         {
             taskList = new Dictionary<string, TaskInfo>();
             jobDAL = container.Resolve<IJobDAL>();
             this.workerID = workerID;
-            this.config = config;
 
             this.workerProcessID = config.ProcessID + "-" + workerID;
+            this.maxRunnableJobs = config.MaxRunnableJobs;
+            this.encryptionKey = config.EncryptionKey;
+            this.progressDBInterval = config.ProgressDBInterval;
+            this.autoDeletePeriod = config.AutoDeletePeriod;
+            this.autoDeleteStatus = config.AutoDeleteStatus;
         }
 
         public async Task<int> CountRunningJobsAsync(bool isSync)
@@ -42,12 +50,12 @@ namespace Shift
         {
             //Check max jobs count
             var runningCount = isSync ? CountRunningJobsAsync(isSync).GetAwaiter().GetResult() :  await CountRunningJobsAsync(isSync);
-            if (runningCount >= config.MaxRunnableJobs)
+            if (runningCount >= this.maxRunnableJobs)
             {
                 return;
             }
 
-            var rowsToGet = config.MaxRunnableJobs - runningCount;
+            var rowsToGet = this.maxRunnableJobs - runningCount;
             var claimedJobs = isSync ? jobDAL.ClaimJobsToRun(workerProcessID, rowsToGet) : await jobDAL.ClaimJobsToRunAsync(workerProcessID, rowsToGet);
 
             RunClaimedJobsAsync(claimedJobs, isSync);
@@ -72,7 +80,7 @@ namespace Shift
             {
                 try
                 {
-                    var decryptedParameters = Entities.Helpers.Decrypt(job.Parameters, config.EncryptionKey);
+                    var decryptedParameters = Entities.Helpers.Decrypt(job.Parameters, this.encryptionKey);
 
                     CreateTask(job.ProcessID, job.JobID, job.InvokeMeta, decryptedParameters, isSync); //Use the DecryptedParameters, NOT encrypted Parameters
                 }
@@ -147,7 +155,7 @@ namespace Shift
                     .ContinueWith(t =>
                     {
                         DeleteCachedProgressDelayedAsync(jobID);
-                    }, TaskContinuationOptions.RunContinuationsAsynchronously);
+                    }, TaskContinuationOptions.ExecuteSynchronously);
             }
             else
             {
@@ -175,7 +183,7 @@ namespace Shift
             await jobDAL.SetCachedProgressAsync(jobID, null, null, null).ConfigureAwait(false);
 
             var start = DateTime.Now;
-            var updateTs = config.ProgressDBInterval ?? new TimeSpan(0, 0, 10); //default to 10 sec interval for updating DB
+            var updateTs = this.progressDBInterval ?? new TimeSpan(0, 0, 10); //default to 10 sec interval for updating DB
 
             //SynchronousProgress is event based and called regularly by the running job
             SynchronousProgress<ProgressInfo> progress = new SynchronousProgress<ProgressInfo>(progressInfo =>
@@ -209,7 +217,7 @@ namespace Shift
                 //Invoke Method
                 if (token == null)
                 {
-                    var tokenSource = new CancellationTokenSource(); //not doing anything when using thread.Start()
+                    var tokenSource = new CancellationTokenSource(); 
                     token = tokenSource.Token;
                 }
                 var args = DALHelpers.DeserializeArguments(token.Value, progress, methodInfo, parameters);
@@ -393,9 +401,9 @@ namespace Shift
                 StopJobsAsync(isSync).GetAwaiter().GetResult();
 
                 //Delete past completed jobs from storage
-                if (config.AutoDeletePeriod != null)
+                if (this.autoDeletePeriod != null)
                 {
-                    jobDAL.Delete(config.AutoDeletePeriod.Value, config.AutoDeleteStatus);
+                    jobDAL.Delete(this.autoDeletePeriod.Value, this.autoDeleteStatus);
                 }
             }
             else
@@ -403,9 +411,9 @@ namespace Shift
                 await StopJobsAsync(isSync);
 
                 //Delete past completed jobs from storage
-                if (config.AutoDeletePeriod != null)
+                if (this.autoDeletePeriod != null)
                 {
-                    await jobDAL.DeleteAsync(config.AutoDeletePeriod.Value, config.AutoDeleteStatus);
+                    await jobDAL.DeleteAsync(this.autoDeletePeriod.Value, this.autoDeleteStatus);
                 }
             }
 

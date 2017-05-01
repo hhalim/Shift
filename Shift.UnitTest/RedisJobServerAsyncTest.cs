@@ -41,25 +41,6 @@ namespace Shift.UnitTest
         }
 
         [TestMethod]
-        public async Task RunJobsTest()
-        {
-            var jobID = await jobClient.AddAsync(appID, () => Console.WriteLine("Hello Test"));
-            var job = await jobClient.GetJobAsync(jobID);
-
-            Assert.IsNotNull(job);
-            Assert.AreEqual(jobID, job.JobID);
-
-            //run job
-            await jobServer.RunJobsAsync();
-            Thread.Sleep(5000);
-
-            job = await jobClient.GetJobAsync(jobID);
-            Assert.AreEqual(JobStatus.Completed, job.Status);
-
-            await jobClient.DeleteJobsAsync(new List<string>() { jobID });
-        }
-
-        [TestMethod]
         public async Task RunJobsSelectedTest()
         {
             var jobID = await jobClient.AddAsync(appID, () => Console.WriteLine("Hello Test"));
@@ -73,9 +54,8 @@ namespace Shift.UnitTest
             Thread.Sleep(5000);
 
             job = await jobClient.GetJobAsync(jobID);
-            Assert.AreEqual(JobStatus.Completed, job.Status);
-
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
+            Assert.AreEqual(JobStatus.Completed, job.Status);
         }
 
 
@@ -93,9 +73,8 @@ namespace Shift.UnitTest
             Thread.Sleep(5000);
 
             job = await jobClient.GetJobAsync(jobID);
-            Assert.AreEqual(JobStatus.Stopped, job.Status);
-
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
+            Assert.AreEqual(JobStatus.Stopped, job.Status);
         }
 
         [TestMethod]
@@ -119,9 +98,8 @@ namespace Shift.UnitTest
             Thread.Sleep(3000);
 
             job = await jobClient.GetJobAsync(jobID);
-            Assert.AreEqual(JobStatus.Stopped, job.Status);
-
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
+            Assert.AreEqual(JobStatus.Stopped, job.Status);
         }
 
         [TestMethod]
@@ -147,9 +125,8 @@ namespace Shift.UnitTest
             Thread.Sleep(3000);
 
             job = await jobClient.GetJobAsync(jobID);
-            Assert.AreEqual(JobStatus.Stopped, job.Status);
-
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
+            Assert.AreEqual(JobStatus.Stopped, job.Status);
         }
 
     }

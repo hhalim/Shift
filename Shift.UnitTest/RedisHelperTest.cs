@@ -17,6 +17,7 @@ namespace Shift.UnitTest.DataLayer
             Error = -99
         }
 
+        #region DateTime
         [TestMethod]
         public void GetValueDateTimeValid()
         {
@@ -50,7 +51,9 @@ namespace Shift.UnitTest.DataLayer
 
             Assert.IsNull(actual);
         }
+        #endregion
 
+        #region GUID
         [TestMethod]
         public void GetValueGUIDIsValid()
         {
@@ -86,7 +89,9 @@ namespace Shift.UnitTest.DataLayer
 
             Assert.AreEqual(expected, actual);
         }
+        #endregion
 
+        #region ENUM
         [TestMethod]
         public void GetValueEnumIsValid()
         {
@@ -120,6 +125,80 @@ namespace Shift.UnitTest.DataLayer
 
             Assert.IsNull(actual);
         }
+        #endregion
+
+        #region Int32
+        [TestMethod]
+        public void GetValueInt32Valid()
+        {
+            Type type = typeof(int?);
+            string value = "123";
+            var expected = int.Parse(value);
+
+            var actual = RedisHelpers.GetValue(type, value);
+
+            Assert.AreEqual(expected, actual);
+        }
+
+        [TestMethod]
+        public void GetValueInt32IsNull()
+        {
+            Type type = typeof(int?);
+            string value = null;
+
+            var actual = RedisHelpers.GetValue(type, value);
+
+            Assert.IsNull(actual);
+        }
+
+        [TestMethod]
+        public void GetValueInt32IsNull2()
+        {
+            Type type = typeof(int?);
+            string value = "ABC123";
+
+            var actual = RedisHelpers.GetValue(type, value);
+
+            Assert.IsNull(actual);
+        }
+        #endregion
+
+        #region Int64
+        [TestMethod]
+        public void GetValueInt64Valid()
+        {
+            Type type = typeof(long?);
+            string value = "123";
+            var expected = long.Parse(value);
+
+            var actual = RedisHelpers.GetValue(type, value);
+
+            Assert.AreEqual(expected, actual);
+        }
+
+        [TestMethod]
+        public void GetValueInt64IsNull()
+        {
+            Type type = typeof(long?);
+            string value = null;
+
+            var actual = RedisHelpers.GetValue(type, value);
+
+            Assert.IsNull(actual);
+        }
+
+        [TestMethod]
+        public void GetValueInt64IsNull2()
+        {
+            Type type = typeof(long?);
+            string value = "ABC123";
+
+            var actual = RedisHelpers.GetValue(type, value);
+
+            Assert.IsNull(actual);
+        }
+        #endregion
+
     }
 
 }

@@ -167,5 +167,45 @@ namespace Shift.UnitTest
 
             Assert.AreEqual(newPath, CleanPath(upOneDir + @"\mydll"));
         }
+
+        [TestMethod]
+        public void GetFullPathNullTest()
+        {
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+
+            string directory, filename;
+            var newLinePath = ConvertToFullPath(null, out directory, out filename);
+            Assert.IsNull(newLinePath);
+
+            newLinePath = ConvertToFullPath("", out directory, out filename);
+            Assert.IsNull(newLinePath);
+
+            newLinePath = ConvertToFullPath("   ", out directory, out filename);
+            Assert.IsNull(newLinePath);
+        }
+
+        [TestMethod]
+        public void GetFullPathFolderNull()
+        {
+            var newPath = ConvertToFullPath(null);
+            Assert.IsNull(newPath);
+        }
+
+        [TestMethod]
+        public void GetFullPathAbsolutePathTest()
+        {
+            var folder = @"C:\mydll\"; //full path
+            var newPath = ConvertToFullPath(folder);
+
+            Assert.AreEqual(@"C:\mydll\", newPath);
+        }
+
+        [TestMethod]
+        [ExpectedException(typeof(System.IO.DirectoryNotFoundException))]
+        public void LoadAssembliesFromFolderTest()
+        {
+            var folder = @"C:\myShiftTestDll\"; //full path
+            var count = LoadAssemblies(folder, null);
+        }
     }
 }

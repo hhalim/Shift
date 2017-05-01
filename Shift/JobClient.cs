@@ -34,24 +34,24 @@ namespace Shift
         {
             if (config == null)
             {
-                throw new Exception("Unable to start with no configuration.");
+                throw new ArgumentNullException("Unable to start with no configuration.");
             }
 
             if (string.IsNullOrWhiteSpace(config.StorageMode))
             {
-                throw new Exception("The storage mode must not be empty.");
+                throw new ArgumentNullException("The storage mode must not be empty.");
 
             }
 
             if (string.IsNullOrWhiteSpace(config.DBConnectionString))
             {
-                throw new Exception("Unable to run without DB storage connection string.");
+                throw new ArgumentNullException("Unable to run without DB storage connection string.");
 
             }
 
             if (config.UseCache && string.IsNullOrWhiteSpace(config.CacheConfigurationString))
             {
-                throw new Exception("Unable to run without Cache configuration string.");
+                throw new ArgumentNullException("Unable to run without Cache configuration string.");
             }
 
             this.config = config;

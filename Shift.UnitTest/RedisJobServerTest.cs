@@ -40,25 +40,6 @@ namespace Shift.UnitTest
         }
 
         [TestMethod]
-        public void RunJobsTest()
-        {
-            var jobID = jobClient.Add(appID, () => Console.WriteLine("Hello Test"));
-            var job = jobClient.GetJob(jobID);
-
-            Assert.IsNotNull(job);
-            Assert.AreEqual(jobID, job.JobID);
-
-            //run job
-            jobServer.RunJobs();
-            Thread.Sleep(5000);
-
-            job = jobClient.GetJob(jobID);
-            Assert.AreEqual(JobStatus.Completed, job.Status);
-
-            jobClient.DeleteJobs(new List<string>() { jobID });
-        }
-
-        [TestMethod]
         public void RunJobsSelectedTest()
         {
             var jobID = jobClient.Add(appID, () => Console.WriteLine("Hello Test"));
@@ -72,9 +53,8 @@ namespace Shift.UnitTest
             Thread.Sleep(5000);
 
             job = jobClient.GetJob(jobID);
-            Assert.AreEqual(JobStatus.Completed, job.Status);
-
             jobClient.DeleteJobs(new List<string>() { jobID });
+            Assert.AreEqual(JobStatus.Completed, job.Status);
         }
 
 
@@ -92,9 +72,8 @@ namespace Shift.UnitTest
             Thread.Sleep(5000);
 
             job = jobClient.GetJob(jobID);
-            Assert.AreEqual(JobStatus.Stopped, job.Status);
-
             jobClient.DeleteJobs(new List<string>() { jobID });
+            Assert.AreEqual(JobStatus.Stopped, job.Status);
         }
 
         [TestMethod]
@@ -118,9 +97,8 @@ namespace Shift.UnitTest
             Thread.Sleep(3000);
 
             job = jobClient.GetJob(jobID);
-            Assert.AreEqual(JobStatus.Stopped, job.Status);
-
             jobClient.DeleteJobs(new List<string>() { jobID });
+            Assert.AreEqual(JobStatus.Stopped, job.Status);
         }
 
         [TestMethod]
@@ -146,9 +124,8 @@ namespace Shift.UnitTest
             Thread.Sleep(3000);
 
             job = jobClient.GetJob(jobID);
-            Assert.AreEqual(JobStatus.Stopped, job.Status);
-
             jobClient.DeleteJobs(new List<string>() { jobID });
+            Assert.AreEqual(JobStatus.Stopped, job.Status);
         }
 
     }
