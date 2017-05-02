@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -9,7 +10,8 @@ namespace Shift.Entities
     {
 
         [Key]
-        public string JobID { get; set; } //PrimaryKey
+        [JsonProperty(PropertyName = "id")] //PrimaryKey for DocumentDB
+        public string JobID { get; set; } //PrimaryKey for SQL, Redis, MongoDB
 
         public string AppID { get; set; }
         public string UserID { get; set; }

@@ -37,6 +37,7 @@ namespace Shift
         public const string MSSql = "mssql";
         public const string Redis = "redis";
         public const string MongoDB = "mongo";
+        public const string DocumentDB = "documentdb";
 
     }
 }

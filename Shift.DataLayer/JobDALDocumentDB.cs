@@ -15,67 +15,114 @@ using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.IdGenerators;
 using MongoDB.Bson.Serialization.Serializers;
 using MongoDB.Bson;
+using Microsoft.Azure.Documents.Client;
+using Microsoft.Azure.Documents;
+using System.Collections.ObjectModel;
+using Microsoft.Azure.Documents.Linq;
 
 namespace Shift.DataLayer
 {
-    public class JobDALMongo : IJobDAL
+    public class JobDALDocumentDB : IJobDAL
     {
-        private const string JobCollectionName = "Jobs";
+        private const string CollectionID = "Jobs";
+        private const string DatabaseID = "ShiftDB";
+        private static DocumentClient client = null; //Best practice to use singleton per application server
+        private System.Uri collectionLink;
 
+        private string connectionString;
         private string encryptionKey;
 
-        private MongoClient client;
-        private IMongoDatabase database;
-
         #region Constructor
-        public JobDALMongo(string connectionString, string encryptionKey)
+        public JobDALDocumentDB(string connectionString, string encryptionKey, string authKey)
         {
             this.encryptionKey = encryptionKey;
 
-            InitMongoDB(connectionString);
+            InitDocumentDB(connectionString, authKey);
         }
 
-        public JobDALMongo(string connectionString, IJobCache jobCache, string encryptionKey)
+        public JobDALDocumentDB(string connectionString, IJobCache jobCache, string encryptionKey, string authKey)
         {
             this.encryptionKey = encryptionKey;
 
-            InitMongoDB(connectionString);
+            InitDocumentDB(connectionString, authKey);
         }
 
-        protected void InitMongoDB(string connectionString)
+        protected void InitDocumentDB(string connectionString, string authKey)
         {
-            if (!BsonClassMap.IsClassMapRegistered(typeof(Job)))
+            if(client == null)
+                client = new DocumentClient(new Uri(connectionString), authKey, new ConnectionPolicy { EnableEndpointDiscovery = false });
+            collectionLink = UriFactory.CreateDocumentCollectionUri(DatabaseID, CollectionID);
+            CreateDatabaseIfNotExistsAsync(client).Wait();
+            CreateCollectionIfNotExistsAsync(client).Wait();
+        }
+
+        //Create DB if not exists
+        private static async Task CreateDatabaseIfNotExistsAsync(DocumentClient client)
+        {
+            try
             {
-                BsonClassMap.RegisterClassMap<Job>(j =>
-                {
-                    j.AutoMap();
-                    j.SetIgnoreExtraElements(true);
-                    j.MapIdMember(p => p.JobID)
-                    .SetIdGenerator(StringObjectIdGenerator.Instance)
-                    .SetSerializer(new StringSerializer(BsonType.ObjectId));
-                });
-
-                BsonClassMap.RegisterClassMap<JobView>(j =>
-                {
-                    j.AutoMap();
-                    j.SetIgnoreExtraElements(true);
-                    j.MapIdMember(p => p.JobID)
-                    .SetIdGenerator(StringObjectIdGenerator.Instance)
-                    .SetSerializer(new StringSerializer(BsonType.ObjectId));
-                });
+                await client.ReadDatabaseAsync(UriFactory.CreateDatabaseUri(DatabaseID));
             }
-
-            var settings = MongoClientSettings.FromUrl(MongoUrl.Create(connectionString));
-            client = new MongoClient(settings);
-
-            database = client.GetDatabase("ShiftDB");
-            var collection = database.GetCollection<Job>(JobCollectionName);
-            collection.Indexes.CreateOne(Builders<Job>.IndexKeys.Ascending(j => j.Score));
-            collection.Indexes.CreateOne(Builders<Job>.IndexKeys.Ascending(j => j.Created));
-            collection.Indexes.CreateOne(Builders<Job>.IndexKeys.Ascending(j => j.Status));
-            collection.Indexes.CreateOne(Builders<Job>.IndexKeys.Ascending(j => j.ProcessID));
+            catch (DocumentClientException e)
+            {
+                if (e.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    await client.CreateDatabaseAsync(new Database { Id = DatabaseID });
+                }
+                else
+                {
+                    throw;
+                }
+            }
         }
 
+        private static async Task CreateCollectionIfNotExistsAsync(DocumentClient client)
+        {
+            try
+            {
+                await client.ReadDocumentCollectionAsync(UriFactory.CreateDocumentCollectionUri(DatabaseID, CollectionID));
+            }
+            catch (DocumentClientException e)
+            {
+                if (e.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    //collection.Indexes.CreateOne(Builders<Job>.IndexKeys.Ascending(j => j.Score));
+                    //collection.Indexes.CreateOne(Builders<Job>.IndexKeys.Ascending(j => j.Created));
+                    //collection.Indexes.CreateOne(Builders<Job>.IndexKeys.Ascending(j => j.Status));
+                    //collection.Indexes.CreateOne(Builders<Job>.IndexKeys.Ascending(j => j.ProcessID));
+
+                    DocumentCollection collection = new DocumentCollection { Id = CollectionID };
+                    collection.IndexingPolicy = new IndexingPolicy(new RangeIndex(DataType.String) { Precision = -1 });
+                    //collection.IndexingPolicy.IncludedPaths.Add(
+                    //    new IncludedPath
+                    //    {
+                    //        Path = "/Created/?",
+                    //        Indexes = new Collection<Index> { new RangeIndex(DataType.String) { Precision = -1 } }
+                    //    });
+                    collection.IndexingPolicy.IncludedPaths.Add(
+                        new IncludedPath
+                        {
+                            Path = "/Status/?",
+                            Indexes = new Collection<Index> { new RangeIndex(DataType.Number) { Precision = -1 } }
+                        });
+                    //collection.IndexingPolicy.IncludedPaths.Add(
+                    //    new IncludedPath
+                    //    {
+                    //        Path = "/ProcessID/?",
+                    //        Indexes = new Collection<Index> { new RangeIndex(DataType.String) { Precision = -1 } }
+                    //    });
+
+                    await client.CreateDocumentCollectionAsync(
+                        UriFactory.CreateDatabaseUri(DatabaseID),
+                        collection,
+                        new RequestOptions { OfferThroughput = 1000 });
+                }
+                else
+                {
+                    throw;
+                }
+            }
+        }
         #endregion
 
         #region insert/update job
@@ -140,11 +187,10 @@ namespace Shift.DataLayer
             job.Created = now;
             job.Score = (new DateTimeOffset(now)).ToUnixTimeSeconds();
 
-            var collection = database.GetCollection<Job>(JobCollectionName);
             if (isSync)
-                collection.InsertOne(job);
+                client.CreateDocumentAsync(collectionLink, job).GetAwaiter().GetResult();
             else
-                await collection.InsertOneAsync(job);
+                await client.CreateDocumentAsync(collectionLink, job);
 
             return job.JobID;
         }
@@ -212,12 +258,13 @@ namespace Shift.DataLayer
             job.Score = (new DateTimeOffset(now)).ToUnixTimeSeconds();
 
             var count = 0;
-            var filter = Builders<Job>.Filter.Eq(j => j.JobID, jobID);
-            var collection = database.GetCollection<Job>(JobCollectionName);
-
-            var result = isSync ? collection.ReplaceOne(filter, job) : await collection.ReplaceOneAsync(filter, job);
-            if (result.IsAcknowledged)
-                count = (int)result.ModifiedCount;
+            ResourceResponse<Document> response;
+            if (isSync)
+                response = client.ReplaceDocumentAsync(collectionLink, job).GetAwaiter().GetResult();
+            else
+                response = await client.ReplaceDocumentAsync(collectionLink, job);
+            if (response.StatusCode == System.Net.HttpStatusCode.OK)
+                count = 1;
 
             return count;
         }
@@ -247,14 +294,23 @@ namespace Shift.DataLayer
             if (jobIDs.Count == 0)
                 return count;
 
-            var collection = database.GetCollection<Job>(JobCollectionName);
-            var blFilter = Builders<Job>.Filter;
-            var filter = blFilter.In(j => j.JobID, jobIDs) & (blFilter.Eq(j => j.Status, null) | blFilter.Eq(j => j.Status, JobStatus.Running));
-            var update = Builders<Job>.Update.Set("Command", JobCommand.Stop);
+            //var filter = blFilter.In(j => j.JobID, jobIDs) & (blFilter.Eq(j => j.Status, null) | blFilter.Eq(j => j.Status, JobStatus.Running));
+            //var update = Builders<Job>.Update.Set("Command", JobCommand.Stop);
 
-            var result = isSync ? collection.UpdateMany(filter, update) : await collection.UpdateManyAsync(filter, update);
-            if (result.IsAcknowledged)
-                count = (int)result.ModifiedCount;
+            var jobList = client.CreateDocumentQuery<Job>(collectionLink, new FeedOptions { MaxItemCount = -1 })
+                    .Where(j => jobIDs.Contains(j.JobID) && (j.Status == null || j.Status == JobStatus.Running))
+                    .AsList();
+            foreach(var job in jobList)
+            {
+                job.Command = JobCommand.Stop;
+                ResourceResponse<Document> response;
+                if (isSync)
+                    response = client.ReplaceDocumentAsync(collectionLink, job).GetAwaiter().GetResult();
+                else
+                    response = await client.ReplaceDocumentAsync(collectionLink, job);
+                if (response.StatusCode == System.Net.HttpStatusCode.OK)
+                    count++;
+            }
 
             return count;
         }
@@ -281,18 +337,25 @@ namespace Shift.DataLayer
             if (jobIDs.Count == 0)
                 return count;
 
-            var collection = database.GetCollection<Job>(JobCollectionName);
-            var blFilter = Builders<Job>.Filter;
-            var filter = blFilter.In(j => j.JobID, jobIDs) & blFilter.Eq(j => j.Status, null) & blFilter.Eq(j => j.ProcessID, null);
-            var blUpdate = Builders<Job>.Update;
-            var listUpdate = new List<UpdateDefinition<Job>>();
-            listUpdate.Add(blUpdate.Set("Command", JobCommand.RunNow));
-            listUpdate.Add(blUpdate.Set<long>("Score", 0));
-            var update = blUpdate.Combine(listUpdate.ToArray());
+            //var filter = blFilter.In(j => j.JobID, jobIDs) & blFilter.Eq(j => j.Status, null) & blFilter.Eq(j => j.ProcessID, null);
+            //listUpdate.Add(blUpdate.Set("Command", JobCommand.RunNow));
+            //listUpdate.Add(blUpdate.Set<long>("Score", 0));
 
-            var result = isSync ? collection.UpdateMany(filter, update) : await collection.UpdateManyAsync(filter, update);
-            if (result.IsAcknowledged)
-                count = (int)result.ModifiedCount;
+            var jobList = client.CreateDocumentQuery<Job>(collectionLink, new FeedOptions { MaxItemCount = -1 })
+                    .Where(j => jobIDs.Contains(j.JobID) && j.Status == null && j.ProcessID == null)
+                    .AsList();
+            foreach (var job in jobList)
+            {
+                job.Command = JobCommand.RunNow;
+                job.Score = 0;
+                ResourceResponse<Document> response;
+                if (isSync)
+                    response = client.ReplaceDocumentAsync(collectionLink, job).GetAwaiter().GetResult();
+                else
+                    response = await client.ReplaceDocumentAsync(collectionLink, job);
+                if (response.StatusCode == System.Net.HttpStatusCode.OK)
+                    count++;
+            }
 
             return count;
         }
@@ -318,32 +381,45 @@ namespace Shift.DataLayer
             if (jobIDs.Count == 0)
                 return count;
 
-            var collection = database.GetCollection<JobView>(JobCollectionName);
-            foreach (var jobID in jobIDs)
-            {
-                var job = collection.Find(j => j.JobID == jobID).FirstOrDefault();
-                if(job != null)
-                {
-                    var score = (new DateTimeOffset(job.Created.GetValueOrDefault())).ToUnixTimeSeconds();
-                    var blFilter = Builders<JobView>.Filter;
-                    var filter = blFilter.Eq(j => j.JobID, jobID) & (blFilter.Eq(j => j.Status, null) | !blFilter.Eq(j => j.Status, JobStatus.Running));
-                    var blUpdate = Builders<JobView>.Update;
-                    var listUpdate = new List<UpdateDefinition<JobView>>();
-                    listUpdate.Add(blUpdate.Set<string>("Data", null));
-                    listUpdate.Add(blUpdate.Set<int?>("Percent", null));
-                    listUpdate.Add(blUpdate.Set<string>("Note", null));
-                    listUpdate.Add(blUpdate.Set<string>("ProcessID", null));
-                    listUpdate.Add(blUpdate.Set<string>("Command", null));
-                    listUpdate.Add(blUpdate.Set<int?>("Status", null));
-                    listUpdate.Add(blUpdate.Set<string>("Error", null));
-                    listUpdate.Add(blUpdate.Set<DateTime?>("Start", null));
-                    listUpdate.Add(blUpdate.Set<DateTime?>("End", null));
-                    listUpdate.Add(blUpdate.Set<long>("Score", score));
-                    var update = blUpdate.Combine(listUpdate.ToArray());
+            //        var filter = blFilter.Eq(j => j.JobID, jobID) & (blFilter.Eq(j => j.Status, null) | !blFilter.Eq(j => j.Status, JobStatus.Running));
 
-                    var result = isSync ? collection.UpdateOne(filter, update) : await collection.UpdateOneAsync(filter, update);
-                    if (result.IsAcknowledged)
-                        count += (int)result.ModifiedCount;
+            var query = (from j in client.CreateDocumentQuery<JobView>(collectionLink)
+                         where jobIDs.Contains(j.JobID) && (j.Status == null || j.Status != JobStatus.Running)
+                         select j).AsDocumentQuery();
+
+            while (query.HasMoreResults)
+            {
+                FeedResponse<JobView> rsp;
+                if (isSync)
+                {
+                    rsp = query.ExecuteNextAsync<JobView>().GetAwaiter().GetResult();
+                }
+                else
+                {
+                    rsp = await query.ExecuteNextAsync<JobView>();
+                }
+
+                foreach(var job in rsp.AsList())
+                {
+                    job.Data = null;
+                    job.Percent = null;
+                    job.Note = null;
+
+                    job.ProcessID = "";
+                    job.Command = "";
+                    job.Status = null;
+                    job.Error = "";
+                    job.Start = null;
+                    job.End = null;
+                    job.Score = ((DateTimeOffset)job.Created).ToUnixTimeSeconds(); //reset score to created;
+
+                    ResourceResponse<Document> response;
+                    if (isSync)
+                        response = client.ReplaceDocumentAsync(collectionLink, job).GetAwaiter().GetResult();
+                    else
+                        response = await client.ReplaceDocumentAsync(collectionLink, job);
+                    if (response.StatusCode == System.Net.HttpStatusCode.OK)
+                        count++;
                 }
             }
 
@@ -370,13 +446,35 @@ namespace Shift.DataLayer
             if (jobIDs.Count == 0)
                 return count;
 
-            var collection = database.GetCollection<Job>(JobCollectionName);
-            var blFilter = Builders<Job>.Filter;
-            var filter = blFilter.In(j => j.JobID, jobIDs) & (blFilter.Eq(j => j.Status, null) | !blFilter.Eq(j => j.Status, JobStatus.Running)); //Only NOT Running jobs
+            //var filter = blFilter.In(j => j.JobID, jobIDs) & (blFilter.Eq(j => j.Status, null) | !blFilter.Eq(j => j.Status, JobStatus.Running)); //Only NOT Running jobs
 
-            var result = isSync ? collection.DeleteMany(filter) : await collection.DeleteManyAsync(filter);
-            if (result.IsAcknowledged)
-                count = (int)result.DeletedCount;
+            var query = (from j in client.CreateDocumentQuery<Job>(collectionLink)
+                         where jobIDs.Contains(j.JobID) && (j.Status == null || j.Status != JobStatus.Running)
+                         select j.JobID).AsDocumentQuery();
+            while (query.HasMoreResults)
+            {
+                FeedResponse<string> rsp;
+                if (isSync)
+                {
+                    rsp = query.ExecuteNextAsync<string>().GetAwaiter().GetResult();
+                }
+                else
+                {
+                    rsp = await query.ExecuteNextAsync<string>();
+                }
+
+                foreach (var jobID in rsp.AsList())
+                {
+                    var singleLink = UriFactory.CreateDocumentUri(DatabaseID, CollectionID, jobID);
+                    ResourceResponse<Document> response;
+                    if (isSync)
+                        response = client.DeleteDocumentAsync(singleLink).GetAwaiter().GetResult();
+                    else
+                        response = await client.DeleteDocumentAsync(singleLink);
+                    if (response.StatusCode == System.Net.HttpStatusCode.OK)
+                        count++;
+                }
+            }
 
             return count;
         }
@@ -399,49 +497,54 @@ namespace Shift.DataLayer
         private async Task<int> DeleteAsync(int hours, ICollection<JobStatus?> statusList, bool isSync)
         {
             var count = 0;
-            var collection = database.GetCollection<Job>(JobCollectionName);
-            var blFilter = Builders<Job>.Filter;
+
+            var predicate = PredicateBuilder.False<Job>();
 
             var pastDate = DateTime.Now.AddHours(-hours);
-            //WARNING: The nullable Created field filter must use j.Created != null or it will CRASH the ToList action
-            var dateFilter = (!blFilter.Eq(j => j.Created, null) & blFilter.Lt(j => j.Created, pastDate.ToUniversalTime())); //use UTC for datetime filtering!
+            var query = (from j in client.CreateDocumentQuery<Job>(collectionLink)
+                         where (j.Created != null && j.Created < pastDate)
+                         select j);
 
-            //build where status
-            FilterDefinition<Job> statusFilter = null;
             if (statusList != null)
             {
-                var listFilter = new List<FilterDefinition<Job>>();
                 foreach (var status in statusList)
                 {
                     if (status == null)
                     {
-                        listFilter.Add(blFilter.Eq(j => j.Status, null));
+                        predicate = predicate.Or(j => j.Status == null);
                     }
                     else
                     {
-                        listFilter.Add(blFilter.Eq(j => j.Status, status));
+                        predicate = predicate.Or(j => j.Status == status);
                     }
                 }
+            }
 
-                if (listFilter.Count > 0)
+            var docQuery = query.Where(predicate).Select(j => j.JobID).AsDocumentQuery();
+            while (docQuery.HasMoreResults)
+            {
+                FeedResponse<string> rsp;
+                if (isSync)
                 {
-                    statusFilter = blFilter.Or(listFilter.ToArray());
+                    rsp = docQuery.ExecuteNextAsync<string>().GetAwaiter().GetResult();
+                }
+                else
+                {
+                    rsp = await docQuery.ExecuteNextAsync<string>();
+                }
+
+                foreach (var jobID in rsp.AsList())
+                {
+                    var singleLink = UriFactory.CreateDocumentUri(DatabaseID, CollectionID, jobID);
+                    ResourceResponse<Document> response;
+                    if (isSync)
+                        response = client.DeleteDocumentAsync(singleLink).GetAwaiter().GetResult();
+                    else
+                        response = await client.DeleteDocumentAsync(singleLink);
+                    if (response.StatusCode == System.Net.HttpStatusCode.OK)
+                        count++;
                 }
             }
-
-            FilterDefinition<Job> filter = null;
-            if (statusFilter != null)
-            {
-                filter = dateFilter & statusFilter;
-            }
-            else
-            {
-                filter = dateFilter;
-            }
-
-            var result = isSync ? collection.DeleteMany(filter) : await collection.DeleteManyAsync(filter);
-            if (result.IsAcknowledged)
-                count = (int)result.DeletedCount;
 
             return count;
         }
@@ -466,18 +569,22 @@ namespace Shift.DataLayer
             if (jobIDs.Count == 0)
                 return count;
 
-            var collection = database.GetCollection<Job>(JobCollectionName);
-            var blFilter = Builders<Job>.Filter;
-            var filter = blFilter.In(j => j.JobID, jobIDs);
-            var blUpdate = Builders<Job>.Update;
-            var listUpdate = new List<UpdateDefinition<Job>>();
-            listUpdate.Add(blUpdate.Set<string>("Command", null));
-            listUpdate.Add(blUpdate.Set("Status", JobStatus.Stopped));
-            var update = blUpdate.Combine(listUpdate.ToArray());
+            var jobList = client.CreateDocumentQuery<Job>(collectionLink, new FeedOptions { MaxItemCount = -1 })
+                    .Where(j => jobIDs.Contains(j.JobID) && j.Status == null && j.ProcessID == null)
+                    .AsList();
+            foreach (var job in jobList)
+            {
+                job.Command = null;
+                job.Status = JobStatus.Stopped;
 
-            var result = isSync ? collection.UpdateMany(filter, update): await collection.UpdateManyAsync(filter, update);
-            if (result.IsAcknowledged)
-                count = (int)result.ModifiedCount;
+                ResourceResponse<Document> response;
+                if (isSync)
+                    response = client.ReplaceDocumentAsync(collectionLink, job).GetAwaiter().GetResult();
+                else
+                    response = await client.ReplaceDocumentAsync(collectionLink, job);
+                if (response.StatusCode == System.Net.HttpStatusCode.OK)
+                    count++;
+            }
 
             return count;
         }
@@ -503,69 +610,8 @@ namespace Shift.DataLayer
         {
             var groupStatus = new Dictionary<string, JobStatusCount>();
 
-            var collection = database.GetCollection<Job>(JobCollectionName);
-
-            var blFilter = Builders<Job>.Filter;
-            FilterDefinition<Job> filter = null;
-            if (!string.IsNullOrWhiteSpace(appID) && !string.IsNullOrWhiteSpace(userID))
-            {
-                filter = blFilter.Eq(j => j.AppID, appID) & blFilter.Eq(j => j.UserID, userID);
-            }
-            else if (!string.IsNullOrWhiteSpace(appID) && string.IsNullOrWhiteSpace(userID)) //appID not null, userID is null
-            {
-                filter = blFilter.Eq(j => j.AppID, appID);
-            }
-            else if (string.IsNullOrWhiteSpace(appID) && !string.IsNullOrWhiteSpace(userID)) //appID is null, userID not null
-            {
-                filter = blFilter.Eq(j => j.UserID, userID);
-            }
-
-            IAsyncCursor<Job> cursor = null;
-            if(filter == null)
-            {
-                cursor = await collection.FindAsync(p => true);
-            }
-            else
-            {
-                cursor = await collection.FindAsync(filter);
-            }
-
-            using (cursor)
-            {
-                while (await cursor.MoveNextAsync())
-                {
-                    var batch = cursor.Current;
-                    foreach (var job in batch)
-                    {
-                        GroupStatusCount(groupStatus, job);
-                    }
-
-                }
-
-            }
 
             return groupStatus.Values.ToList();
-        }
-
-        private static void GroupStatusCount(IDictionary<string, JobStatusCount> groupStatus, Job job)
-        {
-            var jsCount = new JobStatusCount();
-            if (job.Status == null)
-            {
-                if (groupStatus.ContainsKey("NullStatus"))
-                    jsCount = groupStatus["NullStatus"];
-                jsCount.Status = null;
-                jsCount.NullCount++;
-                groupStatus["NullStatus"] = jsCount;
-            }
-            else
-            {
-                if (groupStatus.ContainsKey(job.StatusLabel))
-                    jsCount = groupStatus[job.StatusLabel];
-                jsCount.Status = job.Status;
-                jsCount.Count++;
-                groupStatus[job.StatusLabel] = jsCount;
-            }
         }
         #endregion
 
@@ -587,15 +633,31 @@ namespace Shift.DataLayer
 
         private async Task<Job> GetJobAsync(string jobID, bool isSync)
         {
-            var collection = database.GetCollection<Job>(JobCollectionName);
-            if(isSync)
+            var query = (from j in client.CreateDocumentQuery<Job>(collectionLink)
+                            where j.JobID == jobID
+                            select j).AsDocumentQuery();
+
+            Job job = null;
+            while (query.HasMoreResults)
             {
-                return collection.Find(j => j.JobID == jobID).FirstOrDefault();
-            } 
-            else
-            {
-                return await collection.Find(j => j.JobID == jobID).FirstOrDefaultAsync();
+                FeedResponse<Job> rsp;
+                if (isSync)
+                {
+                    rsp = query.ExecuteNextAsync<Job>().GetAwaiter().GetResult();
+                }
+                else
+                {
+                    rsp = await query.ExecuteNextAsync<Job>();
+                }
+
+                if (rsp.Count != 0)
+                {
+                    job = rsp.SingleOrDefault();
+                    break;
+                }
             }
+
+            return job;
         }
 
         /// <summary>
@@ -615,15 +677,26 @@ namespace Shift.DataLayer
 
         private async Task<IReadOnlyCollection<Job>> GetJobsAsync(IEnumerable<string> jobIDs, bool isSync)
         {
-            var collection = database.GetCollection<Job>(JobCollectionName);
-            if (isSync)
+            var query = (from j in client.CreateDocumentQuery<Job>(collectionLink)
+                         where jobIDs.Contains(j.JobID)
+                         select j).AsDocumentQuery();
+
+            var jobList = new List<Job>();
+
+            while (query.HasMoreResults)
             {
-                return collection.Find(j => jobIDs.Contains(j.JobID)).ToList();
+                if (isSync)
+                {
+                    jobList.AddRange(query.ExecuteNextAsync<Job>().GetAwaiter().GetResult());
+                }
+                else
+                {
+                    jobList.AddRange(await query.ExecuteNextAsync<Job>());
+                }
+
             }
-            else
-            {
-                return await collection.Find(j => jobIDs.Contains(j.JobID)).ToListAsync();
-            }
+
+            return jobList;
         }
 
         /// <summary>
@@ -643,15 +716,31 @@ namespace Shift.DataLayer
 
         private async Task<JobView> GetJobViewAsync(string jobID, bool isSync)
         {
-            var collection = database.GetCollection<JobView>(JobCollectionName);
-            if (isSync)
+            var query = (from j in client.CreateDocumentQuery<JobView>(collectionLink)
+                         where j.JobID == jobID
+                         select j).AsDocumentQuery();
+
+            JobView jobView = null;
+            while (query.HasMoreResults)
             {
-                return collection.Find(j => j.JobID == jobID).FirstOrDefault();
+                FeedResponse<JobView> rsp;
+                if (isSync)
+                {
+                    rsp = query.ExecuteNextAsync<JobView>().GetAwaiter().GetResult();
+                }
+                else
+                {
+                    rsp = await query.ExecuteNextAsync<JobView>();
+                }
+
+                if (rsp.Count != 0)
+                {
+                    jobView = rsp.SingleOrDefault();
+                    break;
+                }
             }
-            else
-            {
-                return await collection.Find(j => j.JobID == jobID).FirstOrDefaultAsync(); 
-            }
+
+            return jobView;
         }
 
         /// <summary>
@@ -671,15 +760,26 @@ namespace Shift.DataLayer
 
         private async Task<IReadOnlyCollection<Job>> GetNonRunningJobsByIDsAsync(IEnumerable<string> jobIDs, bool isSync)
         {
-            var collection = database.GetCollection<Job>(JobCollectionName);
-            if (isSync)
+            var query = (from j in client.CreateDocumentQuery<Job>(collectionLink)
+                         where jobIDs.Contains(j.JobID) && j.Status == null
+                         select j).AsDocumentQuery();
+
+            var jobList = new List<Job>();
+
+            while (query.HasMoreResults)
             {
-                return collection.Find(j => jobIDs.Contains(j.JobID) && j.Status == null).ToList();
+                if (isSync)
+                {
+                    jobList.AddRange(query.ExecuteNextAsync<Job>().GetAwaiter().GetResult());
+                }
+                else
+                {
+                    jobList.AddRange(await query.ExecuteNextAsync<Job>());
+                }
+
             }
-            else
-            {
-                return await collection.Find(j => jobIDs.Contains(j.JobID) && j.Status == null).ToListAsync();
-            }
+
+            return jobList;
         }
 
         /// <summary>
@@ -700,15 +800,29 @@ namespace Shift.DataLayer
 
         private async Task<IReadOnlyCollection<string>> GetJobIdsByProcessAndCommandAsync(string processID, string command, bool isSync)
         {
-            var collection = database.GetCollection<Job>(JobCollectionName);
-            var projection = Builders<Job>.Projection.Include(j => j.JobID);
 
-            var query = collection.Find(j => (j.ProcessID == processID || j.ProcessID == null) && j.Command == command)
-                .Project<Job>(projection);
-            var queryResult = isSync ? query.ToList() : await query.ToListAsync();
+            //var query = collection.Find(j => (j.ProcessID == processID || j.ProcessID == null) && j.Command == command)
 
-            var result = queryResult.Select(p => p.JobID).ToList();
-            return result;
+            var query = (from j in client.CreateDocumentQuery<Job>(collectionLink)
+                         where (j.ProcessID == processID || j.ProcessID == null) && j.Command == command
+                         select j.JobID).AsDocumentQuery();
+
+            var jobIDs = new List<string>();
+
+            while (query.HasMoreResults)
+            {
+                if (isSync)
+                {
+                    jobIDs.AddRange(query.ExecuteNextAsync<string>().GetAwaiter().GetResult());
+                }
+                else
+                {
+                    jobIDs.AddRange(await query.ExecuteNextAsync<string>());
+                }
+
+            }
+
+            return jobIDs;
         }
 
         /// <summary>
@@ -729,16 +843,27 @@ namespace Shift.DataLayer
 
         private async Task<IReadOnlyCollection<Job>> GetJobsByProcessAndStatusAsync(string processID, JobStatus status, bool isSync)
         {
-            var collection = database.GetCollection<Job>(JobCollectionName);
-            List<Job> jobList = new List<Job>();
-            if (isSync)
-                jobList = collection.Find(j => j.ProcessID == processID && j.Status == status).ToList();
-            else
-            {
-                jobList = await collection.Find(j => j.ProcessID == processID && j.Status == status).ToListAsync();
-            }
-            return jobList;
+                //jobList = collection.Find(j => j.ProcessID == processID && j.Status == status).ToList();
 
+            var query = (from j in client.CreateDocumentQuery<Job>(collectionLink)
+                         where j.ProcessID == processID && j.Status == status
+                         select j).AsDocumentQuery();
+
+            var jobList = new List<Job>();
+
+            while (query.HasMoreResults)
+            {
+                if (isSync)
+                {
+                    jobList.AddRange(query.ExecuteNextAsync<Job>().GetAwaiter().GetResult());
+                }
+                else
+                {
+                    jobList.AddRange(await query.ExecuteNextAsync<Job>());
+                }
+            }
+
+            return jobList;
         }
 
         /// <summary>
@@ -759,21 +884,68 @@ namespace Shift.DataLayer
 
         private async Task<JobViewList> GetJobViewsAsync(int? pageIndex, int? pageSize, bool isSync)
         {
-            var result = new List<JobView>();
-
             pageIndex = pageIndex == null || pageIndex == 0 ? 1 : pageIndex; //default to 1
             pageSize = pageSize == null || pageSize == 0 ? 10 : pageSize; //default to 10
-            var offset = (pageIndex.Value - 1) * pageSize.Value;
 
-            var collection = database.GetCollection<JobView>(JobCollectionName);
-            var query = collection.Find(j => true).SortBy(j => j.Created).SortBy(j => j.JobID);
+            //var offset = (pageIndex.Value - 1) * pageSize.Value;
 
-            var totalTask = isSync ? query.Count() : await query.CountAsync();
-            var itemsTask = isSync ? query.Skip(offset).Limit(pageSize).ToList() : await query.Skip(offset).Limit(pageSize).ToListAsync();
+            //var collection = database.GetCollection<JobView>(JobCollectionName);
+            //var query = collection.Find(j => true).SortBy(j => j.Created).SortBy(j => j.JobID);
+
+            //var totalTask = isSync ? query.Count() : await query.CountAsync();
+            //var itemsTask = isSync ? query.Skip(offset).Limit(pageSize).ToList() : await query.Skip(offset).Limit(pageSize).ToListAsync();
 
             var jobViewList = new JobViewList();
-            jobViewList.Total = totalTask;
-            jobViewList.Items = itemsTask;
+
+            //Total count
+            var sql = @"SELECT VALUE COUNT(1) 
+                        FROM Jobs j ";
+            var query = client.CreateDocumentQuery<long>(collectionLink, sql).AsDocumentQuery();
+            while (query.HasMoreResults)
+            {
+                FeedResponse<long> rsp;
+                if (isSync)
+                {
+                    rsp = query.ExecuteNextAsync<long>().GetAwaiter().GetResult();
+                }
+                else
+                {
+                    rsp = await query.ExecuteNextAsync<long>();
+                }
+                if (rsp.Count != 0)
+                {
+                    jobViewList.Total = rsp.SingleOrDefault();
+                    break;
+                }
+            }
+
+            var options = new FeedOptions
+            {
+                MaxItemCount = pageSize
+            };
+
+            var query2 = (from j in client.CreateDocumentQuery<JobView>(collectionLink, options)
+                         select j).AsDocumentQuery();
+
+            var index = 1;
+            while (query2.HasMoreResults)
+            {
+                FeedResponse<JobView> rsp;
+                if (isSync)
+                {
+                    rsp = query2.ExecuteNextAsync<JobView>().GetAwaiter().GetResult();
+                }
+                else
+                {
+                    rsp = await query2.ExecuteNextAsync<JobView>();
+                }
+
+                if (index == pageIndex)
+                {
+                    jobViewList.Items = rsp.AsList();
+                    break;
+                }
+            }
 
             return jobViewList;
         }
@@ -800,18 +972,23 @@ namespace Shift.DataLayer
         {
             var count = 0;
 
-            var collection = database.GetCollection<Job>(JobCollectionName);
-            var blFilter = Builders<Job>.Filter;
-            var filter = blFilter.Eq(j => j.JobID, jobID) & blFilter.Eq(j => j.ProcessID, processID);
-            var blUpdate = Builders<Job>.Update;
-            var listUpdate = new List<UpdateDefinition<Job>>();
-            listUpdate.Add(blUpdate.Set("Status", JobStatus.Running));
-            listUpdate.Add(blUpdate.Set("Start", DateTime.Now));
-            var update = blUpdate.Combine(listUpdate.ToArray());
+            var job = client.CreateDocumentQuery<Job>(collectionLink, new FeedOptions { MaxItemCount = -1 })
+                        .Where(j => j.JobID == jobID && j.ProcessID == processID)
+                        .SingleOrDefault();
+            if (job != null)
+            {
+                job.Command = null;
+                job.Status = JobStatus.Running;
+                job.Start = DateTime.Now;
 
-            var result = isSync ? collection.UpdateOne(filter, update) : await collection.UpdateOneAsync(filter, update);
-            if (result.IsAcknowledged)
-                count = (int)result.ModifiedCount;
+                ResourceResponse<Document> response;
+                if (isSync)
+                    response = client.ReplaceDocumentAsync(collectionLink, job).GetAwaiter().GetResult();
+                else
+                    response = await client.ReplaceDocumentAsync(collectionLink, job);
+                if (response.StatusCode == System.Net.HttpStatusCode.OK)
+                    count++;
+            }
 
             return count;
         }
@@ -837,18 +1014,22 @@ namespace Shift.DataLayer
         {
             var count = 0;
 
-            var collection = database.GetCollection<Job>(JobCollectionName);
-            var blFilter = Builders<Job>.Filter;
-            var filter = blFilter.Eq(j => j.JobID, jobID) & blFilter.Eq(j => j.ProcessID, processID);
-            var blUpdate = Builders<Job>.Update;
-            var listUpdate = new List<UpdateDefinition<Job>>();
-            listUpdate.Add(blUpdate.Set("Status", JobStatus.Error));
-            listUpdate.Add(blUpdate.Set("Error", error));
-            var update = blUpdate.Combine(listUpdate.ToArray());
+            var job = client.CreateDocumentQuery<Job>(collectionLink, new FeedOptions { MaxItemCount = -1 })
+                            .Where(j => j.JobID == jobID && j.ProcessID == processID)
+                            .SingleOrDefault();
+            if (job != null)
+            {
+                job.Status = JobStatus.Error;
+                job.Error= error;
 
-            var result = isSync ? collection.UpdateOne(filter, update) : await collection.UpdateOneAsync(filter, update);
-            if (result.IsAcknowledged)
-                count = (int)result.ModifiedCount;
+                ResourceResponse<Document> response;
+                if (isSync)
+                    response = client.ReplaceDocumentAsync(collectionLink, job).GetAwaiter().GetResult();
+                else
+                    response = await client.ReplaceDocumentAsync(collectionLink, job);
+                if (response.StatusCode == System.Net.HttpStatusCode.OK)
+                    count++;
+            }
 
             return count;
         }
@@ -872,19 +1053,23 @@ namespace Shift.DataLayer
         private async Task<int> SetCompletedAsync(string processID, string jobID, bool isSync)
         {
             var count = 0;
-            var collection = database.GetCollection<Job>(JobCollectionName);
-            var blFilter = Builders<Job>.Filter;
-            var filter = blFilter.Eq(j => j.JobID, jobID) & blFilter.Eq(j => j.ProcessID, processID);
-            var blUpdate = Builders<Job>.Update;
-            var listUpdate = new List<UpdateDefinition<Job>>();
-            listUpdate.Add(blUpdate.Set("Command", ""));
-            listUpdate.Add(blUpdate.Set("Status", JobStatus.Completed));
-            listUpdate.Add(blUpdate.Set("End", DateTime.Now));
-            var update = blUpdate.Combine(listUpdate.ToArray());
+            var job = client.CreateDocumentQuery<Job>(collectionLink, new FeedOptions { MaxItemCount = -1 })
+                            .Where(j => j.JobID == jobID && j.ProcessID == processID)
+                            .SingleOrDefault();
+            if(job != null)
+            { 
+                job.Command = null;
+                job.Status = JobStatus.Completed;
+                job.End = DateTime.Now;
 
-            var result = isSync ? collection.UpdateOne(filter, update) : await collection.UpdateOneAsync(filter, update);
-            if (result.IsAcknowledged)
-                count = (int)result.ModifiedCount;
+                ResourceResponse<Document> response;
+                if (isSync)
+                    response = client.ReplaceDocumentAsync(collectionLink, job).GetAwaiter().GetResult();
+                else
+                    response = await client.ReplaceDocumentAsync(collectionLink, job);
+                if (response.StatusCode == System.Net.HttpStatusCode.OK)
+                    count++;
+            }
 
             return count;
         }
@@ -907,11 +1092,32 @@ namespace Shift.DataLayer
         private async Task<int> CountRunningJobsAsync(string processID, bool isSync)
         {
             var runningCount = 0;
- 
-            var collection = database.GetCollection<Job>(JobCollectionName);
-            var builder = Builders<Job>.Filter;
-            var filter = builder.Eq(j => j.ProcessID, processID) & builder.Eq(j => j.Status, JobStatus.Running);
-            runningCount = isSync ? (int)collection.Count(filter) : (int)await collection.CountAsync(filter);
+
+            //var collection = database.GetCollection<Job>(JobCollectionName);
+            //var builder = Builders<Job>.Filter;
+            //var filter = builder.Eq(j => j.ProcessID, processID) & builder.Eq(j => j.Status, JobStatus.Running);
+            //runningCount = isSync ? (int)collection.Count(filter) : (int)await collection.CountAsync(filter);
+            var sql = @"SELECT VALUE COUNT(1) 
+                        FROM Jobs j 
+                        WHERE j.Status = " + JobStatus.Running;
+            var query = client.CreateDocumentQuery<int>(collectionLink, sql).AsDocumentQuery();
+            while (query.HasMoreResults)
+            {
+                FeedResponse<int> rsp;
+                if (isSync)
+                {
+                    rsp = query.ExecuteNextAsync<int>().GetAwaiter().GetResult();
+                }
+                else
+                {
+                    rsp = await query.ExecuteNextAsync<int>();
+                }
+                if (rsp.Count != 0)
+                {
+                    runningCount = rsp.SingleOrDefault();
+                    break;
+                }
+            }
 
             return runningCount;
         }

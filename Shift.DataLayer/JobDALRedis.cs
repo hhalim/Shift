@@ -418,7 +418,6 @@ namespace Shift.DataLayer
                     job.Note = "";
 
                     //reset job
-                    var score = ((DateTimeOffset)job.Created).ToUnixTimeSeconds(); //reset score to created
                     job.ProcessID = "";
                     job.Command = "";
                     job.Status = null;

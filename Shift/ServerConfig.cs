@@ -14,6 +14,7 @@ namespace Shift
 
         [Required]
         public string DBConnectionString { get; set; }
+        public Dictionary<string, string> DBAuthKeys { get; set; }
 
         [Required]
         public string StorageMode { get; set; } = Shift.StorageMode.Redis; //mssql, redis, etc... 
