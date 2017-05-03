@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Shift.UnitTest", "Shift.Uni
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Shift.Cache.Redis", "Shift.Cache.Redis\Shift.Cache.Redis.csproj", "{F43A6D1C-5AEA-470B-8B33-D8ED2C156B86}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Shift.UnitTest.DataLayer", "Shift.UnitTest.DataLayer\Shift.UnitTest.DataLayer.csproj", "{F8123A64-1E0F-499E-A7DC-F384EA635A58}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -39,6 +41,10 @@ Global
 		{F43A6D1C-5AEA-470B-8B33-D8ED2C156B86}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F43A6D1C-5AEA-470B-8B33-D8ED2C156B86}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F43A6D1C-5AEA-470B-8B33-D8ED2C156B86}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F8123A64-1E0F-499E-A7DC-F384EA635A58}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F8123A64-1E0F-499E-A7DC-F384EA635A58}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F8123A64-1E0F-499E-A7DC-F384EA635A58}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F8123A64-1E0F-499E-A7DC-F384EA635A58}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

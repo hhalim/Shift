@@ -3,14 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-using System.Data.SqlClient;
 using System.Linq.Expressions;
 
 using Newtonsoft.Json;
 using Shift.Entities;
 using StackExchange.Redis;
-
-using Dapper;
 
 namespace Shift.DataLayer
 {

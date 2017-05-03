@@ -5,11 +5,11 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("Shift.UnitTest")]
+[assembly: AssemblyTitle("Shift.UnitTest.DataLayer")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("Shift.UnitTest")]
+[assembly: AssemblyProduct("Shift.UnitTest.DataLayer")]
 [assembly: AssemblyCopyright("Copyright ©  2017")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
@@ -20,7 +20,7 @@ using System.Runtime.InteropServices;
 [assembly: ComVisible(false)]
 
 // The following GUID is for the ID of the typelib if this project is exposed to COM
-[assembly: Guid("e81d6be9-b538-4b4e-9209-90e4911bb69e")]
+[assembly: Guid("f8123a64-1e0f-499e-a7dc-f384ea635a58")]
 
 // Version information for an assembly consists of the following four values:
 //

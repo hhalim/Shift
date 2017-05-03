@@ -2,13 +2,10 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-
-using System.Data.SqlClient;
 using System.Linq.Expressions;
 
 using Newtonsoft.Json;
 using Shift.Entities;
-using Dapper;
 
 using MongoDB.Driver;
 using MongoDB.Bson.Serialization;
@@ -976,7 +973,10 @@ namespace Shift.DataLayer
                 {
                     //just mark error, don't stop
                     var error = job.Error + " ClaimJobsToRun error: " + exc.ToString();
-                    SetError(processID, job.JobID, error); //set error in storage
+                    if (isSync)
+                        SetError(processID, job.JobID, error);
+                    else
+                        await SetErrorAsync(processID, job.JobID, error);
                     job.Status = JobStatus.Error;
                     job.Error = error;
                     continue;
