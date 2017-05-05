@@ -763,14 +763,15 @@ namespace Shift.DataLayer
             var offset = (pageIndex.Value - 1) * pageSize.Value;
 
             var collection = database.GetCollection<JobView>(JobCollectionName);
-            var query = collection.Find(j => true).SortBy(j => j.Created).SortBy(j => j.JobID);
 
-            var totalTask = isSync ? query.Count() : await query.CountAsync();
-            var itemsTask = isSync ? query.Skip(offset).Limit(pageSize).ToList() : await query.Skip(offset).Limit(pageSize).ToListAsync();
+            var totalTask = isSync ? collection.Count(new BsonDocument()) : await collection.CountAsync(new BsonDocument());
+
+            var query = collection.Find(j => true).SortBy(j => j.Created).SortBy(j => j.JobID);
+            var items = isSync ? query.Skip(offset).Limit(pageSize).ToList() : await query.Skip(offset).Limit(pageSize).ToListAsync();
 
             var jobViewList = new JobViewList();
             jobViewList.Total = totalTask;
-            jobViewList.Items = itemsTask;
+            jobViewList.Items = items;
 
             return jobViewList;
         }

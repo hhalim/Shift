@@ -87,9 +87,10 @@ namespace Shift.UnitTest.DataLayer
             job = await SetJobAsync(job);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job.JobID));
 
-            await DeleteAsync(24, new List<JobStatus?> { null });
+            var count = await DeleteAsync(24, new List<JobStatus?> { null });
             var outJob = await GetJobAsync(job.JobID);
 
+            Assert.IsTrue(count > 0);
             Assert.IsNull(outJob);
         }
 
@@ -112,9 +113,12 @@ namespace Shift.UnitTest.DataLayer
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job.JobID));
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job2.JobID));
 
-            await DeleteAsync(24, new List<JobStatus?> { JobStatus.Error, JobStatus.Completed });
+            var count = await DeleteAsync(24, new List<JobStatus?> { JobStatus.Error, JobStatus.Completed });
+            Assert.IsTrue(count > 0);
+
             var outJob = await GetJobAsync(job.JobID);
             Assert.IsNull(outJob);
+
             var outJob2 = await GetJobAsync(job2.JobID);
             Assert.IsNull(outJob2);
         }

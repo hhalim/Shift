@@ -582,7 +582,7 @@ namespace Shift.DataLayer
         {
             var count = 0;
             var pastDate = DateTime.Now.AddHours(-hours);
-            var whereQuery = string.Format("(j.Created != null AND j.Created < \"{0}\")", pastDate.ToString("o"));
+            var whereQuery = string.Format("(j.Created != null AND j.Created < '{0}')", pastDate.ToString("o"));
 
             //build where status
             if (statusList != null)
@@ -632,7 +632,7 @@ namespace Shift.DataLayer
                     response = Client.DeleteDocumentAsync(singleLink).GetAwaiter().GetResult();
                 else
                     response = await Client.DeleteDocumentAsync(singleLink);
-                if (response.StatusCode == System.Net.HttpStatusCode.OK)
+                if (response.StatusCode == System.Net.HttpStatusCode.NoContent)
                     count++;
             }
 
@@ -947,7 +947,7 @@ namespace Shift.DataLayer
             //Total count
             var sql = @"SELECT VALUE COUNT(1) 
                         FROM Jobs j 
-                        ORDER BY j.Created";
+                        ";
             var query = Client.CreateDocumentQuery<long>(CollectionLink, sql, new FeedOptions { MaxItemCount = -1 }).AsDocumentQuery();
             while (query.HasMoreResults)
             {
@@ -1171,7 +1171,7 @@ namespace Shift.DataLayer
 
             var sql = @"SELECT VALUE COUNT(1) 
                         FROM Jobs j 
-                        WHERE j.ProcessID = """ + processID  + "\" AND j.Status = " + JobStatus.Running;
+                        WHERE j.ProcessID = '" + processID  + "' AND j.Status = " + JobStatus.Running;
 
             var query = Client.CreateDocumentQuery<int>(CollectionLink, sql, new FeedOptions { MaxItemCount = -1 }).AsDocumentQuery();
             while (query.HasMoreResults)
