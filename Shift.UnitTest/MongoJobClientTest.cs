@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Text;
 using System.Collections.Generic;
+using System.Configuration;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Shift.Entities;
 
@@ -10,13 +11,15 @@ namespace Shift.UnitTest
     public class MongoJobClientTest
     {
         JobClient jobClient;
-        const string appID = "TestAppID";
+        private const string AppID = "TestAppID";
 
         public MongoJobClientTest()
         {
+            var appSettingsReader = new AppSettingsReader();
+
             //Configure storage connection
             var config = new ClientConfig();
-            config.DBConnectionString = "mongodb://localhost";
+            config.DBConnectionString = appSettingsReader.GetValue("MongoDBConnectionString", typeof(string)) as string;
             config.StorageMode = "mongo";
             jobClient = new JobClient(config);
         }
@@ -32,7 +35,7 @@ namespace Shift.UnitTest
         [TestMethod]
         public void GetJobValidTest()
         {
-            var jobID = jobClient.Add(appID, () => Console.WriteLine("Hello Test"));
+            var jobID = jobClient.Add(AppID, () => Console.WriteLine("Hello Test"));
             var job = jobClient.GetJob(jobID);
             jobClient.DeleteJobs(new List<string>() { jobID });
 
@@ -54,25 +57,25 @@ namespace Shift.UnitTest
         [TestMethod]
         public void AddJobTest2()
         {
-            var jobID = jobClient.Add(appID, () => Console.WriteLine("Hello Test"));
+            var jobID = jobClient.Add(AppID, () => Console.WriteLine("Hello Test"));
             var job = jobClient.GetJob(jobID);
             jobClient.DeleteJobs(new List<string>() { jobID });
 
             Assert.IsNotNull(job);
             Assert.AreEqual(jobID, job.JobID);
-            Assert.AreEqual(appID, job.AppID);
+            Assert.AreEqual(AppID, job.AppID);
         }
 
         [TestMethod]
         public void AddJobTest3()
         {
-            var jobID = jobClient.Add(appID, "-123", "TestJobType", () => Console.WriteLine("Hello Test"));
+            var jobID = jobClient.Add(AppID, "-123", "TestJobType", () => Console.WriteLine("Hello Test"));
             var job = jobClient.GetJob(jobID);
             jobClient.DeleteJobs(new List<string>() { jobID });
 
             Assert.IsNotNull(job);
             Assert.AreEqual(jobID, job.JobID);
-            Assert.AreEqual(appID, job.AppID);
+            Assert.AreEqual(AppID, job.AppID);
             Assert.AreEqual("-123", job.UserID);
             Assert.AreEqual("TestJobType", job.JobType);
         }
@@ -80,13 +83,13 @@ namespace Shift.UnitTest
         [TestMethod]
         public void AddJobTest4()
         {
-            var jobID = jobClient.Add(appID, "-123", "TestJobType", "Test.JobName", () => Console.WriteLine("Hello Test"));
+            var jobID = jobClient.Add(AppID, "-123", "TestJobType", "Test.JobName", () => Console.WriteLine("Hello Test"));
             var job = jobClient.GetJob(jobID);
             jobClient.DeleteJobs(new List<string>() { jobID });
 
             Assert.IsNotNull(job);
             Assert.AreEqual(jobID, job.JobID);
-            Assert.AreEqual(appID, job.AppID);
+            Assert.AreEqual(AppID, job.AppID);
             Assert.AreEqual("-123", job.UserID);
             Assert.AreEqual("TestJobType", job.JobType);
             Assert.AreEqual("Test.JobName", job.JobName);
@@ -95,7 +98,7 @@ namespace Shift.UnitTest
         [TestMethod]
         public void UpdateJobTest1()
         {
-            var jobID = jobClient.Add(appID, () => Console.WriteLine("Hello Test"));
+            var jobID = jobClient.Add(AppID, () => Console.WriteLine("Hello Test"));
             jobClient.Update(jobID, () => Console.WriteLine("Hello Test Updated"));
             var job = jobClient.GetJob(jobID);
             jobClient.DeleteJobs(new List<string>() { jobID });
@@ -107,7 +110,7 @@ namespace Shift.UnitTest
         [TestMethod]
         public void UpdateJobTest2()
         {
-            var jobID = jobClient.Add(appID, () => Console.WriteLine("Hello Test"));
+            var jobID = jobClient.Add(AppID, () => Console.WriteLine("Hello Test"));
             jobClient.Update(jobID, "TestAppIDUpdated", () => Console.WriteLine("Hello Test Updated"));
             var job = jobClient.GetJob(jobID);
             jobClient.DeleteJobs(new List<string>() { jobID });
@@ -120,7 +123,7 @@ namespace Shift.UnitTest
         [TestMethod]
         public void UpdateJobTest3()
         {
-            var jobID = jobClient.Add(appID, "-123", "TestJobType", "Test.JobName", () => Console.WriteLine("Hello Test"));
+            var jobID = jobClient.Add(AppID, "-123", "TestJobType", "Test.JobName", () => Console.WriteLine("Hello Test"));
             jobClient.Update(jobID, "TestAppIDUpdated", "-222", "TestJobTypeUpdated", "Test.JobNameUpdated", () => Console.WriteLine("Hello Test Updated"));
             var job = jobClient.GetJob(jobID);
             jobClient.DeleteJobs(new List<string>() { jobID });
@@ -136,7 +139,7 @@ namespace Shift.UnitTest
         [TestMethod]
         public void SetCommandStopTest()
         {
-            var jobID = jobClient.Add(appID, () => Console.WriteLine("Hello Test"));
+            var jobID = jobClient.Add(AppID, () => Console.WriteLine("Hello Test"));
             jobClient.SetCommandStop(new List<string> { jobID });
             var job = jobClient.GetJob(jobID);
             jobClient.DeleteJobs(new List<string>() { jobID });
@@ -148,7 +151,7 @@ namespace Shift.UnitTest
         [TestMethod]
         public void SetCommandRunNowTest()
         {
-            var jobID = jobClient.Add(appID, () => Console.WriteLine("Hello Test"));
+            var jobID = jobClient.Add(AppID, () => Console.WriteLine("Hello Test"));
             jobClient.SetCommandRunNow(new List<string> { jobID });
             var job = jobClient.GetJob(jobID);
             jobClient.DeleteJobs(new List<string>() { jobID });
@@ -160,7 +163,7 @@ namespace Shift.UnitTest
         [TestMethod]
         public void GetJobViewTest()
         {
-            var jobID = jobClient.Add(appID, () => Console.WriteLine("Hello Test"));
+            var jobID = jobClient.Add(AppID, () => Console.WriteLine("Hello Test"));
             var jobView = jobClient.GetJobView(jobID);
             jobClient.DeleteJobs(new List<string>() { jobID });
 
@@ -172,8 +175,8 @@ namespace Shift.UnitTest
         [TestMethod]
         public void GetJobViewsTest()
         {
-            var jobID = jobClient.Add(appID, () => Console.WriteLine("Hello Test"));
-            var jobID2 = jobClient.Add(appID, () => Console.WriteLine("Hello Test2"));
+            var jobID = jobClient.Add(AppID, () => Console.WriteLine("Hello Test"));
+            var jobID2 = jobClient.Add(AppID, () => Console.WriteLine("Hello Test2"));
             var jobViews = jobClient.GetJobViews(0, 10);
             jobClient.DeleteJobs(new List<string>() { jobID, jobID2 });
 
@@ -187,7 +190,7 @@ namespace Shift.UnitTest
         [TestMethod]
         public void ResetJobsTest()
         {
-            var jobID = jobClient.Add(appID, () => Console.WriteLine("Hello Test"));
+            var jobID = jobClient.Add(AppID, () => Console.WriteLine("Hello Test"));
             jobClient.SetCommandStop(new List<string> { jobID });
             var job = jobClient.GetJob(jobID);
             Assert.IsNotNull(job);
@@ -206,7 +209,7 @@ namespace Shift.UnitTest
         [TestMethod]
         public void DeleteJobsTest()
         {
-            var jobID = jobClient.Add(appID, () => Console.WriteLine("Hello Test"));
+            var jobID = jobClient.Add(AppID, () => Console.WriteLine("Hello Test"));
             var job = jobClient.GetJob(jobID);
             Assert.IsNotNull(job); //ensure it exists
 
@@ -220,8 +223,8 @@ namespace Shift.UnitTest
         [TestMethod]
         public void GetJobStatusCountTest()
         {
-            var jobID = jobClient.Add(appID, () => Console.WriteLine("Hello Test"));
-            var statusCount = jobClient.GetJobStatusCount(appID, null);
+            var jobID = jobClient.Add(AppID, () => Console.WriteLine("Hello Test"));
+            var statusCount = jobClient.GetJobStatusCount(AppID, null);
             jobClient.DeleteJobs(new List<string> { jobID });
 
             Assert.IsNotNull(statusCount); 
@@ -231,7 +234,7 @@ namespace Shift.UnitTest
         [TestMethod]
         public void GetProgressTest()
         {
-            var jobID = jobClient.Add(appID, () => Console.WriteLine("Hello Test"));
+            var jobID = jobClient.Add(AppID, () => Console.WriteLine("Hello Test"));
             var progress = jobClient.GetProgress(jobID);
             jobClient.DeleteJobs(new List<string> { jobID });
 
@@ -243,7 +246,7 @@ namespace Shift.UnitTest
         [TestMethod]
         public void GetCachedProgressTest()
         {
-            var jobID = jobClient.Add(appID, () => Console.WriteLine("Hello Test"));
+            var jobID = jobClient.Add(AppID, () => Console.WriteLine("Hello Test"));
             var progress = jobClient.GetCachedProgress(jobID);
             jobClient.DeleteJobs(new List<string> { jobID });
 

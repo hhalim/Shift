@@ -2,7 +2,7 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Threading;
 using System.Collections.Generic;
-
+using System.Configuration;
 using Autofac;
 using Autofac.Features.ResolveAnything;
 
@@ -16,20 +16,22 @@ namespace Shift.UnitTest
     {
         JobClient jobClient;
         JobServer jobServer;
-        const string appID = "TestAppID";
+        private const string AppID = "TestAppID";
 
         public SqlJobServerAsyncTest()
         {
+            var appSettingsReader = new AppSettingsReader();
+
             //Configure storage connection
             var clientConfig = new ClientConfig();
-            clientConfig.DBConnectionString = "Data Source=localhost\\SQL2014;Initial Catalog=ShiftJobsDB;Integrated Security=SSPI;";
+            clientConfig.DBConnectionString = appSettingsReader.GetValue("MSSqlConnectionString", typeof(string)) as string;
             clientConfig.StorageMode = "mssql";
             jobClient = new JobClient(clientConfig);
 
             var serverConfig = new ServerConfig();
-            serverConfig.DBConnectionString = "Data Source=localhost\\SQL2014;Initial Catalog=ShiftJobsDB;Integrated Security=SSPI;";
+            serverConfig.DBConnectionString = appSettingsReader.GetValue("MSSqlConnectionString", typeof(string)) as string;
             serverConfig.StorageMode = "mssql";
-            serverConfig.ProcessID = "JobServerAsyncTest";
+            serverConfig.ProcessID = this.ToString();
             serverConfig.Workers = 1;
             serverConfig.MaxRunnableJobs = 1;
 
@@ -43,7 +45,7 @@ namespace Shift.UnitTest
         [TestMethod]
         public async Task RunJobsSelectedTest()
         {
-            var jobID = await jobClient.AddAsync(appID, () => Console.WriteLine("Hello Test"));
+            var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
             var job = await jobClient.GetJobAsync(jobID);
 
             Assert.IsNotNull(job);
@@ -62,7 +64,7 @@ namespace Shift.UnitTest
         [TestMethod]
         public async Task StopJobsNonRunningTest()
         {
-            var jobID = await jobClient.AddAsync(appID, () => Console.WriteLine("Hello Test"));
+            var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
             await jobClient.SetCommandStopAsync(new List<string> { jobID });
             var job = await jobClient.GetJobAsync(jobID);
 
@@ -83,7 +85,7 @@ namespace Shift.UnitTest
             var jobTest = new TestJob();
             var progress = new SynchronousProgress<ProgressInfo>(); 
             var token = (new CancellationTokenSource()).Token; 
-            var jobID = await jobClient.AddAsync(appID, () => jobTest.Start("Hello World", progress, token));
+            var jobID = await jobClient.AddAsync(AppID, () => jobTest.Start("Hello World", progress, token));
 
             //run job
             await jobServer.RunJobsAsync(new List<string> { jobID });
@@ -110,7 +112,7 @@ namespace Shift.UnitTest
             var jobTest = new TestJob();
             var progress = new SynchronousProgress<ProgressInfo>(); 
             var token = (new CancellationTokenSource()).Token; 
-            var jobID = await jobClient.AddAsync(appID, () => jobTest.Start("Hello World", progress, token));
+            var jobID = await jobClient.AddAsync(AppID, () => jobTest.Start("Hello World", progress, token));
 
             //run job
             await jobServer.RunJobsAsync(new List<string> { jobID });

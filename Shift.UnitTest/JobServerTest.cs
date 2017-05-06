@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Configuration;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Threading.Tasks;
 
@@ -7,6 +8,15 @@ namespace Shift.UnitTest
     [TestClass]
     public class JobServerTest
     {
+        private string connectionString;
+        private string processID;
+        public JobServerTest()
+        {
+            var appSettingsReader = new AppSettingsReader();
+            connectionString = appSettingsReader.GetValue("RedisConnectionString", typeof(string)) as string;
+            processID = this.ToString();
+        }
+
         [TestMethod]
         [ExpectedException(typeof(System.ArgumentNullException))]
         public void JobServerConfigNullTest()
@@ -20,8 +30,8 @@ namespace Shift.UnitTest
         {
             var config = new ServerConfig();
             config.StorageMode = "";
-            config.DBConnectionString = "localhost:6379";
-            config.ProcessID = "JobServerTest";
+            config.DBConnectionString = connectionString;
+            config.ProcessID = processID;
 
             var jobServer = new JobServer(config);
         }
@@ -32,7 +42,7 @@ namespace Shift.UnitTest
         {
             var config = new ServerConfig();
             config.StorageMode = "redis";
-            config.DBConnectionString = "localhost:6379";
+            config.DBConnectionString = connectionString;
             config.ProcessID = "";
 
             var jobServer = new JobServer(config);
@@ -45,7 +55,7 @@ namespace Shift.UnitTest
             var config = new ServerConfig();
             config.StorageMode = "redis";
             config.DBConnectionString = "";
-            config.ProcessID = "JobServerTest";
+            config.ProcessID = processID;
 
             var jobServer = new JobServer(config);
         }
@@ -56,8 +66,8 @@ namespace Shift.UnitTest
         {
             var config = new ServerConfig();
             config.StorageMode = "redis";
-            config.DBConnectionString = "localhost:6379";
-            config.ProcessID = "JobServerTest";
+            config.DBConnectionString = connectionString;
+            config.ProcessID = processID;
             config.UseCache = true;
             config.CacheConfigurationString = "";
 
@@ -70,8 +80,8 @@ namespace Shift.UnitTest
         {
             var config = new ServerConfig();
             config.StorageMode = "redis";
-            config.DBConnectionString = "localhost:6379";
-            config.ProcessID = "JobServerTest";
+            config.DBConnectionString = connectionString;
+            config.ProcessID = processID;
             config.MaxRunnableJobs = 0;
 
             var jobServer = new JobServer(config);
@@ -83,8 +93,8 @@ namespace Shift.UnitTest
         {
             var config = new ServerConfig();
             config.StorageMode = "redis";
-            config.DBConnectionString = "localhost:6379";
-            config.ProcessID = "JobServerTest";
+            config.DBConnectionString = connectionString;
+            config.ProcessID = processID;
             config.MaxRunnableJobs = 1;
 
             var jobServer = new JobServer(config);
@@ -97,8 +107,8 @@ namespace Shift.UnitTest
         {
             var config = new ServerConfig();
             config.StorageMode = "redis";
-            config.DBConnectionString = "localhost:6379";
-            config.ProcessID = "JobServerTest";
+            config.DBConnectionString = connectionString;
+            config.ProcessID = processID;
             config.MaxRunnableJobs = 1;
 
             var jobServer = new JobServer(config);
@@ -111,8 +121,8 @@ namespace Shift.UnitTest
         {
             var config = new ServerConfig();
             config.StorageMode = "redis";
-            config.DBConnectionString = "localhost:6379";
-            config.ProcessID = "JobServerTest";
+            config.DBConnectionString = connectionString;
+            config.ProcessID = processID;
             config.MaxRunnableJobs = 1;
             config.ForceStopServer = true;
             config.StopServerDelay = 1000;
@@ -127,8 +137,8 @@ namespace Shift.UnitTest
         {
             var config = new ServerConfig();
             config.StorageMode = "redis";
-            config.DBConnectionString = "localhost:6379";
-            config.ProcessID = "JobServerTest";
+            config.DBConnectionString = connectionString;
+            config.ProcessID = processID;
             config.MaxRunnableJobs = 1;
             config.ForceStopServer = true;
             config.StopServerDelay = 1000;
@@ -143,8 +153,8 @@ namespace Shift.UnitTest
         {
             var config = new ServerConfig();
             config.StorageMode = "redis";
-            config.DBConnectionString = "localhost:6379";
-            config.ProcessID = "JobServerTest";
+            config.DBConnectionString = connectionString;
+            config.ProcessID = processID;
             config.MaxRunnableJobs = 1;
             config.ForceStopServer = false;
             config.StopServerDelay = 1000;
@@ -160,8 +170,8 @@ namespace Shift.UnitTest
         {
             var config = new ServerConfig();
             config.StorageMode = "redis";
-            config.DBConnectionString = "localhost:6379";
-            config.ProcessID = "JobServerTest";
+            config.DBConnectionString = connectionString;
+            config.ProcessID = processID;
             config.MaxRunnableJobs = 1;
             config.ForceStopServer = false;
             config.StopServerDelay = 1000;

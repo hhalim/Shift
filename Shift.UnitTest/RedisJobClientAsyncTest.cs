@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Text;
 using System.Collections.Generic;
+using System.Configuration;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Shift.Entities;
 using System.Threading.Tasks;
@@ -11,13 +12,15 @@ namespace Shift.UnitTest
     public class RedisJobClientAsyncTest
     {
         JobClient jobClient;
-        const string appID = "TestAppID";
+        private const string AppID = "TestAppID";
 
         public RedisJobClientAsyncTest()
         {
+            var appSettingsReader = new AppSettingsReader();
+
             //Configure storage connection
             var config = new ClientConfig();
-            config.DBConnectionString = "localhost:6379";
+            config.DBConnectionString = appSettingsReader.GetValue("RedisConnectionString", typeof(string)) as string;
             config.StorageMode = "redis";
             jobClient = new JobClient(config);
         }
@@ -33,7 +36,7 @@ namespace Shift.UnitTest
         [TestMethod]
         public async Task GetJobAsyncValidTest()
         {
-            var jobID = await jobClient.AddAsync(appID, () => Console.WriteLine("Hello Test"));
+            var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
             var job = await jobClient.GetJobAsync(jobID);
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
 
@@ -55,25 +58,25 @@ namespace Shift.UnitTest
         [TestMethod]
         public async Task AddAsyncJobTest2()
         {
-            var jobID = await jobClient.AddAsync(appID, () => Console.WriteLine("Hello Test"));
+            var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
             var job = await jobClient.GetJobAsync(jobID);
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
 
             Assert.IsNotNull(job);
             Assert.AreEqual(jobID, job.JobID);
-            Assert.AreEqual(appID, job.AppID);
+            Assert.AreEqual(AppID, job.AppID);
         }
 
         [TestMethod]
         public async Task AddAsyncJobTest3()
         {
-            var jobID = await jobClient.AddAsync(appID, "-123", "TestJobType", () => Console.WriteLine("Hello Test"));
+            var jobID = await jobClient.AddAsync(AppID, "-123", "TestJobType", () => Console.WriteLine("Hello Test"));
             var job = await jobClient.GetJobAsync(jobID);
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
 
             Assert.IsNotNull(job);
             Assert.AreEqual(jobID, job.JobID);
-            Assert.AreEqual(appID, job.AppID);
+            Assert.AreEqual(AppID, job.AppID);
             Assert.AreEqual("-123", job.UserID);
             Assert.AreEqual("TestJobType", job.JobType);
         }
@@ -81,13 +84,13 @@ namespace Shift.UnitTest
         [TestMethod]
         public async Task AddAsyncJobTest4()
         {
-            var jobID = await jobClient.AddAsync(appID, "-123", "TestJobType", "Test.JobName", () => Console.WriteLine("Hello Test"));
+            var jobID = await jobClient.AddAsync(AppID, "-123", "TestJobType", "Test.JobName", () => Console.WriteLine("Hello Test"));
             var job = await jobClient.GetJobAsync(jobID);
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
 
             Assert.IsNotNull(job);
             Assert.AreEqual(jobID, job.JobID);
-            Assert.AreEqual(appID, job.AppID);
+            Assert.AreEqual(AppID, job.AppID);
             Assert.AreEqual("-123", job.UserID);
             Assert.AreEqual("TestJobType", job.JobType);
             Assert.AreEqual("Test.JobName", job.JobName);
@@ -96,7 +99,7 @@ namespace Shift.UnitTest
         [TestMethod]
         public async Task UpdateAsyncJobTest1()
         {
-            var jobID = await jobClient.AddAsync(appID, () => Console.WriteLine("Hello Test"));
+            var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
             await jobClient.UpdateAsync(jobID, () => Console.WriteLine("Hello Test Updated"));
             var job = await jobClient.GetJobAsync(jobID);
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
@@ -108,7 +111,7 @@ namespace Shift.UnitTest
         [TestMethod]
         public async Task UpdateAsyncJobTest2()
         {
-            var jobID = await jobClient.AddAsync(appID, () => Console.WriteLine("Hello Test"));
+            var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
             await jobClient.UpdateAsync(jobID, "TestAppIDUpdated", () => Console.WriteLine("Hello Test Updated"));
             var job = await jobClient.GetJobAsync(jobID);
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
@@ -121,7 +124,7 @@ namespace Shift.UnitTest
         [TestMethod]
         public async Task UpdateAsyncJobTest3()
         {
-            var jobID = await jobClient.AddAsync(appID, "-123", "TestJobType", "Test.JobName", () => Console.WriteLine("Hello Test"));
+            var jobID = await jobClient.AddAsync(AppID, "-123", "TestJobType", "Test.JobName", () => Console.WriteLine("Hello Test"));
             await jobClient.UpdateAsync(jobID, "TestAppIDUpdated", "-222", "TestJobTypeUpdated", "Test.JobNameUpdated", () => Console.WriteLine("Hello Test Updated"));
             var job = await jobClient.GetJobAsync(jobID);
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
@@ -137,7 +140,7 @@ namespace Shift.UnitTest
         [TestMethod]
         public async Task SetCommandStopAsyncTest()
         {
-            var jobID = await jobClient.AddAsync(appID, () => Console.WriteLine("Hello Test"));
+            var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
             await jobClient.SetCommandStopAsync(new List<string> { jobID });
             var job = await jobClient.GetJobAsync(jobID);
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
@@ -149,7 +152,7 @@ namespace Shift.UnitTest
         [TestMethod]
         public async Task SetCommandRunNowAsyncTest()
         {
-            var jobID = await jobClient.AddAsync(appID, () => Console.WriteLine("Hello Test"));
+            var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
             await jobClient.SetCommandRunNowAsync(new List<string> { jobID });
             var job = await jobClient.GetJobAsync(jobID);
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
@@ -161,7 +164,7 @@ namespace Shift.UnitTest
         [TestMethod]
         public async Task GetJobViewAsyncTest()
         {
-            var jobID = await jobClient.AddAsync(appID, () => Console.WriteLine("Hello Test"));
+            var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
             var jobView = await jobClient.GetJobViewAsync(jobID);
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
 
@@ -173,8 +176,8 @@ namespace Shift.UnitTest
         [TestMethod]
         public async Task GetJobViewsAsyncTest()
         {
-            var jobID = await jobClient.AddAsync(appID, () => Console.WriteLine("Hello Test"));
-            var jobID2 = await jobClient.AddAsync(appID, () => Console.WriteLine("Hello Test2"));
+            var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
+            var jobID2 = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test2"));
             var jobViews = await jobClient.GetJobViewsAsync(0, 10);
             await jobClient.DeleteJobsAsync(new List<string>() { jobID, jobID2 });
 
@@ -188,7 +191,7 @@ namespace Shift.UnitTest
         [TestMethod]
         public async Task ResetJobsAsyncTest()
         {
-            var jobID = await jobClient.AddAsync(appID, () => Console.WriteLine("Hello Test"));
+            var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
             await jobClient.SetCommandStopAsync(new List<string> { jobID });
             var job = await jobClient.GetJobAsync(jobID);
 
@@ -208,7 +211,7 @@ namespace Shift.UnitTest
         [TestMethod]
         public async Task DeleteJobsAsyncTest()
         {
-            var jobID = await jobClient.AddAsync(appID, () => Console.WriteLine("Hello Test"));
+            var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
             var job = await jobClient.GetJobAsync(jobID);
             Assert.IsNotNull(job); //ensure it exists
 
@@ -222,8 +225,8 @@ namespace Shift.UnitTest
         [TestMethod]
         public async Task GetJobStatusCountAsyncTest()
         {
-            var jobID = await jobClient.AddAsync(appID, () => Console.WriteLine("Hello Test"));
-            var statusCount = await jobClient.GetJobStatusCountAsync(appID, null);
+            var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
+            var statusCount = await jobClient.GetJobStatusCountAsync(AppID, null);
             await jobClient.DeleteJobsAsync(new List<string> { jobID });
 
             Assert.IsNotNull(statusCount); 
@@ -233,7 +236,7 @@ namespace Shift.UnitTest
         [TestMethod]
         public async Task GetProgressAsyncTest()
         {
-            var jobID = await jobClient.AddAsync(appID, () => Console.WriteLine("Hello Test"));
+            var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
             var progress = await jobClient.GetProgressAsync(jobID);
             await jobClient.DeleteJobsAsync(new List<string> { jobID });
 
@@ -245,7 +248,7 @@ namespace Shift.UnitTest
         [TestMethod]
         public async Task GetCachedProgressAsyncTest()
         {
-            var jobID = await jobClient.AddAsync(appID, () => Console.WriteLine("Hello Test"));
+            var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
             var progress = await jobClient.GetCachedProgressAsync(jobID);
             await jobClient.DeleteJobsAsync(new List<string> { jobID });
 

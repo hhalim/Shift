@@ -340,11 +340,10 @@ namespace Shift.DataLayer
 
         #region UnitTest Helper
         //Used by UnitTest for adding/setting jobs
-        protected async Task<JobView> SetJobViewAsync(JobView jobView)
+        protected Job SetJob(Job job)
         {
-            var response = await Client.UpsertDocumentAsync(CollectionLink, jobView);
-            jobView = (dynamic)response.Resource;
-            return jobView;
+            job = SetJobAsync(job).GetAwaiter().GetResult();
+            return job;
         }
 
         protected async Task<Job> SetJobAsync(Job job)
@@ -1171,7 +1170,7 @@ namespace Shift.DataLayer
 
             var sql = @"SELECT VALUE COUNT(1) 
                         FROM Jobs j 
-                        WHERE j.ProcessID = '" + processID  + "' AND j.Status = " + JobStatus.Running;
+                        WHERE j.ProcessID = '" + processID  + "' AND j.Status = " + (int)JobStatus.Running;
 
             var query = Client.CreateDocumentQuery<int>(CollectionLink, sql, new FeedOptions { MaxItemCount = -1 }).AsDocumentQuery();
             while (query.HasMoreResults)
@@ -1293,12 +1292,12 @@ namespace Shift.DataLayer
         /// </summary>
         /// <param name="maxNum">Maximum number to return</param>
         /// <returns>List of jobs</returns>
-        private IReadOnlyCollection<Job> GetJobsToRun(int maxNum)
+        protected IReadOnlyCollection<Job> GetJobsToRun(int maxNum)
         {
             return GetJobsToRunAsync(maxNum, true).GetAwaiter().GetResult();
         }
 
-        private Task<IReadOnlyCollection<Job>> GetJobsToRunAsync(int maxNum)
+        protected Task<IReadOnlyCollection<Job>> GetJobsToRunAsync(int maxNum)
         {
             return GetJobsToRunAsync(maxNum, false);
         }

@@ -5,6 +5,7 @@ using Autofac;
 using Autofac.Features.ResolveAnything;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Threading;
 
 namespace Shift.UnitTest
@@ -15,22 +16,23 @@ namespace Shift.UnitTest
         JobClient jobClient;
         JobServer jobServer;
         IJobDAL jobDAL;
-        const string appID = "TestAppID";
+        private const string AppID = "TestAppID";
 
         public CacheRedisTest()
         {
+            var appSettingsReader = new AppSettingsReader();
             //Configure storage connection
             var clientConfig = new ClientConfig();
-            clientConfig.DBConnectionString = "Data Source=localhost\\SQL2014;Initial Catalog=ShiftJobsDB;Integrated Security=SSPI;";
+            clientConfig.DBConnectionString = appSettingsReader.GetValue("MSSqlConnectionString", typeof(string)) as string;
             clientConfig.StorageMode = "mssql";
             jobClient = new JobClient(clientConfig);
 
             var serverConfig = new ServerConfig();
-            serverConfig.DBConnectionString = "Data Source=localhost\\SQL2014;Initial Catalog=ShiftJobsDB;Integrated Security=SSPI;";
+            serverConfig.DBConnectionString = appSettingsReader.GetValue("MSSqlConnectionString", typeof(string)) as string;
             serverConfig.StorageMode = "mssql";
             serverConfig.UseCache = true;
-            serverConfig.CacheConfigurationString = "localhost:6379";
-            serverConfig.ProcessID = "JobServerAsyncTest";
+            serverConfig.CacheConfigurationString = appSettingsReader.GetValue("RedisConnectionString", typeof(string)) as string; ;
+            serverConfig.ProcessID = this.ToString();
             serverConfig.Workers = 1;
             serverConfig.MaxRunnableJobs = 1;
 
@@ -65,7 +67,7 @@ namespace Shift.UnitTest
             var jobTest = new TestJob();
             var progress = new SynchronousProgress<ProgressInfo>();
             var token = (new CancellationTokenSource()).Token;
-            var jobID = jobClient.Add(appID, () => jobTest.Start("Hello World", progress, token));
+            var jobID = jobClient.Add(AppID, () => jobTest.Start("Hello World", progress, token));
 
             //run job
             jobServer.RunJobs(new List<string> { jobID });
@@ -88,7 +90,7 @@ namespace Shift.UnitTest
             var jobTest = new TestJob();
             var progress = new SynchronousProgress<ProgressInfo>();
             var token = (new CancellationTokenSource()).Token;
-            var jobID = await jobClient.AddAsync(appID, () => jobTest.Start("Hello World", progress, token));
+            var jobID = await jobClient.AddAsync(AppID, () => jobTest.Start("Hello World", progress, token));
 
             //run job
             await jobServer.RunJobsAsync(new List<string> { jobID });
@@ -111,7 +113,7 @@ namespace Shift.UnitTest
             var jobTest = new TestJob();
             var progress = new SynchronousProgress<ProgressInfo>();
             var token = (new CancellationTokenSource()).Token;
-            var jobID = jobClient.Add(appID, () => jobTest.Start("Hello World", progress, token));
+            var jobID = jobClient.Add(AppID, () => jobTest.Start("Hello World", progress, token));
 
             //run job
             jobServer.RunJobs(new List<string> { jobID });
@@ -134,7 +136,7 @@ namespace Shift.UnitTest
             var jobTest = new TestJob();
             var progress = new SynchronousProgress<ProgressInfo>();
             var token = (new CancellationTokenSource()).Token;
-            var jobID = await jobClient.AddAsync(appID, () => jobTest.Start("Hello World", progress, token));
+            var jobID = await jobClient.AddAsync(AppID, () => jobTest.Start("Hello World", progress, token));
 
             //run job
             await jobServer.RunJobsAsync(new List<string> { jobID });
@@ -157,7 +159,7 @@ namespace Shift.UnitTest
             var jobTest = new TestJob();
             var progress = new SynchronousProgress<ProgressInfo>();
             var token = (new CancellationTokenSource()).Token;
-            var jobID = await jobClient.AddAsync(appID, () => jobTest.Start("Hello World", progress, token));
+            var jobID = await jobClient.AddAsync(AppID, () => jobTest.Start("Hello World", progress, token));
 
             await jobDAL.SetCachedProgressAsync(jobID, 10, "Test Note", "Test Data");
             var jsProgress = await jobDAL.GetCachedProgressAsync(jobID);
@@ -176,7 +178,7 @@ namespace Shift.UnitTest
             var jobTest = new TestJob();
             var progress = new SynchronousProgress<ProgressInfo>();
             var token = (new CancellationTokenSource()).Token;
-            var jobID = await jobClient.AddAsync(appID, () => jobTest.Start("Hello World", progress, token));
+            var jobID = await jobClient.AddAsync(AppID, () => jobTest.Start("Hello World", progress, token));
 
             await jobDAL.SetCachedProgressErrorAsync(jobID, "Test Error");
             var jsProgress = await jobDAL.GetCachedProgressAsync(jobID);
@@ -194,7 +196,7 @@ namespace Shift.UnitTest
             var jobTest = new TestJob();
             var progress = new SynchronousProgress<ProgressInfo>();
             var token = (new CancellationTokenSource()).Token;
-            var jobID = await jobClient.AddAsync(appID, () => jobTest.Start("Hello World", progress, token));
+            var jobID = await jobClient.AddAsync(AppID, () => jobTest.Start("Hello World", progress, token));
 
             await jobDAL.SetCachedProgressAsync(jobID, 10, "Test Note", "Test Data");
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
@@ -210,8 +212,8 @@ namespace Shift.UnitTest
             var jobTest = new TestJob();
             var progress = new SynchronousProgress<ProgressInfo>();
             var token = (new CancellationTokenSource()).Token;
-            var jobID = await jobClient.AddAsync(appID, () => jobTest.Start("Hello World", progress, token));
-            var jobID2 = await jobClient.AddAsync(appID, () => jobTest.Start("Hello World", progress, token));
+            var jobID = await jobClient.AddAsync(AppID, () => jobTest.Start("Hello World", progress, token));
+            var jobID2 = await jobClient.AddAsync(AppID, () => jobTest.Start("Hello World", progress, token));
 
             await jobDAL.SetCachedProgressAsync(jobID, 10, "Test1 Note", "Test1 Data");
             await jobDAL.SetCachedProgressAsync(jobID2, 15, "Test2 Note", "Test2 Data");

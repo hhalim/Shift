@@ -2,7 +2,7 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Threading;
 using System.Collections.Generic;
-
+using System.Configuration;
 using Autofac;
 using Autofac.Features.ResolveAnything;
 
@@ -15,20 +15,22 @@ namespace Shift.UnitTest
     {
         JobClient jobClient;
         JobServer jobServer;
-        const string appID = "TestAppID";
+        private const string AppID = "TestAppID";
 
         public RedisJobServerTest()
         {
+            var appSettingsReader = new AppSettingsReader();
+
             //Configure storage connection
             var clientConfig = new ClientConfig();
-            clientConfig.DBConnectionString = "localhost:6379";
+            clientConfig.DBConnectionString = appSettingsReader.GetValue("RedisConnectionString", typeof(string)) as string;
             clientConfig.StorageMode = "redis";
             jobClient = new JobClient(clientConfig);
 
             var serverConfig = new ServerConfig();
-            serverConfig.DBConnectionString = "localhost:6379";
+            serverConfig.DBConnectionString = appSettingsReader.GetValue("RedisConnectionString", typeof(string)) as string;
             serverConfig.StorageMode = "redis";
-            serverConfig.ProcessID = "JobServerTest";
+            serverConfig.ProcessID = this.ToString();
             serverConfig.Workers = 1;
             serverConfig.MaxRunnableJobs = 1;
 
@@ -42,7 +44,7 @@ namespace Shift.UnitTest
         [TestMethod]
         public void RunJobsSelectedTest()
         {
-            var jobID = jobClient.Add(appID, () => Console.WriteLine("Hello Test"));
+            var jobID = jobClient.Add(AppID, () => Console.WriteLine("Hello Test"));
             var job = jobClient.GetJob(jobID);
 
             Assert.IsNotNull(job);
@@ -61,7 +63,7 @@ namespace Shift.UnitTest
         [TestMethod]
         public void StopJobsNonRunningTest()
         {
-            var jobID = jobClient.Add(appID, () => Console.WriteLine("Hello Test"));
+            var jobID = jobClient.Add(AppID, () => Console.WriteLine("Hello Test"));
             jobClient.SetCommandStop(new List<string> { jobID });
             var job = jobClient.GetJob(jobID);
 
@@ -82,7 +84,7 @@ namespace Shift.UnitTest
             var jobTest = new TestJob();
             var progress = new SynchronousProgress<ProgressInfo>(); 
             var token = (new CancellationTokenSource()).Token; 
-            var jobID = jobClient.Add(appID, () => jobTest.Start("Hello World", progress, token));
+            var jobID = jobClient.Add(AppID, () => jobTest.Start("Hello World", progress, token));
 
             //run job
             jobServer.RunJobs(new List<string> { jobID });
@@ -109,7 +111,7 @@ namespace Shift.UnitTest
             var jobTest = new TestJob();
             var progress = new SynchronousProgress<ProgressInfo>(); 
             var token = (new CancellationTokenSource()).Token; 
-            var jobID = jobClient.Add(appID, () => jobTest.Start("Hello World", progress, token));
+            var jobID = jobClient.Add(AppID, () => jobTest.Start("Hello World", progress, token));
 
             //run job
             jobServer.RunJobs(new List<string> { jobID });
