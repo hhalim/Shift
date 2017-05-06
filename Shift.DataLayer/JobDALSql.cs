@@ -1229,12 +1229,12 @@ namespace Shift.DataLayer
         /// </summary>
         /// <param name="maxNum">Maximum number to return</param>
         /// <returns>List of jobs</returns>
-        private IReadOnlyCollection<Job> GetJobsToRun(int maxNum)
+        protected IReadOnlyCollection<Job> GetJobsToRun(int maxNum)
         {
             return GetJobsToRunAsync(maxNum, true).GetAwaiter().GetResult();
         }
 
-        private Task<IReadOnlyCollection<Job>> GetJobsToRunAsync(int maxNum)
+        protected Task<IReadOnlyCollection<Job>> GetJobsToRunAsync(int maxNum)
         {
             return GetJobsToRunAsync(maxNum, false);
         }

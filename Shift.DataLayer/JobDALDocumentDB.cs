@@ -703,13 +703,91 @@ namespace Shift.DataLayer
             return GetJobStatusCountAsync(appID, userID).ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
-        public async Task<IReadOnlyCollection<JobStatusCount>> GetJobStatusCountAsync(string appID, string userID)
+        public Task<IReadOnlyCollection<JobStatusCount>> GetJobStatusCountAsync(string appID, string userID)
+        {
+            return GetJobStatusCountAsync(appID, userID, false);
+        }
+
+        private async Task<IReadOnlyCollection<JobStatusCount>> GetJobStatusCountAsync(string appID, string userID, bool isSync)
         {
             var groupStatus = new Dictionary<string, JobStatusCount>();
 
-            //TODO: COUNT STATUS
+            var sql = "";
+            if (!string.IsNullOrWhiteSpace(appID) && !string.IsNullOrWhiteSpace(userID))
+            {
+                sql = $@"
+                        SELECT *
+                        FROM Job j
+                        WHERE j.AppID = '{appID}' AND j.UserID = '{userID}'
+                        ";
+            }
+            else if (!string.IsNullOrWhiteSpace(appID) && string.IsNullOrWhiteSpace(userID)) //appID not null, userID is null
+            {
+                sql = $@"
+                        SELECT *
+                        FROM Job j
+                        WHERE j.AppID = '{appID}'
+                        ";
+            }
+            else if (string.IsNullOrWhiteSpace(appID) && !string.IsNullOrWhiteSpace(userID)) //appID is null, userID not null
+            {
+                //This works okay for single tenant/app, but for multi-tenant, there can be multiple UserID for the different apps
+                //Works okay for multi tenant apps with GUID for UserID
+                sql = $@"
+                        SELECT *
+                        FROM Job j
+                        WHERE j.UserID = '{userID}'
+                        ";
+            }
+            else
+            {
+                sql = $@"
+                        SELECT *
+                        FROM Job j
+                        ";
+            }
+
+            var query = Client.CreateDocumentQuery<Job>(CollectionLink, sql, new FeedOptions { MaxItemCount = -1 }).AsDocumentQuery();
+            while (query.HasMoreResults)
+            {
+                var jobList = new List<Job>(); //placed inside while to only grab a batch at a time, not accumulating entire jobs
+                if (isSync)
+                {
+                    jobList.AddRange(query.ExecuteNextAsync<Job>().GetAwaiter().GetResult());
+                }
+                else
+                {
+                    jobList.AddRange(await query.ExecuteNextAsync<Job>());
+                }
+
+                foreach (var job in jobList)
+                {
+                    GroupStatusCount(groupStatus, job);
+                }
+            }
 
             return groupStatus.Values.ToList();
+        }
+
+        private static void GroupStatusCount(IDictionary<string, JobStatusCount> groupStatus, Job job)
+        {
+            var jsCount = new JobStatusCount();
+            if (job.Status == null)
+            {
+                if (groupStatus.ContainsKey("NullStatus"))
+                    jsCount = groupStatus["NullStatus"];
+                jsCount.Status = null;
+                jsCount.NullCount++;
+                groupStatus["NullStatus"] = jsCount;
+            }
+            else
+            {
+                if (groupStatus.ContainsKey(job.StatusLabel))
+                    jsCount = groupStatus[job.StatusLabel];
+                jsCount.Status = job.Status;
+                jsCount.Count++;
+                groupStatus[job.StatusLabel] = jsCount;
+            }
         }
         #endregion
 

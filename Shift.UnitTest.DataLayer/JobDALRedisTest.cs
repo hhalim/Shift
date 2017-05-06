@@ -9,16 +9,16 @@ using System.Linq;
 namespace Shift.UnitTest.DataLayer
 {
     [TestClass]
-    public class JobDALDocumentDBTest : JobDALDocumentDB
+    public class JobDALRedisTest : JobDALRedis
     {
+
         private static AppSettingsReader appSettingsReader = new AppSettingsReader();
         private const string AppID = "TestAppID";
         private readonly string processID;
-        private static string connectionString = appSettingsReader.GetValue("DocumentDBUrl", typeof(string)) as string;
-        private static string authKey = appSettingsReader.GetValue("DocumentDBAuthKey", typeof(string)) as string;
+        private static string connectionString = appSettingsReader.GetValue("RedisConnectionString", typeof(string)) as string;
         private static string encryptionKey = "";
 
-        public JobDALDocumentDBTest() :  base(connectionString, encryptionKey, authKey)
+        public JobDALRedisTest() :  base(connectionString, encryptionKey)
         {
             processID = this.ToString();
         }
@@ -436,24 +436,22 @@ namespace Shift.UnitTest.DataLayer
             {
                 AppID = AppID,
                 Created = DateTime.Now,
-                Status = JobStatus.Running,
-                ProcessID = null
+                Status = null,
+                ProcessID = processID + "-other"
             };
             job = SetJob(job);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job.JobID));
 
+            SetToRunning(processID + "-other", job.JobID);
+
             var jobs = ClaimJobsToRun(processID, new List<Job> { job });
-            var outJob = GetJob(job.JobID);
 
             //set to stop before delete
-            job.Status = JobStatus.Stopped;
-            job = SetJob(job);
+            SetToStopped(new List<string> {job.JobID});
             Delete(new List<string> { job.JobID });
 
             var jobIDs = jobs.Select(j => j.JobID).ToList();
-            Assert.AreNotEqual(processID, outJob.ProcessID);
             Assert.IsTrue(!jobIDs.Contains(job.JobID));
-            Assert.IsTrue(jobs.Count == 0);
         }
 
         //Don't claim jobs already claimed by someone else

@@ -264,6 +264,51 @@ namespace Shift.DataLayer
         }
         #endregion
 
+        #region UnitTest Helper
+        //Used by UnitTest for adding/setting jobs
+        protected Job SetJob(Job job)
+        {
+            job = SetJobAsync(job).GetAwaiter().GetResult();
+            return job;
+        }
+
+        protected async Task<Job> SetJobAsync(Job job)
+        {
+            var trn = RedisDatabase.CreateTransaction();
+            var key = "";
+            if (string.IsNullOrWhiteSpace(job.JobID))
+            {
+                //Add it
+                var jobID = IncrementJobID();
+                job.JobID = jobID;
+                key = JobKeyPrefix + jobID;
+            }
+            else
+            {
+                //Update it
+                key = JobKeyPrefix + job.JobID;
+            }
+
+            //add into HashSet
+            var hashEntries = RedisHelpers.ToHashEntries(job);
+            trn.HashSetAsync(key, hashEntries);
+
+            //Add to job-sorted set
+            var index = trn.SortedSetAddAsync(JobSorted, key, Convert.ToDouble(job.JobID));
+
+            //Add to job-queue
+            var index2 = trn.SortedSetAddAsync(JobQueue, key, Convert.ToDouble(job.JobID));
+
+            //Add to job-created
+            var createdTS = job.Created != null ? ((DateTimeOffset) job.Created).ToUnixTimeSeconds() : ((DateTimeOffset)DateTime.Now).ToUnixTimeSeconds();
+            var index3 = trn.SortedSetAddAsync(JobCreated, key, createdTS);
+
+            await trn.ExecuteAsync();
+
+            return job;
+        }
+        #endregion
+
         #region Set Command field
         /// <summary>
         /// Flag jobs with 'stop' command. 
@@ -1210,6 +1255,7 @@ namespace Shift.DataLayer
                 try
                 {
                     var key = JobKeyPrefix + job.JobID;
+                    //TODO: Need to check if PRocessID == null && STatus == null before setting processID == processID
                     var result = isSync ? RedisDatabase.HashSet(key, JobFields.ProcessID, processID) : await RedisDatabase.HashSetAsync(key, JobFields.ProcessID, processID);
                 }
                 catch (Exception exc)
@@ -1238,12 +1284,12 @@ namespace Shift.DataLayer
         /// </summary>
         /// <param name="maxNum">Maximum number to return</param>
         /// <returns>List of jobs</returns>
-        private IReadOnlyCollection<Job> GetJobsToRun(int maxNum)
+        protected IReadOnlyCollection<Job> GetJobsToRun(int maxNum)
         {
             return GetJobsToRunAsync(maxNum, true).GetAwaiter().GetResult();
         }
 
-        private Task<IReadOnlyCollection<Job>> GetJobsToRunAsync(int maxNum)
+        protected Task<IReadOnlyCollection<Job>> GetJobsToRunAsync(int maxNum)
         {
             return GetJobsToRunAsync(maxNum, false);
         }

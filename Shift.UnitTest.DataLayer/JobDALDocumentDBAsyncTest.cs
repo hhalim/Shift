@@ -83,9 +83,11 @@ namespace Shift.UnitTest.DataLayer
         [TestMethod]
         public async Task DeleteAsyncOldJobsNotStarted()
         {
-            var job = new Job();
-            job.AppID = AppID;
-            job.Created = DateTime.Now.AddHours(-48);
+            var job = new Job
+            {
+                AppID = AppID,
+                Created = DateTime.Now.AddHours(-48)
+            };
             job = await SetJobAsync(job);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job.JobID));
 
@@ -643,5 +645,181 @@ namespace Shift.UnitTest.DataLayer
             Assert.AreEqual(data, progress.Data);
         }
 
+        [TestMethod]
+        public async Task GetJobStatusCountAsyncTest()
+        {
+            var userID = "UserIDTest";
+            var job1 = new Job
+            {
+                AppID = AppID,
+                UserID = userID,
+                Created = DateTime.Now,
+                Status = null
+            };
+            job1 = await SetJobAsync(job1);
+            Assert.IsTrue(!string.IsNullOrWhiteSpace(job1.JobID));
+
+            //status != null
+            var job2 = new Job
+            {
+                AppID = AppID,
+                UserID = userID,
+                Created = DateTime.Now,
+                Status = JobStatus.Stopped
+            };
+            job2 = await SetJobAsync(job2);
+            Assert.IsTrue(!string.IsNullOrWhiteSpace(job2.JobID));
+
+            var statusCounts = await GetJobStatusCountAsync(null, null);
+
+            await DeleteAsync(new List<string> { job1.JobID, job2.JobID });
+
+            var jobStatuses = statusCounts.Select(s => s.Status).ToList();
+            Assert.IsTrue(jobStatuses.Contains(null));
+            Assert.IsTrue(jobStatuses.Contains(JobStatus.Stopped));
+            Assert.IsTrue(statusCounts.Count >= 2);
+            foreach (var jobStatusCount in statusCounts)
+            {
+                if (jobStatusCount.Status == null)
+                {
+                    Assert.IsTrue(jobStatusCount.NullCount >= 1);
+                }
+                if (jobStatusCount.Status == JobStatus.Stopped)
+                {
+                    Assert.IsTrue(jobStatusCount.Count >= 1);
+                }
+            }
+        }
+
+        //Count by AppID and UserID
+        [TestMethod]
+        public async Task GetJobStatusCountAsyncTest2()
+        {
+            var userID = "UserIDTest";
+            var job1 = new Job
+            {
+                AppID = AppID,
+                UserID = userID,
+                Created = DateTime.Now,
+                Status = null
+            };
+            job1 = await SetJobAsync(job1);
+            Assert.IsTrue(!string.IsNullOrWhiteSpace(job1.JobID));
+
+            //status != null
+            var job2 = new Job
+            {
+                AppID = AppID,
+                UserID = userID,
+                Created = DateTime.Now,
+                Status = JobStatus.Stopped
+            };
+            job2 = await SetJobAsync(job2);
+            Assert.IsTrue(!string.IsNullOrWhiteSpace(job2.JobID));
+
+            var statusCounts = await GetJobStatusCountAsync(AppID, userID);
+
+            await DeleteAsync(new List<string> { job1.JobID, job2.JobID });
+
+            var jobStatuses = statusCounts.Select(s => s.Status).ToList();
+            Assert.IsTrue(jobStatuses.Contains(null));
+            Assert.IsTrue(jobStatuses.Contains(JobStatus.Stopped));
+            Assert.IsTrue(statusCounts.Count >= 2);
+            foreach (var jobStatusCount in statusCounts)
+            {
+                if (jobStatusCount.Status == null)
+                {
+                    Assert.IsTrue(jobStatusCount.NullCount >= 1);
+                }
+                if (jobStatusCount.Status == JobStatus.Stopped)
+                {
+                    Assert.IsTrue(jobStatusCount.Count >= 1);
+                }
+            }
+        }
+
+        //Count by AppID 
+        [TestMethod]
+        public async Task GetJobStatusCountAsyncTest3()
+        {
+            var userID = "UserIDTest";
+            var job1 = new Job
+            {
+                AppID = AppID + "-otherAppID",
+                UserID = userID,
+                Created = DateTime.Now,
+                Status = null
+            };
+            job1 = await SetJobAsync(job1);
+            Assert.IsTrue(!string.IsNullOrWhiteSpace(job1.JobID));
+
+            //status != null
+            var job2 = new Job
+            {
+                AppID = AppID,
+                UserID = userID,
+                Created = DateTime.Now,
+                Status = JobStatus.Stopped
+            };
+            job2 = await SetJobAsync(job2);
+            Assert.IsTrue(!string.IsNullOrWhiteSpace(job2.JobID));
+
+            var statusCounts = await GetJobStatusCountAsync(AppID, null);
+
+            await DeleteAsync(new List<string> { job1.JobID, job2.JobID });
+
+            var jobStatuses = statusCounts.Select(s => s.Status).ToList();
+            Assert.IsTrue(jobStatuses.Contains(JobStatus.Stopped));
+            Assert.IsTrue(statusCounts.Count >= 1);
+            foreach (var jobStatusCount in statusCounts)
+            {
+                if (jobStatusCount.Status == JobStatus.Stopped)
+                {
+                    Assert.IsTrue(jobStatusCount.Count >= 1);
+                }
+            }
+        }
+
+        //Count by UserID 
+        [TestMethod]
+        public async Task GetJobStatusCountAsyncTest4()
+        {
+            var userID = "UserIDTest";
+            var job1 = new Job
+            {
+                AppID = AppID,
+                UserID = userID + "-otherUserID",
+                Created = DateTime.Now,
+                Status = null
+            };
+            job1 = await SetJobAsync(job1);
+            Assert.IsTrue(!string.IsNullOrWhiteSpace(job1.JobID));
+
+            //status != null
+            var job2 = new Job
+            {
+                AppID = AppID,
+                UserID = userID,
+                Created = DateTime.Now,
+                Status = JobStatus.Stopped
+            };
+            job2 = await SetJobAsync(job2);
+            Assert.IsTrue(!string.IsNullOrWhiteSpace(job2.JobID));
+
+            var statusCounts = await GetJobStatusCountAsync(null, userID);
+
+            await DeleteAsync(new List<string> { job1.JobID, job2.JobID });
+
+            var jobStatuses = statusCounts.Select(s => s.Status).ToList();
+            Assert.IsTrue(jobStatuses.Contains(JobStatus.Stopped));
+            Assert.IsTrue(statusCounts.Count >= 1);
+            foreach (var jobStatusCount in statusCounts)
+            {
+                if (jobStatusCount.Status == JobStatus.Stopped)
+                {
+                    Assert.IsTrue(jobStatusCount.Count >= 1);
+                }
+            }
+        }
     }
 }
