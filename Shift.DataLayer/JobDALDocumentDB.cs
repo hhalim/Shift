@@ -661,11 +661,11 @@ namespace Shift.DataLayer
             IEnumerable<Job> jobList;
             if (isSync)
             {
-                jobList = GetItemsAsync<Job>(j => jobIDs.Contains(j.JobID) && j.Status == null && j.ProcessID == null, isSync).GetAwaiter().GetResult();
+                jobList = GetItemsAsync<Job>(j => jobIDs.Contains(j.JobID), isSync).GetAwaiter().GetResult();
             }
             else
             {
-                jobList = await GetItemsAsync<Job>(j => jobIDs.Contains(j.JobID) && j.Status == null && j.ProcessID == null, isSync);
+                jobList = await GetItemsAsync<Job>(j => jobIDs.Contains(j.JobID), isSync);
             }
 
             foreach (var job in jobList)

@@ -41,7 +41,8 @@ namespace Shift.DataLayer
         const string JobStatusProcessTemplate = "job-[status]:[processid]";
 
         private IDatabase _IDatabase;
-        private readonly Lazy<ConnectionMultiplexer> lazyConnection;
+        private static Lazy<ConnectionMultiplexer> lazyConnection;
+        private static Lazy<ConfigurationOptions> lazyConfigOptions;
 
         public IDatabase RedisDatabase
         {
@@ -63,7 +64,17 @@ namespace Shift.DataLayer
             if (string.IsNullOrWhiteSpace(connectionString))
                 throw new ArgumentNullException("connectionString");
 
-            lazyConnection = new Lazy<ConnectionMultiplexer>(() => ConnectionMultiplexer.Connect(connectionString));
+            lazyConfigOptions = new Lazy<ConfigurationOptions>(() =>
+            {
+                var configOptions = new ConfigurationOptions();
+                configOptions.EndPoints.Add(connectionString);
+                configOptions.ClientName = "ShiftRedisConnection";
+                configOptions.ConnectTimeout = 30000;
+                configOptions.SyncTimeout = 30000;
+                configOptions.AbortOnConnectFail = false;
+                return configOptions;
+            });
+            lazyConnection = new Lazy<ConnectionMultiplexer>(() => ConnectionMultiplexer.Connect(lazyConfigOptions.Value));
             this.encryptionKey = encryptionKey;
         }
         #endregion
@@ -1254,9 +1265,17 @@ namespace Shift.DataLayer
             {
                 try
                 {
-                    var key = JobKeyPrefix + job.JobID;
-                    //TODO: Need to check if PRocessID == null && STatus == null before setting processID == processID
-                    var result = isSync ? RedisDatabase.HashSet(key, JobFields.ProcessID, processID) : await RedisDatabase.HashSetAsync(key, JobFields.ProcessID, processID);
+                    var chkJob = isSync ? GetJob(job.JobID) : await GetJobAsync(job.JobID);
+                    //check if ProcessID == null && Status == null before setting processID == processID
+                    if (chkJob.Status == null && string.IsNullOrWhiteSpace(chkJob.ProcessID))
+                    {
+                        var key = JobKeyPrefix + job.JobID;
+                        var result = isSync ? RedisDatabase.HashSet(key, JobFields.ProcessID, processID) : await RedisDatabase.HashSetAsync(key, JobFields.ProcessID, processID);
+                    }
+                    else
+                    {
+                        continue;
+                    }
                 }
                 catch (Exception exc)
                 {

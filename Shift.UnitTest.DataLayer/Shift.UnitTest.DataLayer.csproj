@@ -52,6 +52,7 @@
   <ItemGroup>
     <Compile Include="JobDALDocumentDBAsyncTest.cs" />
     <Compile Include="JobDALDocumentDBTest.cs" />
+    <Compile Include="JobDALRedisAsyncTest.cs" />
     <Compile Include="JobDALRedisTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
@@ -72,6 +73,7 @@
   <ItemGroup>
     <Content Include="app.config">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <SubType>Designer</SubType>
     </Content>
   </ItemGroup>
   <Choose>

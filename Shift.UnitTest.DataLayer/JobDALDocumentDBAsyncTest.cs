@@ -18,7 +18,7 @@ namespace Shift.UnitTest.DataLayer
         private readonly string processID;
         private static string connectionString = appSettingsReader.GetValue("DocumentDBUrl", typeof(string)) as string;
         private static string authKey = appSettingsReader.GetValue("DocumentDBAuthKey", typeof(string)) as string;
-        private static string encryptionKey = "";
+        private const string encryptionKey = "";
 
         public JobDALDocumentDBAsyncTest() :  base(connectionString, encryptionKey, authKey)
         {
@@ -232,16 +232,17 @@ namespace Shift.UnitTest.DataLayer
                 AppID = AppID,
                 ProcessID = processID,
                 Created = DateTime.Now,
-                Command = JobCommand.Stop
+                Command = null
             };
             job = await SetJobAsync(job);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job.JobID));
+
+            await SetCommandStopAsync(new List<string> {job.JobID});
 
             var outJobIDs = await GetJobIdsByProcessAndCommandAsync(processID, JobCommand.Stop);
             await DeleteAsync(new List<string> { job.JobID });
 
             Assert.IsTrue(outJobIDs.Contains(job.JobID));
-            Assert.IsTrue(outJobIDs.Count >= 1);
         }
 
         [TestMethod]
@@ -252,16 +253,19 @@ namespace Shift.UnitTest.DataLayer
                 AppID = AppID,
                 ProcessID = processID,
                 Created = DateTime.Now,
-                Status = JobStatus.Stopped
+                Status = null
             };
             job = await SetJobAsync(job);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job.JobID));
 
-            var outJobs = await GetJobsByProcessAndStatusAsync(processID, JobStatus.Stopped);
+            await SetToRunningAsync(processID, job.JobID);
+
+            var outJobs = await GetJobsByProcessAndStatusAsync(processID, JobStatus.Running);
+
+            await SetToStoppedAsync(new List<string> {job.JobID});
             await DeleteAsync(new List<string> { job.JobID });
 
             var jobIDs = outJobs.Select(j => j.JobID).ToList();
-            Assert.IsTrue(outJobs.Count >= 1);
             Assert.IsTrue(jobIDs.Contains(job.JobID));
         }
 
@@ -317,8 +321,7 @@ namespace Shift.UnitTest.DataLayer
             var outJob = await GetJobAsync(job.JobID);
 
             //set to stop before delete
-            job.Status = JobStatus.Stopped;
-            job = await SetJobAsync(job);
+            await SetToStoppedAsync(new List<string> { job.JobID });
             await DeleteAsync(new List<string> { job.JobID });
 
             Assert.IsNotNull(outJob);
@@ -379,28 +382,28 @@ namespace Shift.UnitTest.DataLayer
             {
                 AppID = AppID,
                 Created = DateTime.Now,
-                Status = JobStatus.Running,
+                Status = null,
                 ProcessID = processID
             };
             job1 = await SetJobAsync(job1);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job1.JobID));
+            await SetToRunningAsync(processID, job1.JobID);
+
             var job2 = new Job
             {
                 AppID = AppID,
                 Created = DateTime.Now,
-                Status = JobStatus.Running,
+                Status = null,
                 ProcessID = processID
             };
             job2 = await SetJobAsync(job2);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job2.JobID));
+            await SetToRunningAsync(processID, job2.JobID);
 
             var count = await CountRunningJobsAsync(processID);
 
             //set to stop before delete
-            job1.Status = JobStatus.Stopped;
-            job1 = await SetJobAsync(job1);
-            job2.Status = JobStatus.Stopped;
-            job2 = await SetJobAsync(job2);
+            await SetToStoppedAsync(new List<string> {job1.JobID, job2.JobID});
             await DeleteAsync(new List<string> { job1.JobID, job2.JobID });
 
             Assert.IsTrue(count >= 2);
@@ -427,7 +430,6 @@ namespace Shift.UnitTest.DataLayer
             var jobIDs = jobs.Select(j => j.JobID).ToList();
             Assert.AreEqual(processID, outJob.ProcessID);
             Assert.IsTrue(jobIDs.Contains(job.JobID));
-            Assert.IsTrue(jobs.Count == 1);
         }
 
         //Don't claim running jobs
@@ -438,24 +440,21 @@ namespace Shift.UnitTest.DataLayer
             {
                 AppID = AppID,
                 Created = DateTime.Now,
-                Status = JobStatus.Running,
-                ProcessID = null
+                Status = null,
+                ProcessID = processID + "-someoneElseTest"
             };
             job = await SetJobAsync(job);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job.JobID));
 
-            var jobs = await ClaimJobsToRunAsync(processID, new List<Job> { job });
-            var outJob = await GetJobAsync(job.JobID);
+            await SetToRunningAsync(processID + "-someoneElseTest", job.JobID);
 
-            //set to stop before delete
-            job.Status = JobStatus.Stopped;
-            job = await SetJobAsync(job);
+            var jobs = await ClaimJobsToRunAsync(processID, new List<Job> { job });
+
+            await SetToStoppedAsync(new List<string> { job.JobID });
             await DeleteAsync(new List<string> { job.JobID });
 
             var jobIDs = jobs.Select(j => j.JobID).ToList();
-            Assert.AreNotEqual(processID, outJob.ProcessID);
             Assert.IsTrue(!jobIDs.Contains(job.JobID));
-            Assert.IsTrue(jobs.Count == 0);
         }
 
         //Don't claim jobs already claimed by someone else
@@ -473,14 +472,11 @@ namespace Shift.UnitTest.DataLayer
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job.JobID));
 
             var jobs = await ClaimJobsToRunAsync(processID, new List<Job> { job });
-            var outJob = await GetJobAsync(job.JobID);
 
             await DeleteAsync(new List<string> { job.JobID });
 
             var jobIDs = jobs.Select(j => j.JobID).ToList();
-            Assert.AreNotEqual(processID, outJob.ProcessID);
             Assert.IsTrue(!jobIDs.Contains(job.JobID));
-            Assert.IsTrue(jobs.Count == 0);
         }
 
         [TestMethod]
