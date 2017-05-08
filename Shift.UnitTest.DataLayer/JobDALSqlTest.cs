@@ -9,20 +9,19 @@ using System.Linq;
 namespace Shift.UnitTest.DataLayer
 {
     [TestClass]
-    public class JobDALRedisTest
+    public class JobDALSqlTest
     {
-
         private static AppSettingsReader appSettingsReader = new AppSettingsReader();
         private const string AppID = "TestAppID";
         private readonly string processID;
-        private static string connectionString = appSettingsReader.GetValue("RedisConnectionString", typeof(string)) as string;
+        private static string connectionString = appSettingsReader.GetValue("MSSqlConnectionString", typeof(string)) as string;
         private const string encryptionKey = "";
-        JobDALRedis jobDAL;
+        JobDALSql jobDAL;
 
-        public JobDALRedisTest()
+        public JobDALSqlTest()
         {
             processID = this.ToString();
-            jobDAL = new JobDALRedis(connectionString, encryptionKey);
+            this.jobDAL = new JobDALSql(connectionString, encryptionKey);
         }
 
         [TestMethod]

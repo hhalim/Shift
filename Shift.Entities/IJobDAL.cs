@@ -71,7 +71,6 @@ namespace Shift.Entities
         Task<int> UpdateProgressAsync(string jobID, int? percent, string note, string data);
         #endregion
 
-
         #region Cache
         JobStatusProgress GetProgress(string jobID);
         Task<JobStatusProgress> GetProgressAsync(string jobID); //All cached progress are async, except this one that touched DB

@@ -232,6 +232,60 @@ namespace Shift.DataLayer
         }
         #endregion
 
+        #region UnitTest Helper
+        //Used by UnitTest for adding/setting jobs
+        public Job SetJob(Job job)
+        {
+            job = SetJobAsync(job).GetAwaiter().GetResult();
+            return job;
+        }
+
+        public async Task<Job> SetJobAsync(Job job)
+        {
+            if (string.IsNullOrWhiteSpace(job.JobID))
+            {
+                //Insert
+                using (var connection = new SqlConnection(connectionString))
+                {
+                    var query = @"INSERT INTO [Job] ([AppID], [UserID], [ProcessID], [JobType], [JobName], [InvokeMeta], 
+                                [Parameters], [Command], [Status], [Error], [Start], [End], [Created]) 
+                              VALUES(@AppID, @UserID, @ProcessID, @JobType, @JobName, @InvokeMeta, 
+                                @Parameters, @Command, @Status, @Error, @Start, @End, @Created);
+                              SELECT CAST(SCOPE_IDENTITY() as int); ";
+                    var taskResult = await connection.QueryAsync<string>(query, job);
+                    job.JobID = taskResult.FirstOrDefault();
+                }
+            }
+            else
+            {
+                using (var connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    var query = @"
+                            UPDATE [Job]
+                            SET [AppID] = @AppID
+                                ,[UserID] = @UserID
+                                ,[ProcessID] = @ProcessID
+                                ,[JobType] = @JobType
+                                ,[JobName] = @JobName
+                                ,[InvokeMeta] = @InvokeMeta
+                                ,[Parameters] = @Parameters
+                                ,[Command] = @Command
+                                ,[Status] = @Status
+                                ,[Error] = @Error
+                                ,[Start] = @Start
+                                ,[End] = @End
+                                ,[Created] = @Created
+                            WHERE JobID = @JobID;
+                            ";
+                    await connection.ExecuteAsync(query, job);
+                }
+            }
+
+            return job;
+        }
+        #endregion
+
         #region Set Command field
         /// <summary>
         /// Flag jobs with 'stop' command. 
@@ -1229,12 +1283,12 @@ namespace Shift.DataLayer
         /// </summary>
         /// <param name="maxNum">Maximum number to return</param>
         /// <returns>List of jobs</returns>
-        protected IReadOnlyCollection<Job> GetJobsToRun(int maxNum)
+        public IReadOnlyCollection<Job> GetJobsToRun(int maxNum)
         {
             return GetJobsToRunAsync(maxNum, true).GetAwaiter().GetResult();
         }
 
-        protected Task<IReadOnlyCollection<Job>> GetJobsToRunAsync(int maxNum)
+        public Task<IReadOnlyCollection<Job>> GetJobsToRunAsync(int maxNum)
         {
             return GetJobsToRunAsync(maxNum, false);
         }

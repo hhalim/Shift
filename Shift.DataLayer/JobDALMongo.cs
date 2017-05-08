@@ -220,6 +220,33 @@ namespace Shift.DataLayer
         }
         #endregion
 
+        #region UnitTest Helper
+        //Used by UnitTest for adding/setting jobs
+        public Job SetJob(Job job)
+        {
+            job = SetJobAsync(job).GetAwaiter().GetResult();
+            return job;
+        }
+
+        public async Task<Job> SetJobAsync(Job job)
+        {
+            var collection = database.GetCollection<Job>(JobCollectionName);
+            if (string.IsNullOrWhiteSpace(job.JobID))
+            {
+                //Insert
+                await collection.InsertOneAsync(job);
+            }
+            else
+            {
+                //Update
+                var filter = Builders<Job>.Filter.Eq(j => j.JobID, job.JobID);
+                var result = await collection.ReplaceOneAsync(filter, job);
+            }
+
+            return job;
+        }
+        #endregion
+
         #region Set Command field
         /// <summary>
         /// Flag jobs with 'stop' command. 
@@ -999,12 +1026,12 @@ namespace Shift.DataLayer
         /// </summary>
         /// <param name="maxNum">Maximum number to return</param>
         /// <returns>List of jobs</returns>
-        protected IReadOnlyCollection<Job> GetJobsToRun(int maxNum)
+        public IReadOnlyCollection<Job> GetJobsToRun(int maxNum)
         {
             return GetJobsToRunAsync(maxNum, true).GetAwaiter().GetResult();
         }
 
-        protected Task<IReadOnlyCollection<Job>> GetJobsToRunAsync(int maxNum)
+        public Task<IReadOnlyCollection<Job>> GetJobsToRunAsync(int maxNum)
         {
             return GetJobsToRunAsync(maxNum, false);
         }

@@ -9,7 +9,8 @@ namespace Shift.Cache.Redis
     public class JobCache : IJobCache
     {
         const string KeyPrefix = "job-progress:";
-        private readonly Lazy<ConnectionMultiplexer> lazyConnection;
+        private static Lazy<ConnectionMultiplexer> lazyConnection;
+        private static Lazy<ConfigurationOptions> lazyConfigOptions;
         private IDatabase _IDatabase;
 
         public ConnectionMultiplexer Connection
@@ -38,7 +39,17 @@ namespace Shift.Cache.Redis
             if (string.IsNullOrWhiteSpace(configurationString))
                 throw new ArgumentNullException("configurationString");
 
-            lazyConnection = new Lazy<ConnectionMultiplexer>(() => ConnectionMultiplexer.Connect(configurationString));
+            lazyConfigOptions = new Lazy<ConfigurationOptions>(() =>
+            {
+                var configOptions = new ConfigurationOptions();
+                configOptions.EndPoints.Add(configurationString);
+                configOptions.ClientName = this.ToString();
+                configOptions.ConnectTimeout = 30000;
+                configOptions.SyncTimeout = 30000;
+                configOptions.AbortOnConnectFail = false;
+                return configOptions;
+            });
+            lazyConnection = new Lazy<ConnectionMultiplexer>(() => ConnectionMultiplexer.Connect(lazyConfigOptions.Value));
         }
 
         public JobStatusProgress GetCachedProgress(string jobID)

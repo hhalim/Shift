@@ -36,6 +36,10 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
+    <Reference Include="System.Runtime.InteropServices.RuntimeInformation, Version=4.0.1.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Runtime.InteropServices.RuntimeInformation.4.3.0\lib\net45\System.Runtime.InteropServices.RuntimeInformation.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
   </ItemGroup>
   <Choose>
     <When Condition="('$(VisualStudioVersion)' == '10.0' or '$(VisualStudioVersion)' == '') and '$(TargetFrameworkVersion)' == 'v3.5'">
@@ -51,12 +55,21 @@
   </Choose>
   <ItemGroup>
     <Compile Include="JobDALDocumentDBAsyncTest.cs" />
+    <Compile Include="JobDALMongoTest.cs" />
     <Compile Include="JobDALDocumentDBTest.cs" />
+    <Compile Include="JobDALMongoAsyncTest.cs" />
+    <Compile Include="JobCacheRedisTest.cs" />
+    <Compile Include="JobDALSqlTest.cs" />
+    <Compile Include="JobDALSqlAsyncTest.cs" />
     <Compile Include="JobDALRedisAsyncTest.cs" />
     <Compile Include="JobDALRedisTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Shift.Cache.Redis\Shift.Cache.Redis.csproj">
+      <Project>{F43A6D1C-5AEA-470B-8B33-D8ED2C156B86}</Project>
+      <Name>Shift.Cache.Redis</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Shift.DataLayer\Shift.DataLayer.csproj">
       <Project>{4e74e7c7-4ea1-425c-b467-1db4a5f99a37}</Project>
       <Name>Shift.DataLayer</Name>
@@ -75,6 +88,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <SubType>Designer</SubType>
     </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
   </ItemGroup>
   <Choose>
     <When Condition="'$(VisualStudioVersion)' == '10.0' And '$(IsCodedUITest)' == 'True'">

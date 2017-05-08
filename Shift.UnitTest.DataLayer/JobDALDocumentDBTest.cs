@@ -9,7 +9,7 @@ using System.Linq;
 namespace Shift.UnitTest.DataLayer
 {
     [TestClass]
-    public class JobDALDocumentDBTest : JobDALDocumentDB
+    public class JobDALDocumentDBTest
     {
         private static AppSettingsReader appSettingsReader = new AppSettingsReader();
         private const string AppID = "TestAppID";
@@ -17,20 +17,22 @@ namespace Shift.UnitTest.DataLayer
         private static string connectionString = appSettingsReader.GetValue("DocumentDBUrl", typeof(string)) as string;
         private static string authKey = appSettingsReader.GetValue("DocumentDBAuthKey", typeof(string)) as string;
         private const string encryptionKey = "";
+        JobDALDocumentDB jobDAL;
 
-        public JobDALDocumentDBTest() :  base(connectionString, encryptionKey, authKey)
+        public JobDALDocumentDBTest()
         {
             processID = this.ToString();
+            jobDAL = new JobDALDocumentDB(connectionString, encryptionKey, authKey);
         }
 
         [TestMethod]
         public void DeleteTest()
         {
-            var jobID = Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test!"));
+            var jobID = jobDAL.Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test!"));
             Assert.IsTrue(!string.IsNullOrWhiteSpace(jobID));
 
-            Delete(new List<string> { jobID });
-            var job = GetJob(jobID);
+            jobDAL.Delete(new List<string> { jobID });
+            var job = jobDAL.GetJob(jobID);
 
             Assert.IsNull(job);
         }
@@ -38,9 +40,9 @@ namespace Shift.UnitTest.DataLayer
         [TestMethod]
         public void GetJobTest()
         {
-            var jobID = Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test!"));
-            var job = GetJob(jobID);
-            Delete(new List<string> { jobID });
+            var jobID = jobDAL.Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test!"));
+            var job = jobDAL.GetJob(jobID);
+            jobDAL.Delete(new List<string> { jobID });
 
             Assert.IsInstanceOfType(job, typeof(Job));
             Assert.AreEqual(jobID, job.JobID);
@@ -49,9 +51,9 @@ namespace Shift.UnitTest.DataLayer
         [TestMethod]
         public void GetJobViewTest()
         {
-            var jobID = Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test!"));
-            var job = GetJobView(jobID);
-            Delete(new List<string> { jobID });
+            var jobID = jobDAL.Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test!"));
+            var job = jobDAL.GetJobView(jobID);
+            jobDAL.Delete(new List<string> { jobID });
 
             Assert.IsInstanceOfType(job, typeof(JobView));
             Assert.AreEqual(jobID, job.JobID);
@@ -60,19 +62,19 @@ namespace Shift.UnitTest.DataLayer
         [TestMethod]
         public void AddTest()
         {
-            var jobID = Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test!"));
-            Delete(new List<string> { jobID });
+            var jobID = jobDAL.Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test!"));
+            jobDAL.Delete(new List<string> { jobID });
             Assert.IsTrue(!string.IsNullOrWhiteSpace(jobID));
         }
 
         [TestMethod]
         public void UpdateTest()
         {
-            var jobID = Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test!"));
-            var count = Update(jobID, AppID, "", "", "JobNameUpdated", () => Console.WriteLine("Hello World Test!"));
+            var jobID = jobDAL.Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test!"));
+            var count = jobDAL.Update(jobID, AppID, "", "", "JobNameUpdated", () => Console.WriteLine("Hello World Test!"));
 
-            var job = GetJob(jobID);
-            Delete(new List<string> { jobID });
+            var job = jobDAL.GetJob(jobID);
+            jobDAL.Delete(new List<string> { jobID });
             Assert.IsTrue(count > 0);
             Assert.AreEqual("JobNameUpdated", job.JobName);
         }
@@ -86,11 +88,11 @@ namespace Shift.UnitTest.DataLayer
                 AppID = AppID,
                 Created = DateTime.Now.AddHours(-48)
             };
-            job = SetJob(job);
+            job = jobDAL.SetJob(job);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job.JobID));
 
-            var count = Delete(24, new List<JobStatus?> { null });
-            var outJob = GetJob(job.JobID);
+            var count = jobDAL.Delete(24, new List<JobStatus?> { null });
+            var outJob = jobDAL.GetJob(job.JobID);
 
             Assert.IsTrue(count > 0);
             Assert.IsNull(outJob);
@@ -107,33 +109,33 @@ namespace Shift.UnitTest.DataLayer
                 Status = JobStatus.Error,
                 Error = "Test delete old job with status: Error"
             };
-            job = SetJob(job);
+            job = jobDAL.SetJob(job);
             var job2 = new Job();
             job2.AppID = AppID;
             job2.Created = DateTime.Now.AddHours(-48);
             job2.Status = JobStatus.Completed;
             job2.Error = "Test delete old job with status: Completed";
-            job2 = SetJob(job2);
+            job2 = jobDAL.SetJob(job2);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job.JobID));
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job2.JobID));
 
-            var count = Delete(24, new List<JobStatus?> { JobStatus.Error, JobStatus.Completed });
+            var count = jobDAL.Delete(24, new List<JobStatus?> { JobStatus.Error, JobStatus.Completed });
             Assert.IsTrue(count > 0);
 
-            var outJob = GetJob(job.JobID);
+            var outJob = jobDAL.GetJob(job.JobID);
             Assert.IsNull(outJob);
 
-            var outJob2 = GetJob(job2.JobID);
+            var outJob2 = jobDAL.GetJob(job2.JobID);
             Assert.IsNull(outJob2);
         }
 
         [TestMethod]
         public void SetCommandStopTest()
         {
-            var jobID = Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test!"));
-            SetCommandStop(new List<string> { jobID });
-            var job = GetJob(jobID);
-            Delete(new List<string> { jobID });
+            var jobID = jobDAL.Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test!"));
+            jobDAL.SetCommandStop(new List<string> { jobID });
+            var job = jobDAL.GetJob(jobID);
+            jobDAL.Delete(new List<string> { jobID });
 
             Assert.AreEqual(JobCommand.Stop, job.Command);
         }
@@ -141,10 +143,10 @@ namespace Shift.UnitTest.DataLayer
         [TestMethod]
         public void SetCommandRunNowTest()
         {
-            var jobID = Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test!"));
-            SetCommandRunNow(new List<string> { jobID });
-            var job = GetJob(jobID);
-            Delete(new List<string> { jobID });
+            var jobID = jobDAL.Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test!"));
+            jobDAL.SetCommandRunNow(new List<string> { jobID });
+            var job = jobDAL.GetJob(jobID);
+            jobDAL.Delete(new List<string> { jobID });
 
             Assert.AreEqual(JobCommand.RunNow, job.Command);
         }
@@ -158,12 +160,12 @@ namespace Shift.UnitTest.DataLayer
                 Created = DateTime.Now,
                 Command = JobCommand.Stop
             };
-            job = SetJob(job);
+            job = jobDAL.SetJob(job);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job.JobID));
 
-            Reset(new List<string> { job.JobID });
-            var outJob = GetJob(job.JobID);
-            Delete(new List<string> { job.JobID });
+            jobDAL.Reset(new List<string> { job.JobID });
+            var outJob = jobDAL.GetJob(job.JobID);
+            jobDAL.Delete(new List<string> { job.JobID });
 
             Assert.IsNotNull(outJob);
             Assert.IsTrue(string.IsNullOrWhiteSpace(outJob.Command));
@@ -178,12 +180,12 @@ namespace Shift.UnitTest.DataLayer
                 Created = DateTime.Now,
                 Command = JobCommand.Stop
             };
-            job = SetJob(job);
+            job = jobDAL.SetJob(job);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job.JobID));
 
-            var count = SetToStopped(new List<string> { job.JobID });
-            var outJob = GetJob(job.JobID);
-            Delete(new List<string> { job.JobID });
+            var count = jobDAL.SetToStopped(new List<string> { job.JobID });
+            var outJob = jobDAL.GetJob(job.JobID);
+            jobDAL.Delete(new List<string> { job.JobID });
 
             Assert.IsNotNull(outJob);
             Assert.IsTrue(count == 1);
@@ -195,11 +197,11 @@ namespace Shift.UnitTest.DataLayer
         [TestMethod]
         public void GetJobsTest()
         {
-            var jobID = Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test1!"));
-            var jobID2 = Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test2!"));
+            var jobID = jobDAL.Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test1!"));
+            var jobID2 = jobDAL.Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test2!"));
 
-            var jobs = GetJobs(new List<string> { jobID, jobID2 });
-            Delete(new List<string> { jobID, jobID2 });
+            var jobs = jobDAL.GetJobs(new List<string> { jobID, jobID2 });
+            jobDAL.Delete(new List<string> { jobID, jobID2 });
 
             var jobIDs = jobs.Select(j => j.JobID).ToList();
             Assert.IsTrue(jobs.Count == 2);
@@ -210,11 +212,11 @@ namespace Shift.UnitTest.DataLayer
         [TestMethod]
         public void GetNonRunningJobsByIDsTest()
         {
-            var jobID = Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test1!"));
-            var jobID2 = Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test2!"));
+            var jobID = jobDAL.Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test1!"));
+            var jobID2 = jobDAL.Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test2!"));
 
-            var jobs = GetNonRunningJobsByIDs(new List<string> { jobID, jobID2 });
-            Delete(new List<string> { jobID, jobID2 });
+            var jobs = jobDAL.GetNonRunningJobsByIDs(new List<string> { jobID, jobID2 });
+            jobDAL.Delete(new List<string> { jobID, jobID2 });
 
             var jobIDs = jobs.Select(j => j.JobID).ToList();
             Assert.IsTrue(jobs.Count == 2);
@@ -232,13 +234,13 @@ namespace Shift.UnitTest.DataLayer
                 Created = DateTime.Now,
                 Command = null
             };
-            job = SetJob(job);
+            job = jobDAL.SetJob(job);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job.JobID));
 
-            SetCommandStop(new List<string> { job.JobID });
+            jobDAL.SetCommandStop(new List<string> { job.JobID });
 
-            var outJobIDs = GetJobIdsByProcessAndCommand(processID, JobCommand.Stop);
-            Delete(new List<string> { job.JobID });
+            var outJobIDs = jobDAL.GetJobIdsByProcessAndCommand(processID, JobCommand.Stop);
+            jobDAL.Delete(new List<string> { job.JobID });
 
             Assert.IsTrue(outJobIDs.Contains(job.JobID));
         }
@@ -253,15 +255,15 @@ namespace Shift.UnitTest.DataLayer
                 Created = DateTime.Now,
                 Status = null
             };
-            job = SetJob(job);
+            job = jobDAL.SetJob(job);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job.JobID));
 
-            SetToRunning(processID, job.JobID);
+            jobDAL.SetToRunning(processID, job.JobID);
 
-            var outJobs = GetJobsByProcessAndStatus(processID, JobStatus.Running);
+            var outJobs = jobDAL.GetJobsByProcessAndStatus(processID, JobStatus.Running);
 
-            SetToStopped(new List<string> { job.JobID });
-            Delete(new List<string> { job.JobID });
+            jobDAL.SetToStopped(new List<string> { job.JobID });
+            jobDAL.Delete(new List<string> { job.JobID });
 
             var jobIDs = outJobs.Select(j => j.JobID).ToList();
             Assert.IsTrue(jobIDs.Contains(job.JobID));
@@ -270,11 +272,11 @@ namespace Shift.UnitTest.DataLayer
         [TestMethod]
         public void GetJobViewsTest()
         {
-            var jobID = Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test1!"));
-            var jobID2 = Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test2!"));
+            var jobID = jobDAL.Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test1!"));
+            var jobID2 = jobDAL.Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test2!"));
 
-            var jobs = GetJobViews(1, 10);
-            Delete(new List<string> { jobID, jobID2 });
+            var jobs = jobDAL.GetJobViews(1, 10);
+            jobDAL.Delete(new List<string> { jobID, jobID2 });
 
             Assert.IsTrue(jobs.Total >= 2);
             var jobIDs = jobs.Items.Select(j => j.JobID).ToList();
@@ -286,12 +288,12 @@ namespace Shift.UnitTest.DataLayer
         [TestMethod]
         public void GetJobViewsTest2()
         {
-            var jobID1 = Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test1!"));
-            var jobID2 = Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test2!"));
+            var jobID1 = jobDAL.Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test1!"));
+            var jobID2 = jobDAL.Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test2!"));
 
-            var jobs1 = GetJobViews(1, 1);
-            var jobs2 = GetJobViews(2, 1);
-            Delete(new List<string> { jobID1, jobID2 });
+            var jobs1 = jobDAL.GetJobViews(1, 1);
+            var jobs2 = jobDAL.GetJobViews(2, 1);
+            jobDAL.Delete(new List<string> { jobID1, jobID2 });
 
             Assert.IsTrue(jobs1.Total >= 2);
             var jobIDs1 = jobs1.Items.Select(j => j.JobID).ToList();
@@ -312,15 +314,15 @@ namespace Shift.UnitTest.DataLayer
                 Status = null,
                 ProcessID = processID
             };
-            job = SetJob(job);
+            job = jobDAL.SetJob(job);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job.JobID));
 
-            var count = SetToRunning(job.ProcessID, job.JobID);
-            var outJob = GetJob(job.JobID);
+            var count = jobDAL.SetToRunning(job.ProcessID, job.JobID);
+            var outJob = jobDAL.GetJob(job.JobID);
 
             //set to stop before delete
-            SetToStopped(new List<string> { job.JobID });
-            Delete(new List<string> { job.JobID });
+            jobDAL.SetToStopped(new List<string> { job.JobID });
+            jobDAL.Delete(new List<string> { job.JobID });
 
             Assert.IsNotNull(outJob);
             Assert.IsTrue(count == 1);
@@ -337,14 +339,14 @@ namespace Shift.UnitTest.DataLayer
                 Status = null,
                 ProcessID = processID
             };
-            job = SetJob(job);
+            job = jobDAL.SetJob(job);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job.JobID));
 
             var error = "Test Error";
-            var count = SetError(job.ProcessID, job.JobID, error);
-            var outJob = GetJob(job.JobID);
+            var count = jobDAL.SetError(job.ProcessID, job.JobID, error);
+            var outJob = jobDAL.GetJob(job.JobID);
 
-            Delete(new List<string> { job.JobID });
+            jobDAL.Delete(new List<string> { job.JobID });
 
             Assert.IsNotNull(outJob);
             Assert.IsTrue(count == 1);
@@ -360,13 +362,13 @@ namespace Shift.UnitTest.DataLayer
             job.Created = DateTime.Now;
             job.Status = null;
             job.ProcessID = processID;
-            job = SetJob(job);
+            job = jobDAL.SetJob(job);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job.JobID));
 
-            var count = SetCompleted(job.ProcessID, job.JobID);
-            var outJob = GetJob(job.JobID);
+            var count = jobDAL.SetCompleted(job.ProcessID, job.JobID);
+            var outJob = jobDAL.GetJob(job.JobID);
 
-            Delete(new List<string> { job.JobID });
+            jobDAL.Delete(new List<string> { job.JobID });
 
             Assert.IsNotNull(outJob);
             Assert.IsTrue(count == 1);
@@ -383,9 +385,9 @@ namespace Shift.UnitTest.DataLayer
                 Status = null,
                 ProcessID = processID
             };
-            job1 = SetJob(job1);
+            job1 = jobDAL.SetJob(job1);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job1.JobID));
-            SetToRunning(processID, job1.JobID);
+            jobDAL.SetToRunning(processID, job1.JobID);
 
             var job2 = new Job
             {
@@ -394,15 +396,15 @@ namespace Shift.UnitTest.DataLayer
                 Status = null,
                 ProcessID = processID
             };
-            job2 = SetJob(job2);
+            job2 = jobDAL.SetJob(job2);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job2.JobID));
-            SetToRunning(processID, job2.JobID);
+            jobDAL.SetToRunning(processID, job2.JobID);
 
-            var count = CountRunningJobs(processID);
+            var count = jobDAL.CountRunningJobs(processID);
 
             //set to stop before delete
-            SetToStopped(new List<string> { job1.JobID, job2.JobID });
-            Delete(new List<string> { job1.JobID, job2.JobID });
+            jobDAL.SetToStopped(new List<string> { job1.JobID, job2.JobID });
+            jobDAL.Delete(new List<string> { job1.JobID, job2.JobID });
 
             Assert.IsTrue(count >= 2);
         }
@@ -417,13 +419,13 @@ namespace Shift.UnitTest.DataLayer
                 Status = null,
                 ProcessID = null
             };
-            job = SetJob(job);
+            job = jobDAL.SetJob(job);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job.JobID));
 
-            var jobs = ClaimJobsToRun(processID, new List<Job> { job });
-            var outJob = GetJob(job.JobID);
+            var jobs = jobDAL.ClaimJobsToRun(processID, new List<Job> { job });
+            var outJob = jobDAL.GetJob(job.JobID);
 
-            Delete(new List<string> { job.JobID });
+            jobDAL.Delete(new List<string> { job.JobID });
 
             var jobIDs = jobs.Select(j => j.JobID).ToList();
             Assert.AreEqual(processID, outJob.ProcessID);
@@ -441,15 +443,15 @@ namespace Shift.UnitTest.DataLayer
                 Status = null,
                 ProcessID = processID + "-someoneElseTest"
             };
-            job = SetJob(job);
+            job = jobDAL.SetJob(job);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job.JobID));
 
-            SetToRunning(processID + "-someoneElseTest", job.JobID);
+            jobDAL.SetToRunning(processID + "-someoneElseTest", job.JobID);
 
-            var jobs = ClaimJobsToRun(processID, new List<Job> { job });
+            var jobs = jobDAL.ClaimJobsToRun(processID, new List<Job> { job });
 
-            SetToStopped(new List<string> {job.JobID});
-            Delete(new List<string> { job.JobID });
+            jobDAL.SetToStopped(new List<string> {job.JobID});
+            jobDAL.Delete(new List<string> { job.JobID });
 
             var jobIDs = jobs.Select(j => j.JobID).ToList();
             Assert.IsTrue(!jobIDs.Contains(job.JobID));
@@ -466,12 +468,12 @@ namespace Shift.UnitTest.DataLayer
                 Status = null,
                 ProcessID = processID + "-someoneElseTest"
             };
-            job = SetJob(job);
+            job = jobDAL.SetJob(job);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job.JobID));
 
-            var jobs = ClaimJobsToRun(processID, new List<Job> { job });
+            var jobs = jobDAL.ClaimJobsToRun(processID, new List<Job> { job });
 
-            Delete(new List<string> { job.JobID });
+            jobDAL.Delete(new List<string> { job.JobID });
 
             var jobIDs = jobs.Select(j => j.JobID).ToList();
             Assert.IsTrue(!jobIDs.Contains(job.JobID));
@@ -480,12 +482,12 @@ namespace Shift.UnitTest.DataLayer
         [TestMethod]
         public void GetJobsToRunTest()
         {
-            var jobID = Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test1!"));
+            var jobID = jobDAL.Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test1!"));
             Assert.IsTrue(!string.IsNullOrWhiteSpace(jobID));
 
-            var jobs = GetJobsToRun(1);
+            var jobs = jobDAL.GetJobsToRun(1);
 
-            Delete(new List<string> { jobID });
+            jobDAL.Delete(new List<string> { jobID });
 
             var jobIDs = jobs.Select(j => j.JobID).ToList();
             Assert.IsTrue(jobIDs.Contains(jobID));
@@ -496,15 +498,15 @@ namespace Shift.UnitTest.DataLayer
         [TestMethod]
         public void GetJobsToRunTest2()
         {
-            var jobID1 = Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test1!"));
+            var jobID1 = jobDAL.Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test1!"));
             Assert.IsTrue(!string.IsNullOrWhiteSpace(jobID1));
-            var jobID2 = Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test2!"));
+            var jobID2 = jobDAL.Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test2!"));
             Assert.IsTrue(!string.IsNullOrWhiteSpace(jobID2));
 
-            SetCommandRunNow(new List<string> { jobID2 });
-            var jobs = GetJobsToRun(1);
+            jobDAL.SetCommandRunNow(new List<string> { jobID2 });
+            var jobs = jobDAL.GetJobsToRun(1);
 
-            Delete(new List<string> { jobID1, jobID2 });
+            jobDAL.Delete(new List<string> { jobID1, jobID2 });
 
             var jobIDs = jobs.Select(j => j.JobID).ToList();
             Assert.IsTrue(jobIDs.Contains(jobID2));
@@ -523,7 +525,7 @@ namespace Shift.UnitTest.DataLayer
                 Status = null,
                 ProcessID = processID
             };
-            job1 = SetJob(job1);
+            job1 = jobDAL.SetJob(job1);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job1.JobID));
 
             //status != null
@@ -534,7 +536,7 @@ namespace Shift.UnitTest.DataLayer
                 Status = JobStatus.Stopped,
                 ProcessID = null
             };
-            job2 = SetJob(job2);
+            job2 = jobDAL.SetJob(job2);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job2.JobID));
 
             //command != null
@@ -546,12 +548,12 @@ namespace Shift.UnitTest.DataLayer
                 ProcessID = null,
                 Command = JobCommand.Stop
             };
-            job3 = SetJob(job3);
+            job3 = jobDAL.SetJob(job3);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job3.JobID));
 
-            var jobs = GetJobsToRun(3);
+            var jobs = jobDAL.GetJobsToRun(3);
 
-            Delete(new List<string> { job1.JobID, job2.JobID, job3.JobID });
+            jobDAL.Delete(new List<string> { job1.JobID, job2.JobID, job3.JobID });
 
             var jobIDs = jobs.Select(j => j.JobID).ToList();
             Assert.IsTrue(!jobIDs.Contains(job1.JobID));
@@ -562,16 +564,16 @@ namespace Shift.UnitTest.DataLayer
         [TestMethod]
         public void SetProgressTest()
         {
-            var jobID = Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test1!"));
+            var jobID = jobDAL.Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test1!"));
             Assert.IsTrue(!string.IsNullOrWhiteSpace(jobID));
 
             var note = "progress note";
             var data = "progress data";
             var percent = 50;
-            var count = SetProgress(jobID, percent, note, data);
-            var job = GetJobView(jobID);
+            var count = jobDAL.SetProgress(jobID, percent, note, data);
+            var job = jobDAL.GetJobView(jobID);
 
-            Delete(new List<string> { jobID });
+            jobDAL.Delete(new List<string> { jobID });
 
             Assert.IsTrue(count == 1);
             Assert.AreEqual(percent, job.Percent);
@@ -582,37 +584,17 @@ namespace Shift.UnitTest.DataLayer
         [TestMethod]
         public void GetProgressTest()
         {
-            var jobID = Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test1!"));
+            var jobID = jobDAL.Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test1!"));
             Assert.IsTrue(!string.IsNullOrWhiteSpace(jobID));
 
             var note = "progress note";
             var data = "progress data";
             var percent = 50;
-            SetProgress(jobID, percent, note, data);
+            jobDAL.SetProgress(jobID, percent, note, data);
 
-            var progress = GetProgress(jobID);
+            var progress = jobDAL.GetProgress(jobID);
 
-            Delete(new List<string> { jobID });
-
-            Assert.AreEqual(percent, progress.Percent);
-            Assert.AreEqual(note, progress.Note);
-            Assert.AreEqual(data, progress.Data);
-        }
-
-        [TestMethod]
-        public void GetCachedProgressTest()
-        {
-            var jobID = Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test1!"));
-            Assert.IsTrue(!string.IsNullOrWhiteSpace(jobID));
-
-            var note = "progress note";
-            var data = "progress data";
-            var percent = 50;
-            SetProgress(jobID, percent, note, data);
-
-            var progress = GetCachedProgress(jobID);
-
-            Delete(new List<string> { jobID });
+            jobDAL.Delete(new List<string> { jobID });
 
             Assert.AreEqual(percent, progress.Percent);
             Assert.AreEqual(note, progress.Note);
@@ -630,7 +612,7 @@ namespace Shift.UnitTest.DataLayer
                 Created = DateTime.Now,
                 Status = null
             };
-            job1 = SetJob(job1);
+            job1 = jobDAL.SetJob(job1);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job1.JobID));
 
             //status != null
@@ -641,12 +623,12 @@ namespace Shift.UnitTest.DataLayer
                 Created = DateTime.Now,
                 Status = JobStatus.Stopped
             };
-            job2 = SetJob(job2);
+            job2 = jobDAL.SetJob(job2);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job2.JobID));
 
-            var statusCounts = GetJobStatusCount(null, null);
+            var statusCounts = jobDAL.GetJobStatusCount(null, null);
 
-            Delete(new List<string> { job1.JobID, job2.JobID });
+            jobDAL.Delete(new List<string> { job1.JobID, job2.JobID });
 
             var jobStatuses = statusCounts.Select(s => s.Status).ToList();
             Assert.IsTrue(jobStatuses.Contains(null));
@@ -677,7 +659,7 @@ namespace Shift.UnitTest.DataLayer
                 Created = DateTime.Now,
                 Status = null
             };
-            job1 = SetJob(job1);
+            job1 = jobDAL.SetJob(job1);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job1.JobID));
 
             //status != null
@@ -688,12 +670,12 @@ namespace Shift.UnitTest.DataLayer
                 Created = DateTime.Now,
                 Status = JobStatus.Stopped
             };
-            job2 = SetJob(job2);
+            job2 = jobDAL.SetJob(job2);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job2.JobID));
 
-            var statusCounts = GetJobStatusCount(AppID, userID);
+            var statusCounts = jobDAL.GetJobStatusCount(AppID, userID);
 
-            Delete(new List<string> { job1.JobID, job2.JobID });
+            jobDAL.Delete(new List<string> { job1.JobID, job2.JobID });
 
             var jobStatuses = statusCounts.Select(s => s.Status).ToList();
             Assert.IsTrue(jobStatuses.Contains(null));
@@ -724,7 +706,7 @@ namespace Shift.UnitTest.DataLayer
                 Created = DateTime.Now,
                 Status = null
             };
-            job1 = SetJob(job1);
+            job1 = jobDAL.SetJob(job1);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job1.JobID));
 
             //status != null
@@ -735,12 +717,12 @@ namespace Shift.UnitTest.DataLayer
                 Created = DateTime.Now,
                 Status = JobStatus.Stopped
             };
-            job2 = SetJob(job2);
+            job2 = jobDAL.SetJob(job2);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job2.JobID));
 
-            var statusCounts = GetJobStatusCount(AppID, null);
+            var statusCounts = jobDAL.GetJobStatusCount(AppID, null);
 
-            Delete(new List<string> { job1.JobID, job2.JobID });
+            jobDAL.Delete(new List<string> { job1.JobID, job2.JobID });
 
             var jobStatuses = statusCounts.Select(s => s.Status).ToList();
             Assert.IsTrue(jobStatuses.Contains(JobStatus.Stopped));
@@ -766,7 +748,7 @@ namespace Shift.UnitTest.DataLayer
                 Created = DateTime.Now,
                 Status = null
             };
-            job1 = SetJob(job1);
+            job1 = jobDAL.SetJob(job1);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job1.JobID));
 
             //status != null
@@ -777,12 +759,12 @@ namespace Shift.UnitTest.DataLayer
                 Created = DateTime.Now,
                 Status = JobStatus.Stopped
             };
-            job2 = SetJob(job2);
+            job2 = jobDAL.SetJob(job2);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(job2.JobID));
 
-            var statusCounts = GetJobStatusCount(null, userID);
+            var statusCounts = jobDAL.GetJobStatusCount(null, userID);
 
-            Delete(new List<string> { job1.JobID, job2.JobID });
+            jobDAL.Delete(new List<string> { job1.JobID, job2.JobID });
 
             var jobStatuses = statusCounts.Select(s => s.Status).ToList();
             Assert.IsTrue(jobStatuses.Contains(JobStatus.Stopped));

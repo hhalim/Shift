@@ -68,7 +68,7 @@ namespace Shift.DataLayer
             {
                 var configOptions = new ConfigurationOptions();
                 configOptions.EndPoints.Add(connectionString);
-                configOptions.ClientName = "ShiftRedisConnection";
+                configOptions.ClientName = this.ToString();
                 configOptions.ConnectTimeout = 30000;
                 configOptions.SyncTimeout = 30000;
                 configOptions.AbortOnConnectFail = false;
@@ -277,13 +277,13 @@ namespace Shift.DataLayer
 
         #region UnitTest Helper
         //Used by UnitTest for adding/setting jobs
-        protected Job SetJob(Job job)
+        public Job SetJob(Job job)
         {
             job = SetJobAsync(job).GetAwaiter().GetResult();
             return job;
         }
 
-        protected async Task<Job> SetJobAsync(Job job)
+        public async Task<Job> SetJobAsync(Job job)
         {
             var trn = RedisDatabase.CreateTransaction();
             var key = "";
@@ -1303,12 +1303,12 @@ namespace Shift.DataLayer
         /// </summary>
         /// <param name="maxNum">Maximum number to return</param>
         /// <returns>List of jobs</returns>
-        protected IReadOnlyCollection<Job> GetJobsToRun(int maxNum)
+        public IReadOnlyCollection<Job> GetJobsToRun(int maxNum)
         {
             return GetJobsToRunAsync(maxNum, true).GetAwaiter().GetResult();
         }
 
-        protected Task<IReadOnlyCollection<Job>> GetJobsToRunAsync(int maxNum)
+        public Task<IReadOnlyCollection<Job>> GetJobsToRunAsync(int maxNum)
         {
             return GetJobsToRunAsync(maxNum, false);
         }

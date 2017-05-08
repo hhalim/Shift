@@ -21,12 +21,12 @@ namespace Shift.UnitTest
 
             //Configure storage connection
             var clientConfig = new ClientConfig();
-            clientConfig.DBConnectionString = appSettingsReader.GetValue("MongoDBConnectionString", typeof(string)) as string;
+            clientConfig.DBConnectionString = appSettingsReader.GetValue("MongoConnectionString", typeof(string)) as string;
             clientConfig.StorageMode = "mongo";
             jobClient = new JobClient(clientConfig);
 
             var serverConfig = new ServerConfig();
-            serverConfig.DBConnectionString = appSettingsReader.GetValue("MongoDBConnectionString", typeof(string)) as string;
+            serverConfig.DBConnectionString = appSettingsReader.GetValue("MongoConnectionString", typeof(string)) as string;
             serverConfig.StorageMode = "mongo";
             serverConfig.ProcessID = this.ToString();
             serverConfig.Workers = 1;
