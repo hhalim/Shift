@@ -8,10 +8,34 @@ namespace Shift.Entities
     [Table("JobView")] 
     public partial class JobView
     {
+        private string _id;
+        [JsonProperty(PropertyName = "id")]//PrimaryKey for DocumentDB
+        public string ID
+        {
+            set
+            {
+                _id = value;
+            }
+            get
+            {
+                _id = string.IsNullOrWhiteSpace(_id) && !string.IsNullOrWhiteSpace(_jobID) ? _jobID : _id;
+                return _id;
+            }
+        }
 
-        [Key]
-        [JsonProperty(PropertyName = "id")] //PrimaryKey for DocumentDB
-        public string JobID { get; set; } //PrimaryKey for SQL, Redis, MongoDB
+        private string _jobID;
+        public string JobID
+        {
+            set
+            {
+                _jobID = value;
+            }
+            get
+            {
+                _jobID = string.IsNullOrWhiteSpace(_jobID) && !string.IsNullOrWhiteSpace(_id) ? _id : _jobID;
+                return _jobID;
+            }
+        } //PrimaryKey for SQL, Redis, MongoDB
 
         public string AppID { get; set; }
         public string UserID { get; set; }

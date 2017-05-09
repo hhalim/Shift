@@ -9,7 +9,7 @@ namespace Shift
 {
     public static class RegisterAssembly
     {
-        public static void RegisterTypes(ContainerBuilder builder, string storageMode, string dbConnectionString, bool useCache, string cacheConfigurationString, string encryptionKey, Dictionary<string, string> dbAuthKeys)
+        public static void RegisterTypes(ContainerBuilder builder, string storageMode, string dbConnectionString, bool useCache, string cacheConfigurationString, string encryptionKey, string dbAuthKey)
         {
             var parameters = Helpers.GenerateNamedParameters(new Dictionary<string, object> { { "connectionString", dbConnectionString }, { "encryptionKey", encryptionKey} });
             switch (storageMode.ToLower())
@@ -32,8 +32,8 @@ namespace Shift
                     builder.RegisterType<JobDALMongo>().As<IJobDAL>().UsingConstructor(typeof(string), typeof(string)).WithParameters(parameters);
                     break;
                 case StorageMode.DocumentDB:
-                    parameters = Helpers.GenerateNamedParameters(new Dictionary<string, object> { { "connectionString", dbConnectionString }, { "encryptionKey", encryptionKey }, { "authKey", dbAuthKeys["authKey"] } });
-                    builder.RegisterType<JobDALDocumentDB>().As<IJobDAL>().UsingConstructor(typeof(string), typeof(string)).WithParameters(parameters);
+                    var parameters2 = Helpers.GenerateNamedParameters(new Dictionary<string, object> { { "connectionString", dbConnectionString }, { "encryptionKey", encryptionKey }, { "authKey", dbAuthKey } });
+                    builder.RegisterType<JobDALDocumentDB>().As<IJobDAL>().UsingConstructor(typeof(string), typeof(string)).WithParameters(parameters2);
                     break;
                 default:
                     throw new ArgumentNullException("The storage mode configuration must not be empty or null.");

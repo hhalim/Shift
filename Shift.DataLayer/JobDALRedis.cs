@@ -1263,13 +1263,15 @@ namespace Shift.DataLayer
             var claimedJobs = new List<Job>();
             foreach (var job in jobList)
             {
+                Job thatJob = null;
                 try
                 {
-                    var chkJob = isSync ? GetJob(job.JobID) : await GetJobAsync(job.JobID);
+                    thatJob = isSync ? GetJob(job.JobID) : await GetJobAsync(job.JobID);
                     //check if ProcessID == null && Status == null before setting processID == processID
-                    if (chkJob.Status == null && string.IsNullOrWhiteSpace(chkJob.ProcessID))
+                    if (thatJob.Status == null && string.IsNullOrWhiteSpace(thatJob.ProcessID))
                     {
-                        var key = JobKeyPrefix + job.JobID;
+                        thatJob.ProcessID = processID;
+                        var key = JobKeyPrefix + thatJob.JobID;
                         var result = isSync ? RedisDatabase.HashSet(key, JobFields.ProcessID, processID) : await RedisDatabase.HashSetAsync(key, JobFields.ProcessID, processID);
                     }
                     else
@@ -1290,8 +1292,8 @@ namespace Shift.DataLayer
                     continue;
                 }
 
-                job.ProcessID = processID; //the job object is old, so set with the new processID
-                claimedJobs.Add(job);
+                if(thatJob != null)
+                    claimedJobs.Add(thatJob);
             }
 
             return claimedJobs; //it's possible to return less than passed jobIDs, since multiple Shift server might run and already claimed the job(s)

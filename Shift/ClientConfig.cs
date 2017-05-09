@@ -14,7 +14,7 @@ namespace Shift
 
         [Required]
         public string DBConnectionString { get; set; }
-        public Dictionary<string, string> DBAuthKeys { get; set; }
+        public string DBAuthKey { get; set; }
 
         public bool UseCache { get; set; } = false; //if false, the progress update depends on ProgressDBInterval time to update the DB
         public string CacheConfigurationString { get; set; }

@@ -994,6 +994,7 @@ namespace Shift.DataLayer
                     var result = isSync ? collection.UpdateOne(filter, update) : await collection.UpdateOneAsync(filter, update);
                     if (result.IsAcknowledged)
                     {
+                        job.ProcessID = processID; //set it similar to DB record!
                         count = (int)result.ModifiedCount;
                     }
                 }
@@ -1012,7 +1013,6 @@ namespace Shift.DataLayer
 
                 if (count > 0) //successful update 
                 {
-                    job.ProcessID = processID; //set it similar to DB record!
                     claimedJobs.Add(job);
                 }
             }
