@@ -41,8 +41,15 @@ namespace Shift.DataLayer
         const string JobStatusProcessTemplate = "job-[status]:[processid]";
 
         private IDatabase _IDatabase;
+        //Use Azure cache pattern: https://docs.microsoft.com/en-us/azure/redis-cache/cache-dotnet-how-to-use-azure-redis-cache#connect-to-the-cache
         private static Lazy<ConnectionMultiplexer> lazyConnection;
-        private static Lazy<ConfigurationOptions> lazyConfigOptions;
+        private static ConnectionMultiplexer Connection
+        {
+            get
+            {
+                return lazyConnection.Value;
+            }
+        }
 
         public IDatabase RedisDatabase
         {
@@ -50,9 +57,8 @@ namespace Shift.DataLayer
             {
                 if (_IDatabase == null)
                 {
-                    var connection = lazyConnection.Value;
-                    connection.PreserveAsyncOrder = false;
-                    _IDatabase = connection.GetDatabase();
+                    Connection.PreserveAsyncOrder = false;
+                    _IDatabase = Connection.GetDatabase();
                 }
                 return _IDatabase;
             }
@@ -64,17 +70,7 @@ namespace Shift.DataLayer
             if (string.IsNullOrWhiteSpace(connectionString))
                 throw new ArgumentNullException("connectionString");
 
-            lazyConfigOptions = new Lazy<ConfigurationOptions>(() =>
-            {
-                var configOptions = new ConfigurationOptions();
-                configOptions.EndPoints.Add(connectionString);
-                configOptions.ClientName = this.ToString();
-                configOptions.ConnectTimeout = 30000;
-                configOptions.SyncTimeout = 30000;
-                configOptions.AbortOnConnectFail = false;
-                return configOptions;
-            });
-            lazyConnection = new Lazy<ConnectionMultiplexer>(() => ConnectionMultiplexer.Connect(lazyConfigOptions.Value));
+            lazyConnection = new Lazy<ConnectionMultiplexer>(() => ConnectionMultiplexer.Connect(connectionString));
             this.encryptionKey = encryptionKey;
         }
         #endregion
