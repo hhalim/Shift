@@ -10,7 +10,7 @@ Shift background or long running jobs into reliable and durable workers out of y
 - Optional progress tracking for each running jobs.
 - Scale out with multiple shift servers to run large number of jobs.
 - Optional encryption for serialized data.
-- Redis persistent storage by default. Optional MongoDB or Microsoft SQL server for storage options. 
+- Redis persistent storage by default. Other supported storage: MongoDB, Microsoft SQL server, Azure DocumentDB. 
 - Run Shift Server in your own .NET apps, Azure WebJobs, or Windows services. Check out the [Shift.WinService](https://github.com/hhalim/Shift.WinService) and [Shift.WebJob](https://github.com/hhalim/Shift.WebJob) projects.
 
 The client component allows client apps to add jobs and send commands to Shift server to stop, delete, reset, and run jobs.
@@ -21,11 +21,12 @@ var job = new TestJob();
 var jobID = jobClient.Add(() => job.Start("Hello World"));
 ```
 
-Add a long running job that periodically reports its progress:
+Add a long running job with cancellation token that periodically reports its progress:
 ```
 var job = new TestJob();
 var progress = new SynchronousProgress<ProgressInfo>();
-var jobID = shiftClient.Add("Shift.Demo", () => job.Start("Hello World", progress));
+var token = (new CancellationTokenSource()).Token; 
+var jobID = jobClient.Add("Shift.Demo.Client", () => job.Start("Hello World", progress, token));
 ```
 
 The server component checks for available jobs through polling, using first-in, first-out (FIFO) queue method. The server is a simple .NET library and needs to run inside a .NET app, Azure WebJob, or Windows service. 
@@ -36,7 +37,8 @@ Two deployable and runnable server apps projects are also provided as a starting
 
 ## Demos
 Please check out the demo apps first to provide better understanding on how to integrate Shift into your own .NET application. There is the ASP.NET MVC demo that shows Shift client and server running in the same ASP.Net process, and the simpler console Shift client and server apps demo. The console apps are two separate projects that demonstrate the client and the server working in two different processes.
-- ASP.NET MVC demo: [Shift.Demo.Mvc](https://github.com/hhalim/Shift.Demo.Mvc) or ASP.NET MVC Core version: [Shift.Demo.Mvc.Core](https://github.com/hhalim/Shift.Demo.Mvc.Core)
+- ASP.NET MVC demo: [Shift.Demo.Mvc](https://github.com/hhalim/Shift.Demo.Mvc)
+- ASP.NET Core MVC demo: [Shift.Demo.Mvc.Core](https://github.com/hhalim/Shift.Demo.Mvc.Core)
 - Console apps demo: [Shift.Demo.Client](https://github.com/hhalim/Shift.Demo.Client) and [Shift.Demo.Server](https://github.com/hhalim/Shift.Demo.Server)
 
 ## Quick Start and More
@@ -49,4 +51,5 @@ Shift uses the following open source projects:
 - [StackExchange.Redis](https://github.com/StackExchange/StackExchange.Redis)
 - [Json.NET](http://james.newtonking.com/json)
 - [MongoDB C# Driver](https://github.com/mongodb/mongo-csharp-driver)
+- [Azure DocumentDB .NET SDK](https://github.com/Azure/azure-documentdb-dotnet)
 
