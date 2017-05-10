@@ -32,8 +32,8 @@ namespace Shift
                     builder.RegisterType<JobDALMongo>().As<IJobDAL>().UsingConstructor(typeof(string), typeof(string)).WithParameters(parameters);
                     break;
                 case StorageMode.DocumentDB:
-                    var parameters2 = Helpers.GenerateNamedParameters(new Dictionary<string, object> { { "connectionString", dbConnectionString }, { "encryptionKey", encryptionKey }, { "authKey", dbAuthKey } });
-                    builder.RegisterType<JobDALDocumentDB>().As<IJobDAL>().UsingConstructor(typeof(string), typeof(string)).WithParameters(parameters2);
+                    parameters = Helpers.GenerateNamedParameters(new Dictionary<string, object> { { "connectionString", dbConnectionString }, { "encryptionKey", encryptionKey }, { "authKey", dbAuthKey } });
+                    builder.RegisterType<JobDALDocumentDB>().As<IJobDAL>().UsingConstructor(typeof(string), typeof(string), typeof(string)).WithParameters(parameters);
                     break;
                 default:
                     throw new ArgumentNullException("The storage mode configuration must not be empty or null.");

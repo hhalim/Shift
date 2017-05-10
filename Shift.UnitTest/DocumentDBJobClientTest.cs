@@ -8,12 +8,12 @@ using Shift.Entities;
 namespace Shift.UnitTest
 {
     [TestClass]
-    public class DocumentDBClientTest
+    public class DocumentDBJobClientTest
     {
         JobClient jobClient;
         private const string AppID = "TestAppID";
 
-        public DocumentDBClientTest()
+        public DocumentDBJobClientTest()
         {
             var appSettingsReader = new AppSettingsReader();
 

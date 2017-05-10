@@ -64,7 +64,10 @@
     <Compile Include="MongoJobClientTest.cs" />
     <Compile Include="MongoJobClientAsyncTest.cs" />
     <Compile Include="MongoJobServerAsyncTest.cs" />
-    <Compile Include="DocumentDBClientTest.cs" />
+    <Compile Include="DocumentDBJobClientTest.cs" />
+    <Compile Include="DocumentDBJobClientAsyncTest.cs" />
+    <Compile Include="DocumentDBJobServerAsyncTest.cs" />
+    <Compile Include="DocumentDBJobServerTest.cs" />
     <Compile Include="SqlJobServerAsyncTest.cs" />
     <Compile Include="RedisJobServerAsyncTest.cs" />
     <Compile Include="MongoJobServerTest.cs" />

@@ -32,13 +32,6 @@ namespace Shift.DataLayer
             InitDocumentDB(connectionString, authKey);
         }
 
-        //public JobDALDocumentDB(string connectionString, IJobCache jobCache, string encryptionKey, string authKey)
-        //{
-        //    this.encryptionKey = encryptionKey;
-
-        //    InitDocumentDB(connectionString, authKey);
-        //}
-
         protected void InitDocumentDB(string connectionString, string authKey)
         {
             if(Client == null)
@@ -382,14 +375,14 @@ namespace Shift.DataLayer
             if (jobIDs.Count == 0)
                 return count;
 
-            IEnumerable<Job> jobList;
+            IEnumerable<JobView> jobList;
             if (isSync)
             {
-                jobList = GetItemsAsync<Job>(j => jobIDs.Contains(j.ID) && (j.Status == null || j.Status == JobStatus.Running), isSync).GetAwaiter().GetResult();
+                jobList = GetItemsAsync<JobView>(j => jobIDs.Contains(j.ID) && (j.Status == null || j.Status == JobStatus.Running), isSync).GetAwaiter().GetResult();
             }
             else
             {
-                jobList = await GetItemsAsync<Job>(j => jobIDs.Contains(j.ID) && (j.Status == null || j.Status == JobStatus.Running), isSync);
+                jobList = await GetItemsAsync<JobView>(j => jobIDs.Contains(j.ID) && (j.Status == null || j.Status == JobStatus.Running), isSync);
             }
 
             foreach (var job in jobList)
@@ -401,7 +394,7 @@ namespace Shift.DataLayer
                     response = Client.ReplaceDocumentAsync(documentUri, job).GetAwaiter().GetResult();
                 else
                     response = await Client.ReplaceDocumentAsync(documentUri, job);
-                if (response.StatusCode == System.Net.HttpStatusCode.OK)
+                if (response.StatusCode == HttpStatusCode.OK)
                     count++;
             }
 
@@ -430,14 +423,14 @@ namespace Shift.DataLayer
             if (jobIDs.Count == 0)
                 return count;
 
-            IEnumerable<Job> jobList;
+            IEnumerable<JobView> jobList;
             if (isSync)
             {
-                jobList = GetItemsAsync<Job>(j => jobIDs.Contains(j.ID) && j.Status == null && j.ProcessID == null, isSync).GetAwaiter().GetResult();
+                jobList = GetItemsAsync<JobView>(j => jobIDs.Contains(j.ID) && j.Status == null && (j.ProcessID == null || j.ProcessID == ""), isSync).GetAwaiter().GetResult();
             }
             else
             {
-                jobList = await GetItemsAsync<Job>(j => jobIDs.Contains(j.ID) && j.Status == null && j.ProcessID == null, isSync);
+                jobList = await GetItemsAsync<JobView>(j => jobIDs.Contains(j.ID) && j.Status == null && (j.ProcessID == null || j.ProcessID == ""), isSync);
             }
 
             foreach (var job in jobList)
@@ -450,7 +443,7 @@ namespace Shift.DataLayer
                     response = Client.ReplaceDocumentAsync(documentUri, job).GetAwaiter().GetResult();
                 else
                     response = await Client.ReplaceDocumentAsync(documentUri, job);
-                if (response.StatusCode == System.Net.HttpStatusCode.OK)
+                if (response.StatusCode == HttpStatusCode.OK)
                     count++;
             }
 
@@ -494,10 +487,10 @@ namespace Shift.DataLayer
                 job.Percent = null;
                 job.Note = null;
 
-                job.ProcessID = "";
-                job.Command = "";
+                job.ProcessID = null;
+                job.Command = null;
                 job.Status = null;
-                job.Error = "";
+                job.Error = null;
                 job.Start = null;
                 job.End = null;
                 job.Score = ((DateTimeOffset)job.Created).ToUnixTimeSeconds(); //reset score to created;
@@ -508,7 +501,7 @@ namespace Shift.DataLayer
                     response = Client.ReplaceDocumentAsync(documentUri, job).GetAwaiter().GetResult();
                 else
                     response = await Client.ReplaceDocumentAsync(documentUri, job);
-                if (response.StatusCode == System.Net.HttpStatusCode.OK)
+                if (response.StatusCode == HttpStatusCode.OK)
                     count++;
             }
             return count;
@@ -662,14 +655,14 @@ namespace Shift.DataLayer
             if (jobIDs.Count == 0)
                 return count;
 
-            IEnumerable<Job> jobList;
+            IEnumerable<JobView> jobList;
             if (isSync)
             {
-                jobList = GetItemsAsync<Job>(j => jobIDs.Contains(j.ID), isSync).GetAwaiter().GetResult();
+                jobList = GetItemsAsync<JobView>(j => jobIDs.Contains(j.ID), isSync).GetAwaiter().GetResult();
             }
             else
             {
-                jobList = await GetItemsAsync<Job>(j => jobIDs.Contains(j.ID), isSync);
+                jobList = await GetItemsAsync<JobView>(j => jobIDs.Contains(j.ID), isSync);
             }
 
             foreach (var job in jobList)
@@ -683,7 +676,7 @@ namespace Shift.DataLayer
                     response = Client.ReplaceDocumentAsync(documentUri, job).GetAwaiter().GetResult();
                 else
                     response = await Client.ReplaceDocumentAsync(documentUri, job);
-                if (response.StatusCode == System.Net.HttpStatusCode.OK)
+                if (response.StatusCode == HttpStatusCode.OK)
                     count++;
             }
 
@@ -949,7 +942,7 @@ namespace Shift.DataLayer
         private async Task<IReadOnlyCollection<string>> GetJobIdsByProcessAndCommandAsync(string processID, string command, bool isSync)
         {
             var query = (from j in Client.CreateDocumentQuery<Job>(CollectionLink)
-                         where (j.ProcessID == processID || j.ProcessID == null) && j.Command == command
+                         where (j.ProcessID == processID || j.ProcessID == null || j.ProcessID == "") && j.Command == command
                          select j.ID).AsDocumentQuery();
 
             List<string> jobIDs = new List<string>();
@@ -1100,14 +1093,14 @@ namespace Shift.DataLayer
         {
             var count = 0;
 
-            Job job = null;
+            JobView job = null;
             if (isSync)
             {
-                job = GetItemAsync<Job>(j => j.ID == jobID && j.ProcessID == processID, isSync).GetAwaiter().GetResult();
+                job = GetItemAsync<JobView>(j => j.ID == jobID && j.ProcessID == processID, isSync).GetAwaiter().GetResult();
             }
             else
             {
-                job = await GetItemAsync<Job>(j => j.ID == jobID && j.ProcessID == processID, isSync);
+                job = await GetItemAsync<JobView>(j => j.ID == jobID && j.ProcessID == processID, isSync);
             }
 
             if (job != null)
@@ -1122,7 +1115,7 @@ namespace Shift.DataLayer
                     response = Client.ReplaceDocumentAsync(documentUri, job).GetAwaiter().GetResult();
                 else
                     response = await Client.ReplaceDocumentAsync(documentUri, job);
-                if (response.StatusCode == System.Net.HttpStatusCode.OK)
+                if (response.StatusCode == HttpStatusCode.OK)
                     count++;
             }
 
@@ -1150,14 +1143,14 @@ namespace Shift.DataLayer
         {
             var count = 0;
 
-            Job job = null;
+            JobView job = null;
             if (isSync)
             {
-                job = GetItemAsync<Job>(j => j.ID == jobID && j.ProcessID == processID, isSync).GetAwaiter().GetResult();
+                job = GetItemAsync<JobView>(j => j.ID == jobID && j.ProcessID == processID, isSync).GetAwaiter().GetResult();
             }
             else
             {
-                job = await GetItemAsync<Job>(j => j.ID == jobID && j.ProcessID == processID, isSync);
+                job = await GetItemAsync<JobView>(j => j.ID == jobID && j.ProcessID == processID, isSync);
             }
 
             if (job != null)
@@ -1171,7 +1164,7 @@ namespace Shift.DataLayer
                     response = Client.ReplaceDocumentAsync(documentUri, job).GetAwaiter().GetResult();
                 else
                     response = await Client.ReplaceDocumentAsync(documentUri, job);
-                if (response.StatusCode == System.Net.HttpStatusCode.OK)
+                if (response.StatusCode == HttpStatusCode.OK)
                     count++;
             }
 
@@ -1198,14 +1191,14 @@ namespace Shift.DataLayer
         {
             var count = 0;
 
-            Job job = null;
+            JobView job = null;
             if (isSync)
             {
-                job = GetItemAsync<Job>(j => j.ID == jobID && j.ProcessID == processID, isSync).GetAwaiter().GetResult();
+                job = GetItemAsync<JobView>(j => j.ID == jobID && j.ProcessID == processID, isSync).GetAwaiter().GetResult();
             }
             else
             {
-                job = await GetItemAsync<Job>(j => j.ID == jobID && j.ProcessID == processID, isSync);
+                job = await GetItemAsync<JobView>(j => j.ID == jobID && j.ProcessID == processID, isSync);
             }
 
             if (job != null)
@@ -1220,7 +1213,7 @@ namespace Shift.DataLayer
                     response = Client.ReplaceDocumentAsync(documentUri, job).GetAwaiter().GetResult();
                 else
                     response = await Client.ReplaceDocumentAsync(documentUri, job);
-                if (response.StatusCode == System.Net.HttpStatusCode.OK)
+                if (response.StatusCode == HttpStatusCode.OK)
                     count++;
             }
 
@@ -1315,16 +1308,16 @@ namespace Shift.DataLayer
             foreach(var job in jobList)
             {
                 var count = 0;
-                Job thatJob = null;
+                JobView thatJob = null;
                 try
                 {
                     if (isSync)
                     {
-                        thatJob = GetItemAsync<Job>(j => j.ID == job.JobID && j.ProcessID == null && j.Status == null, isSync).GetAwaiter().GetResult();
+                        thatJob = GetItemAsync<JobView>(j => j.ID == job.JobID && (j.ProcessID == null || j.ProcessID == "") && j.Status == null, isSync).GetAwaiter().GetResult();
                     }
                     else
                     {
-                        thatJob = await GetItemAsync<Job>(j => j.ID == job.JobID && j.ProcessID == null && j.Status == null, isSync);
+                        thatJob = await GetItemAsync<JobView>(j => j.ID == job.JobID && (j.ProcessID == null || j.ProcessID == "") && j.Status == null, isSync);
                     }
 
                     if (thatJob != null)
@@ -1337,7 +1330,7 @@ namespace Shift.DataLayer
                             response = Client.ReplaceDocumentAsync(documentUri, thatJob).GetAwaiter().GetResult();
                         else
                             response = await Client.ReplaceDocumentAsync(documentUri, thatJob);
-                        if (response.StatusCode == System.Net.HttpStatusCode.OK)
+                        if (response.StatusCode == HttpStatusCode.OK)
                             count++;
                     }
                 }
@@ -1354,9 +1347,10 @@ namespace Shift.DataLayer
                     continue;
                 }
 
-                if (count > 0 && thatJob != null) //successful update 
+                if (count > 0) //successful update 
                 {
-                    claimedJobs.Add(thatJob);
+                    job.ProcessID = processID;
+                    claimedJobs.Add(job);
                 }
             }
 
@@ -1384,7 +1378,7 @@ namespace Shift.DataLayer
             var query = Client.CreateDocumentQuery<Job>(
                 CollectionLink,
                 new FeedOptions { MaxItemCount = -1 })
-                .Where(j => j.Status == null && j.ProcessID == null && (j.Command == JobCommand.RunNow || j.Command == null))
+                .Where(j => j.Status == null && (j.ProcessID == null || j.ProcessID == "") && (j.Command == JobCommand.RunNow || j.Command == null))
                 .OrderBy(j => j.Score)
                 .Take(maxNum)
                 .AsDocumentQuery();
@@ -1463,7 +1457,7 @@ namespace Shift.DataLayer
                     response = Client.ReplaceDocumentAsync(documentUri, job).GetAwaiter().GetResult();
                 else
                     response = await Client.ReplaceDocumentAsync(documentUri, job);
-                if (response.StatusCode == System.Net.HttpStatusCode.OK)
+                if (response.StatusCode == HttpStatusCode.OK)
                     count++;
             }
 
