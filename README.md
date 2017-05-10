@@ -21,11 +21,12 @@ var job = new TestJob();
 var jobID = jobClient.Add(() => job.Start("Hello World"));
 ```
 
-Add a long running job that periodically reports its progress:
+Add a long running job with cancellation token that periodically reports its progress:
 ```
 var job = new TestJob();
 var progress = new SynchronousProgress<ProgressInfo>();
-var jobID = shiftClient.Add("Shift.Demo", () => job.Start("Hello World", progress));
+var token = (new CancellationTokenSource()).Token; 
+var jobID = jobClient.Add("Shift.Demo.Client", () => job.Start("Hello World", progress, token));
 ```
 
 The server component checks for available jobs through polling, using first-in, first-out (FIFO) queue method. The server is a simple .NET library and needs to run inside a .NET app, Azure WebJob, or Windows service. 
