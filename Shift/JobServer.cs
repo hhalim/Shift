@@ -41,7 +41,7 @@ namespace Shift
 
             if (string.IsNullOrWhiteSpace(config.ProcessID))
             {
-                throw new ArgumentNullException("Unable to create with no ProcessID.");
+                config.ProcessID = ProcessIDGenerator.Generate(true);
             }
 
             if (string.IsNullOrWhiteSpace(config.DBConnectionString))
