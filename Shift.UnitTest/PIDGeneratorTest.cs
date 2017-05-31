@@ -1,5 +1,5 @@
 ﻿using System;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Xunit;
 using System.Threading;
 using System.Collections.Generic;
 using System.Configuration;
@@ -7,11 +7,11 @@ using System.Threading.Tasks;
 
 namespace Shift.UnitTest
 {
-    [TestClass]
+     
     public class PIDGeneratorTest
     {
 
-        [TestMethod]
+        [Fact]
         public void GenerateProcessIDNotUseExisting()
         {
             var newPID = ProcessIDGenerator.Generate(false);
@@ -19,25 +19,25 @@ namespace Shift.UnitTest
             Guid outGuid;
             var isValid = Guid.TryParse(newPID, out outGuid);
 
-            Assert.IsTrue(isValid);
-            Assert.IsNotNull(outGuid);
-            Assert.AreEqual(newPID, outGuid.ToString("N").ToUpper());
+            Assert.True(isValid);
+            Assert.NotNull(outGuid);
+            Assert.Equal(newPID, outGuid.ToString("N").ToUpper());
         }
 
 
-        [TestMethod]
+        [Fact]
         public void GenerateProcessIDUseExisting()
         {
             ProcessIDGenerator.DeleteExistingProcessID(); //ensures generating new PID
             var newPID = ProcessIDGenerator.Generate(true);
             var existingPID = ProcessIDGenerator.Generate(true); //should return the existing PID
 
-            Assert.IsNotNull(newPID);
-            Assert.IsNotNull(existingPID);
-            Assert.AreEqual(newPID, existingPID);
+            Assert.NotNull(newPID);
+            Assert.NotNull(existingPID);
+            Assert.Equal(newPID, existingPID);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task GenerateAsyncProcessIDNotUseExisting()
         {
             var newPID = await ProcessIDGenerator.GenerateAsync(false);
@@ -45,22 +45,22 @@ namespace Shift.UnitTest
             Guid outGuid;
             var isValid = Guid.TryParse(newPID, out outGuid);
 
-            Assert.IsTrue(isValid);
-            Assert.IsNotNull(outGuid);
-            Assert.AreEqual(newPID, outGuid.ToString("N").ToUpper());
+            Assert.True(isValid);
+            Assert.NotNull(outGuid);
+            Assert.Equal(newPID, outGuid.ToString("N").ToUpper());
         }
 
 
-        [TestMethod]
+        [Fact]
         public async Task GenerateAsyncProcessIDUseExisting()
         {
             ProcessIDGenerator.DeleteExistingProcessID(); //ensures generating new PID
             var newPID = await ProcessIDGenerator.GenerateAsync(true);
             var existingPID = await ProcessIDGenerator.GenerateAsync(true); //should return the existing PID
 
-            Assert.IsNotNull(newPID);
-            Assert.IsNotNull(existingPID);
-            Assert.AreEqual(newPID, existingPID);
+            Assert.NotNull(newPID);
+            Assert.NotNull(existingPID);
+            Assert.Equal(newPID, existingPID);
         }
 
 

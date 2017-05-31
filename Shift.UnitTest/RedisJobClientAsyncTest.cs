@@ -2,13 +2,13 @@
 using System.Text;
 using System.Collections.Generic;
 using System.Configuration;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Xunit;
 using Shift.Entities;
 using System.Threading.Tasks;
 
 namespace Shift.UnitTest
 {
-    [TestClass]
+     
     public class RedisJobClientAsyncTest
     {
         JobClient jobClient;
@@ -25,78 +25,78 @@ namespace Shift.UnitTest
             jobClient = new JobClient(config);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task GetJobAsyncInvalidTest()
         {
             var job = await jobClient.GetJobAsync("-ZZTOP");
 
-            Assert.IsNull(job);
+            Assert.Null(job);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task GetJobAsyncValidTest()
         {
             var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
             var job = await jobClient.GetJobAsync(jobID);
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
 
-            Assert.IsNotNull(job);
-            Assert.AreEqual(jobID, job.JobID);
+            Assert.NotNull(job);
+            Assert.Equal(jobID, job.JobID);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task AddAsyncJobTest1()
         {
             var jobID = await jobClient.AddAsync(() => Console.WriteLine("Hello Test"));
             var job = await jobClient.GetJobAsync(jobID);
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
 
-            Assert.IsNotNull(job);
-            Assert.AreEqual(jobID, job.JobID);
+            Assert.NotNull(job);
+            Assert.Equal(jobID, job.JobID);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task AddAsyncJobTest2()
         {
             var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
             var job = await jobClient.GetJobAsync(jobID);
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
 
-            Assert.IsNotNull(job);
-            Assert.AreEqual(jobID, job.JobID);
-            Assert.AreEqual(AppID, job.AppID);
+            Assert.NotNull(job);
+            Assert.Equal(jobID, job.JobID);
+            Assert.Equal(AppID, job.AppID);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task AddAsyncJobTest3()
         {
             var jobID = await jobClient.AddAsync(AppID, "-123", "TestJobType", () => Console.WriteLine("Hello Test"));
             var job = await jobClient.GetJobAsync(jobID);
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
 
-            Assert.IsNotNull(job);
-            Assert.AreEqual(jobID, job.JobID);
-            Assert.AreEqual(AppID, job.AppID);
-            Assert.AreEqual("-123", job.UserID);
-            Assert.AreEqual("TestJobType", job.JobType);
+            Assert.NotNull(job);
+            Assert.Equal(jobID, job.JobID);
+            Assert.Equal(AppID, job.AppID);
+            Assert.Equal("-123", job.UserID);
+            Assert.Equal("TestJobType", job.JobType);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task AddAsyncJobTest4()
         {
             var jobID = await jobClient.AddAsync(AppID, "-123", "TestJobType", "Test.JobName", () => Console.WriteLine("Hello Test"));
             var job = await jobClient.GetJobAsync(jobID);
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
 
-            Assert.IsNotNull(job);
-            Assert.AreEqual(jobID, job.JobID);
-            Assert.AreEqual(AppID, job.AppID);
-            Assert.AreEqual("-123", job.UserID);
-            Assert.AreEqual("TestJobType", job.JobType);
-            Assert.AreEqual("Test.JobName", job.JobName);
+            Assert.NotNull(job);
+            Assert.Equal(jobID, job.JobID);
+            Assert.Equal(AppID, job.AppID);
+            Assert.Equal("-123", job.UserID);
+            Assert.Equal("TestJobType", job.JobType);
+            Assert.Equal("Test.JobName", job.JobName);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task UpdateAsyncJobTest1()
         {
             var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
@@ -104,11 +104,11 @@ namespace Shift.UnitTest
             var job = await jobClient.GetJobAsync(jobID);
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
 
-            Assert.IsNotNull(job);
-            Assert.AreEqual("[\"\\\"Hello Test Updated\\\"\"]", job.Parameters);
+            Assert.NotNull(job);
+            Assert.Equal("[\"\\\"Hello Test Updated\\\"\"]", job.Parameters);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task UpdateAsyncJobTest2()
         {
             var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
@@ -116,12 +116,12 @@ namespace Shift.UnitTest
             var job = await jobClient.GetJobAsync(jobID);
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
 
-            Assert.IsNotNull(job);
-            Assert.AreEqual("TestAppIDUpdated", job.AppID);
-            Assert.AreEqual("[\"\\\"Hello Test Updated\\\"\"]", job.Parameters);
+            Assert.NotNull(job);
+            Assert.Equal("TestAppIDUpdated", job.AppID);
+            Assert.Equal("[\"\\\"Hello Test Updated\\\"\"]", job.Parameters);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task UpdateAsyncJobTest3()
         {
             var jobID = await jobClient.AddAsync(AppID, "-123", "TestJobType", "Test.JobName", () => Console.WriteLine("Hello Test"));
@@ -129,15 +129,15 @@ namespace Shift.UnitTest
             var job = await jobClient.GetJobAsync(jobID);
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
 
-            Assert.IsNotNull(job);
-            Assert.AreEqual("TestAppIDUpdated", job.AppID);
-            Assert.AreEqual("-222", job.UserID);
-            Assert.AreEqual("TestJobTypeUpdated", job.JobType);
-            Assert.AreEqual("Test.JobNameUpdated", job.JobName);
-            Assert.AreEqual("[\"\\\"Hello Test Updated\\\"\"]", job.Parameters);
+            Assert.NotNull(job);
+            Assert.Equal("TestAppIDUpdated", job.AppID);
+            Assert.Equal("-222", job.UserID);
+            Assert.Equal("TestJobTypeUpdated", job.JobType);
+            Assert.Equal("Test.JobNameUpdated", job.JobName);
+            Assert.Equal("[\"\\\"Hello Test Updated\\\"\"]", job.Parameters);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task SetCommandStopAsyncTest()
         {
             var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
@@ -145,11 +145,11 @@ namespace Shift.UnitTest
             var job = await jobClient.GetJobAsync(jobID);
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
 
-            Assert.IsNotNull(job);
-            Assert.AreEqual(JobCommand.Stop, job.Command);
+            Assert.NotNull(job);
+            Assert.Equal(JobCommand.Stop, job.Command);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task SetCommandRunNowAsyncTest()
         {
             var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
@@ -157,23 +157,23 @@ namespace Shift.UnitTest
             var job = await jobClient.GetJobAsync(jobID);
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
 
-            Assert.IsNotNull(job);
-            Assert.AreEqual(JobCommand.RunNow, job.Command);
+            Assert.NotNull(job);
+            Assert.Equal(JobCommand.RunNow, job.Command);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task GetJobViewAsyncTest()
         {
             var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
             var jobView = await jobClient.GetJobViewAsync(jobID);
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
 
-            Assert.IsNotNull(jobView);
-            Assert.AreEqual(jobID, jobView.JobID);
-            Assert.IsInstanceOfType(jobView, typeof(JobView));
+            Assert.NotNull(jobView);
+            Assert.Equal(jobID, jobView.JobID);
+            Assert.IsType<JobView>(jobView);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task GetJobViewsAsyncTest()
         {
             var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
@@ -181,22 +181,22 @@ namespace Shift.UnitTest
             var jobViews = await jobClient.GetJobViewsAsync(0, 10);
             await jobClient.DeleteJobsAsync(new List<string>() { jobID, jobID2 });
 
-            Assert.IsInstanceOfType(jobViews, typeof(JobViewList));
-            Assert.IsNotNull(jobViews);
-            Assert.IsNotNull(jobViews.Items);
-            Assert.IsTrue(jobViews.Items.Count > 0);
-            Assert.IsTrue(jobViews.Total > 0);
+            Assert.IsType<JobViewList>(jobViews);
+            Assert.NotNull(jobViews);
+            Assert.NotNull(jobViews.Items);
+            Assert.True(jobViews.Items.Count > 0);
+            Assert.True(jobViews.Total > 0);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task ResetJobsAsyncTest()
         {
             var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
             await jobClient.SetCommandStopAsync(new List<string> { jobID });
             var job = await jobClient.GetJobAsync(jobID);
 
-            Assert.IsNotNull(job);
-            Assert.AreEqual(JobCommand.Stop, job.Command); //ensure it is set to 'stop' command
+            Assert.NotNull(job);
+            Assert.Equal(JobCommand.Stop, job.Command); //ensure it is set to 'stop' command
 
             //try to reset
             await jobClient.ResetJobsAsync(new List<string> { jobID });
@@ -204,57 +204,57 @@ namespace Shift.UnitTest
 
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
 
-            Assert.IsNotNull(job);
-            Assert.IsTrue(string.IsNullOrWhiteSpace(job.Command));
+            Assert.NotNull(job);
+            Assert.True(string.IsNullOrWhiteSpace(job.Command));
         }
 
-        [TestMethod]
+        [Fact]
         public async Task DeleteJobsAsyncTest()
         {
             var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
             var job = await jobClient.GetJobAsync(jobID);
-            Assert.IsNotNull(job); //ensure it exists
+            Assert.NotNull(job); //ensure it exists
 
             //try to delete
             await jobClient.DeleteJobsAsync(new List<string> { jobID });
             job = await jobClient.GetJobAsync(jobID);
 
-            Assert.IsNull(job);
+            Assert.Null(job);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task GetJobStatusCountAsyncTest()
         {
             var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
             var statusCount = await jobClient.GetJobStatusCountAsync(AppID, null);
             await jobClient.DeleteJobsAsync(new List<string> { jobID });
 
-            Assert.IsNotNull(statusCount); 
-            Assert.IsTrue(statusCount.Count > 0);
+            Assert.NotNull(statusCount); 
+            Assert.True(statusCount.Count > 0);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task GetProgressAsyncTest()
         {
             var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
             var progress = await jobClient.GetProgressAsync(jobID);
             await jobClient.DeleteJobsAsync(new List<string> { jobID });
 
-            Assert.IsNotNull(progress);
-            Assert.IsInstanceOfType(progress, typeof(JobStatusProgress));
-            Assert.AreEqual(jobID, progress.JobID);
+            Assert.NotNull(progress);
+            Assert.IsType<JobStatusProgress>(progress);
+            Assert.Equal(jobID, progress.JobID);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task GetCachedProgressAsyncTest()
         {
             var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
             var progress = await jobClient.GetCachedProgressAsync(jobID);
             await jobClient.DeleteJobsAsync(new List<string> { jobID });
 
-            Assert.IsNotNull(progress);
-            Assert.IsInstanceOfType(progress, typeof(JobStatusProgress));
-            Assert.AreEqual(jobID, progress.JobID);
+            Assert.NotNull(progress);
+            Assert.IsType<JobStatusProgress>(progress);
+            Assert.Equal(jobID, progress.JobID);
         }
     }
 }

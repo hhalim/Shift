@@ -1,5 +1,5 @@
 ﻿using System;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Xunit;
 using System.Threading;
 using System.Collections.Generic;
 using System.Configuration;
@@ -8,7 +8,7 @@ using Shift.Entities;
 
 namespace Shift.UnitTest
 {
-    [TestClass]
+     
     public class DocumentDBJobServerTest
     {
         JobClient jobClient;
@@ -41,14 +41,14 @@ namespace Shift.UnitTest
             jobServer = new JobServer(serverConfig);
         }
 
-        [TestMethod]
+        [Fact]
         public void RunJobsSelectedTest()
         {
             var jobID = jobClient.Add(AppID, () => Console.WriteLine("Hello Test"));
             var job = jobClient.GetJob(jobID);
 
-            Assert.IsNotNull(job);
-            Assert.AreEqual(jobID, job.JobID);
+            Assert.NotNull(job);
+            Assert.Equal(jobID, job.JobID);
 
             //run job
             jobServer.RunJobs(new List<string> { jobID });
@@ -56,29 +56,29 @@ namespace Shift.UnitTest
 
             job = jobClient.GetJob(jobID);
             jobClient.DeleteJobs(new List<string>() { jobID });
-            Assert.AreEqual(JobStatus.Completed, job.Status);
+            Assert.Equal(JobStatus.Completed, job.Status);
         }
 
 
-        [TestMethod]
+        [Fact]
         public void StopJobsNonRunningTest()
         {
             var jobID = jobClient.Add(AppID, () => Console.WriteLine("Hello Test"));
             jobClient.SetCommandStop(new List<string> { jobID });
             var job = jobClient.GetJob(jobID);
 
-            Assert.IsNotNull(job);
-            Assert.AreEqual(JobCommand.Stop, job.Command);
+            Assert.NotNull(job);
+            Assert.Equal(JobCommand.Stop, job.Command);
 
             jobServer.StopJobs(); //stop non-running job
             Thread.Sleep(5000);
 
             job = jobClient.GetJob(jobID);
             jobClient.DeleteJobs(new List<string>() { jobID });
-            Assert.AreEqual(JobStatus.Stopped, job.Status);
+            Assert.Equal(JobStatus.Stopped, job.Status);
         }
 
-        [TestMethod]
+        [Fact]
         public void StopJobsRunningTest()
         {
             var jobTest = new TestJob();
@@ -91,8 +91,8 @@ namespace Shift.UnitTest
             Thread.Sleep(1000);
 
             var job = jobClient.GetJob(jobID);
-            Assert.IsNotNull(job);
-            Assert.AreEqual(JobStatus.Running, job.Status);
+            Assert.NotNull(job);
+            Assert.Equal(JobStatus.Running, job.Status);
 
             jobClient.SetCommandStop(new List<string> { jobID });
             jobServer.StopJobs(); //stop running job
@@ -100,10 +100,10 @@ namespace Shift.UnitTest
 
             job = jobClient.GetJob(jobID);
             jobClient.DeleteJobs(new List<string>() { jobID });
-            Assert.AreEqual(JobStatus.Stopped, job.Status);
+            Assert.Equal(JobStatus.Stopped, job.Status);
         }
 
-        [TestMethod]
+        [Fact]
         public void CleanUpTest()
         {
             //Test StopJobs with CleanUp() calls
@@ -118,8 +118,8 @@ namespace Shift.UnitTest
             Thread.Sleep(1000);
 
             var job = jobClient.GetJob(jobID);
-            Assert.IsNotNull(job);
-            Assert.AreEqual(JobStatus.Running, job.Status);
+            Assert.NotNull(job);
+            Assert.Equal(JobStatus.Running, job.Status);
 
             jobClient.SetCommandStop(new List<string> { jobID });
             jobServer.CleanUp(); 
@@ -127,7 +127,7 @@ namespace Shift.UnitTest
 
             job = jobClient.GetJob(jobID);
             jobClient.DeleteJobs(new List<string>() { jobID });
-            Assert.AreEqual(JobStatus.Stopped, job.Status);
+            Assert.Equal(JobStatus.Stopped, job.Status);
         }
 
     }

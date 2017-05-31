@@ -1,5 +1,5 @@
 ﻿using System;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Xunit;
 using System.Threading;
 using System.Collections.Generic;
 using System.Configuration;
@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace Shift.UnitTest
 {
-    [TestClass]
+     
     public class MongoJobServerAsyncTest
     {
         JobClient jobClient;
@@ -40,14 +40,14 @@ namespace Shift.UnitTest
             jobServer = new JobServer(serverConfig);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task RunJobsSelectedTest()
         {
             var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
             var job = await jobClient.GetJobAsync(jobID);
 
-            Assert.IsNotNull(job);
-            Assert.AreEqual(jobID, job.JobID);
+            Assert.NotNull(job);
+            Assert.Equal(jobID, job.JobID);
 
             //run job
             await jobServer.RunJobsAsync(new List<string> { jobID });
@@ -55,29 +55,29 @@ namespace Shift.UnitTest
 
             job = await jobClient.GetJobAsync(jobID);
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
-            Assert.AreEqual(JobStatus.Completed, job.Status);
+            Assert.Equal(JobStatus.Completed, job.Status);
         }
 
 
-        [TestMethod]
+        [Fact]
         public async Task StopJobsNonRunningTest()
         {
             var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
             await jobClient.SetCommandStopAsync(new List<string> { jobID });
             var job = await jobClient.GetJobAsync(jobID);
 
-            Assert.IsNotNull(job);
-            Assert.AreEqual(JobCommand.Stop, job.Command);
+            Assert.NotNull(job);
+            Assert.Equal(JobCommand.Stop, job.Command);
 
             await jobServer.StopJobsAsync(); //stop non-running job
             Thread.Sleep(5000);
 
             job = await jobClient.GetJobAsync(jobID);
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
-            Assert.AreEqual(JobStatus.Stopped, job.Status);
+            Assert.Equal(JobStatus.Stopped, job.Status);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task StopJobsRunningTest()
         {
             var jobTest = new TestJob();
@@ -90,8 +90,8 @@ namespace Shift.UnitTest
             Thread.Sleep(1000);
 
             var job = await jobClient.GetJobAsync(jobID);
-            Assert.IsNotNull(job);
-            Assert.AreEqual(JobStatus.Running, job.Status);
+            Assert.NotNull(job);
+            Assert.Equal(JobStatus.Running, job.Status);
 
             await jobClient.SetCommandStopAsync(new List<string> { jobID });
             await jobServer.StopJobsAsync(); //stop running job
@@ -99,10 +99,10 @@ namespace Shift.UnitTest
 
             job = await jobClient.GetJobAsync(jobID);
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
-            Assert.AreEqual(JobStatus.Stopped, job.Status);
+            Assert.Equal(JobStatus.Stopped, job.Status);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task CleanUpTest()
         {
             //Test StopJobs with CleanUp() calls
@@ -117,8 +117,8 @@ namespace Shift.UnitTest
             Thread.Sleep(1000);
 
             var job = await jobClient.GetJobAsync(jobID);
-            Assert.IsNotNull(job);
-            Assert.AreEqual(JobStatus.Running, job.Status);
+            Assert.NotNull(job);
+            Assert.Equal(JobStatus.Running, job.Status);
 
             await jobClient.SetCommandStopAsync(new List<string> { jobID });
             await jobServer.CleanUpAsync(); 
@@ -126,7 +126,7 @@ namespace Shift.UnitTest
 
             job = await jobClient.GetJobAsync(jobID);
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
-            Assert.AreEqual(JobStatus.Stopped, job.Status);
+            Assert.Equal(JobStatus.Stopped, job.Status);
         }
 
     }

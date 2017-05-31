@@ -1,12 +1,12 @@
 ﻿using System;
 using System.Text;
 using System.Collections.Generic;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Xunit;
 using Shift.DataLayer;
 
 namespace Shift.UnitTest.DataLayer
 {
-    [TestClass]
+     
     public class RedisHelperTest
     {
         private enum TestStatus
@@ -18,7 +18,7 @@ namespace Shift.UnitTest.DataLayer
         }
 
         #region DateTime
-        [TestMethod]
+        [Fact]
         public void GetValueDateTimeValid()
         {
             Type type = typeof(DateTime?);
@@ -27,10 +27,10 @@ namespace Shift.UnitTest.DataLayer
 
             var actual = RedisHelpers.GetValue(type, value);
 
-            Assert.AreEqual(expected, actual);
+            Assert.Equal(expected, actual);
         }
 
-        [TestMethod]
+        [Fact]
         public void GetValueDateTimeIsNull()
         {
             Type type = typeof(DateTime?);
@@ -38,10 +38,10 @@ namespace Shift.UnitTest.DataLayer
 
             var actual = RedisHelpers.GetValue(type, value);
 
-            Assert.IsNull(actual);
+            Assert.Null(actual);
         }
 
-        [TestMethod]
+        [Fact]
         public void GetValueDateTimeIsNull2()
         {
             Type type = typeof(DateTime?);
@@ -49,12 +49,12 @@ namespace Shift.UnitTest.DataLayer
 
             var actual = RedisHelpers.GetValue(type, value);
 
-            Assert.IsNull(actual);
+            Assert.Null(actual);
         }
         #endregion
 
         #region GUID
-        [TestMethod]
+        [Fact]
         public void GetValueGUIDIsValid()
         {
             Type type = typeof(Guid);
@@ -63,10 +63,10 @@ namespace Shift.UnitTest.DataLayer
 
             var actual = RedisHelpers.GetValue(type, value);
 
-            Assert.AreEqual(expected, actual);
+            Assert.Equal(expected, actual);
         }
 
-        [TestMethod]
+        [Fact]
         public void GetValueGUIDIsEmpty()
         {
             Type type = typeof(Guid);
@@ -75,10 +75,10 @@ namespace Shift.UnitTest.DataLayer
 
             var actual = RedisHelpers.GetValue(type, value);
 
-            Assert.AreEqual(expected, actual);
+            Assert.Equal(expected, actual);
         }
 
-        [TestMethod]
+        [Fact]
         public void GetValueGUIDIsEmpty2()
         {
             Type type = typeof(Guid);
@@ -87,12 +87,12 @@ namespace Shift.UnitTest.DataLayer
 
             var actual = RedisHelpers.GetValue(type, value);
 
-            Assert.AreEqual(expected, actual);
+            Assert.Equal(expected, actual);
         }
         #endregion
 
         #region ENUM
-        [TestMethod]
+        [Fact]
         public void GetValueEnumIsValid()
         {
             Type type = typeof(TestStatus);
@@ -101,10 +101,10 @@ namespace Shift.UnitTest.DataLayer
 
             var actual = RedisHelpers.GetValue(type, value);
 
-            Assert.AreEqual(expected, actual);
+            Assert.Equal(expected, actual);
         }
 
-        [TestMethod]
+        [Fact]
         public void GetValueEnumIsNull()
         {
             Type type = typeof(TestStatus);
@@ -112,10 +112,10 @@ namespace Shift.UnitTest.DataLayer
 
             var actual = RedisHelpers.GetValue(type, value);
 
-            Assert.IsNull(actual);
+            Assert.Null(actual);
         }
 
-        [TestMethod]
+        [Fact]
         public void GetValueEnumIsNull2()
         {
             Type type = typeof(TestStatus);
@@ -123,12 +123,12 @@ namespace Shift.UnitTest.DataLayer
 
             var actual = RedisHelpers.GetValue(type, value);
 
-            Assert.IsNull(actual);
+            Assert.Null(actual);
         }
         #endregion
 
         #region Int32
-        [TestMethod]
+        [Fact]
         public void GetValueInt32Valid()
         {
             Type type = typeof(int?);
@@ -137,10 +137,10 @@ namespace Shift.UnitTest.DataLayer
 
             var actual = RedisHelpers.GetValue(type, value);
 
-            Assert.AreEqual(expected, actual);
+            Assert.Equal(expected, actual);
         }
 
-        [TestMethod]
+        [Fact]
         public void GetValueInt32IsNull()
         {
             Type type = typeof(int?);
@@ -148,10 +148,10 @@ namespace Shift.UnitTest.DataLayer
 
             var actual = RedisHelpers.GetValue(type, value);
 
-            Assert.IsNull(actual);
+            Assert.Null(actual);
         }
 
-        [TestMethod]
+        [Fact]
         public void GetValueInt32IsNull2()
         {
             Type type = typeof(int?);
@@ -159,12 +159,12 @@ namespace Shift.UnitTest.DataLayer
 
             var actual = RedisHelpers.GetValue(type, value);
 
-            Assert.IsNull(actual);
+            Assert.Null(actual);
         }
         #endregion
 
         #region Int64
-        [TestMethod]
+        [Fact]
         public void GetValueInt64Valid()
         {
             Type type = typeof(long?);
@@ -173,10 +173,10 @@ namespace Shift.UnitTest.DataLayer
 
             var actual = RedisHelpers.GetValue(type, value);
 
-            Assert.AreEqual(expected, actual);
+            Assert.Equal(expected, actual);
         }
 
-        [TestMethod]
+        [Fact]
         public void GetValueInt64IsNull()
         {
             Type type = typeof(long?);
@@ -184,10 +184,10 @@ namespace Shift.UnitTest.DataLayer
 
             var actual = RedisHelpers.GetValue(type, value);
 
-            Assert.IsNull(actual);
+            Assert.Null(actual);
         }
 
-        [TestMethod]
+        [Fact]
         public void GetValueInt64IsNull2()
         {
             Type type = typeof(long?);
@@ -195,7 +195,7 @@ namespace Shift.UnitTest.DataLayer
 
             var actual = RedisHelpers.GetValue(type, value);
 
-            Assert.IsNull(actual);
+            Assert.Null(actual);
         }
         #endregion
 

@@ -1,286 +1,286 @@
 ﻿using System;
 using System.Collections.Generic;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Xunit;
 using Shift;
 using Shift.Entities;
 
 namespace Shift.UnitTest
 {
-    [TestClass]
+     
     public class ServerConfigTest
     {
-        [TestMethod]
+        [Fact]
         public void ProcessIDTest()
         {
             var config = new ServerConfig();
             config.ProcessID = "Process-1234";
 
-            Assert.AreEqual("Process-1234", config.ProcessID);
+            Assert.Equal("Process-1234", config.ProcessID);
         }
 
-        [TestMethod]
+        [Fact]
         public void DBConnectionStringTest()
         {
             var config = new ServerConfig();
             config.DBConnectionString = "localhost:6400";
 
-            Assert.AreEqual("localhost:6400", config.DBConnectionString);
+            Assert.Equal("localhost:6400", config.DBConnectionString);
         }
 
-        [TestMethod]
+        [Fact]
         public void StorageModeRedisTest()
         {
             var config = new ServerConfig();
             config.StorageMode = "redis";
 
-            Assert.AreEqual(StorageMode.Redis, config.StorageMode);
+            Assert.Equal(StorageMode.Redis, config.StorageMode);
         }
 
-        [TestMethod]
+        [Fact]
         public void StorageModeMssqlTest()
         {
             var config = new ServerConfig();
             config.StorageMode = "mssql";
 
-            Assert.AreEqual(StorageMode.MSSql, config.StorageMode);
+            Assert.Equal(StorageMode.MSSql, config.StorageMode);
         }
 
-        [TestMethod]
+        [Fact]
         public void StorageModeMongoDBTest()
         {
             var config = new ServerConfig();
             config.StorageMode = "mongo";
 
-            Assert.AreEqual(StorageMode.MongoDB, config.StorageMode);
+            Assert.Equal(StorageMode.MongoDB, config.StorageMode);
         }
 
-        [TestMethod]
+        [Fact]
         public void MaxRunnableJobsTest()
         {
             var config = new ServerConfig();
             config.MaxRunnableJobs = 10;
 
-            Assert.AreEqual(10, config.MaxRunnableJobs);
+            Assert.Equal(10, config.MaxRunnableJobs);
         }
 
-        [TestMethod]
+        [Fact]
         public void MaxRunnableJobsDefaultTest()
         {
             var config = new ServerConfig();
 
-            Assert.AreEqual(100, config.MaxRunnableJobs);
+            Assert.Equal(100, config.MaxRunnableJobs);
         }
 
-        [TestMethod]
+        [Fact]
         public void AssemblyListPathTest()
         {
             var config = new ServerConfig();
             config.AssemblyListPath = "\\job-assemblies\\assemblyList.txt";
 
-            Assert.AreEqual("\\job-assemblies\\assemblyList.txt", config.AssemblyListPath);
+            Assert.Equal("\\job-assemblies\\assemblyList.txt", config.AssemblyListPath);
         }
 
-        [TestMethod]
+        [Fact]
         public void AssemblyFolderTest()
         {
             var config = new ServerConfig();
             config.AssemblyFolder = "\\job-assemblies\\";
 
-            Assert.AreEqual("\\job-assemblies\\", config.AssemblyFolder);
+            Assert.Equal("\\job-assemblies\\", config.AssemblyFolder);
         }
 
-        [TestMethod]
+        [Fact]
         public void UseCacheTest()
         {
             var config = new ServerConfig();
             config.UseCache = true;
 
-            Assert.AreEqual(true, config.UseCache);
+            Assert.Equal(true, config.UseCache);
         }
 
-        [TestMethod]
+        [Fact]
         public void UseCacheDefaultTest()
         {
             var config = new ServerConfig();
 
-            Assert.AreEqual(false, config.UseCache);
+            Assert.Equal(false, config.UseCache);
         }
 
-        [TestMethod]
+        [Fact]
         public void CacheConfigurationStringTest()
         {
             var config = new ServerConfig();
             config.CacheConfigurationString = "localhost:6370";
 
-            Assert.AreEqual("localhost:6370", config.CacheConfigurationString);
+            Assert.Equal("localhost:6370", config.CacheConfigurationString);
         }
 
-        [TestMethod]
+        [Fact]
         public void EncryptionKeyTest()
         {
             var config = new ServerConfig();
             config.EncryptionKey = "123$asdflouwrtasrthj";
 
-            Assert.AreEqual("123$asdflouwrtasrthj", config.EncryptionKey);
+            Assert.Equal("123$asdflouwrtasrthj", config.EncryptionKey);
         }
 
-        [TestMethod]
+        [Fact]
         public void ProgressDBIntervalTest()
         {
             var config = new ServerConfig();
             config.ProgressDBInterval = new TimeSpan(0, 1, 0);
             var expectedTS = new TimeSpan(0, 1, 0);
 
-            Assert.AreEqual(expectedTS, config.ProgressDBInterval);
+            Assert.Equal(expectedTS, config.ProgressDBInterval);
         }
 
-        [TestMethod]
+        [Fact]
         public void ProgressDBIntervalDefaultTest()
         {
             var config = new ServerConfig();
             var expectedTS = new TimeSpan(0, 0, 10);
 
-            Assert.AreEqual(expectedTS, config.ProgressDBInterval);
+            Assert.Equal(expectedTS, config.ProgressDBInterval);
         }
 
-        [TestMethod]
+        [Fact]
         public void ServerTimerIntervalTest()
         {
             var config = new ServerConfig();
             config.ServerTimerInterval = 2500;
 
-            Assert.AreEqual(2500, config.ServerTimerInterval);
+            Assert.Equal(2500, config.ServerTimerInterval);
         }
 
-        [TestMethod]
+        [Fact]
         public void ServerTimerIntervalDefaultTest()
         {
             var config = new ServerConfig();
 
-            Assert.AreEqual(5000, config.ServerTimerInterval);
+            Assert.Equal(5000, config.ServerTimerInterval);
         }
 
-        [TestMethod]
+        [Fact]
         public void ServerTimerInterval2Test()
         {
             var config = new ServerConfig();
             config.ServerTimerInterval2 = 12000;
 
-            Assert.AreEqual(12000, config.ServerTimerInterval2);
+            Assert.Equal(12000, config.ServerTimerInterval2);
         }
 
-        [TestMethod]
+        [Fact]
         public void ServerTimerInterval2DefaultTest()
         {
             var config = new ServerConfig();
 
-            Assert.AreEqual(10000, config.ServerTimerInterval2);
+            Assert.Equal(10000, config.ServerTimerInterval2);
         }
 
-        [TestMethod]
+        [Fact]
         public void AutoDeletePeriodTest()
         {
             var config = new ServerConfig();
             config.AutoDeletePeriod = 24;
 
-            Assert.AreEqual(24, config.AutoDeletePeriod);
+            Assert.Equal(24, config.AutoDeletePeriod);
         }
 
-        [TestMethod]
+        [Fact]
         public void AutoDeletePeriodDefaultTest()
         {
             var config = new ServerConfig();
 
-            Assert.IsNull(config.AutoDeletePeriod);
+            Assert.Null(config.AutoDeletePeriod);
         }
 
-        [TestMethod]
+        [Fact]
         public void AutoDeleteStatusTest()
         {
             var config = new ServerConfig();
             config.AutoDeleteStatus = new List<JobStatus?>() { JobStatus.Completed, JobStatus.Stopped, null };
             var expectedList = new List<JobStatus?>() { JobStatus.Completed, JobStatus.Stopped, null };
 
-            Assert.AreEqual(expectedList.Count, config.AutoDeleteStatus.Count);
-            CollectionAssert.AreEqual(expectedList, (List<JobStatus?>)config.AutoDeleteStatus);
+            Assert.Equal(expectedList.Count, config.AutoDeleteStatus.Count);
+            Assert.Equal(expectedList, config.AutoDeleteStatus);
         }
 
-        [TestMethod]
+        [Fact]
         public void AutoDeleteStatusDefaultTest()
         {
             var config = new ServerConfig();
             var expectedList = new List<JobStatus?>() { JobStatus.Completed };
 
-            Assert.AreEqual(expectedList.Count, config.AutoDeleteStatus.Count);
-            CollectionAssert.AreEqual(expectedList, (List<JobStatus?>)config.AutoDeleteStatus);
+            Assert.Equal(expectedList.Count, config.AutoDeleteStatus.Count);
+            Assert.Equal(expectedList, config.AutoDeleteStatus);
         }
 
-        [TestMethod]
+        [Fact]
         public void PollingOnceTest()
         {
             var config = new ServerConfig();
             config.PollingOnce = true;
 
-            Assert.AreEqual(true, config.PollingOnce);
+            Assert.Equal(true, config.PollingOnce);
         }
 
-        [TestMethod]
+        [Fact]
         public void PollingOnceDefaultTest()
         {
             var config = new ServerConfig();
 
-            Assert.AreEqual(false, config.PollingOnce);
+            Assert.Equal(false, config.PollingOnce);
         }
 
-        [TestMethod]
+        [Fact]
         public void WorkersTest()
         {
             var config = new ServerConfig();
             config.Workers = 5;
 
-            Assert.AreEqual(5, config.Workers);
+            Assert.Equal(5, config.Workers);
         }
 
-        [TestMethod]
+        [Fact]
         public void WorkersDefaultTest()
         {
             var config = new ServerConfig();
 
-            Assert.AreEqual(1, config.Workers);
+            Assert.Equal(1, config.Workers);
         }
 
-        [TestMethod]
+        [Fact]
         public void ForceStopServerTest()
         {
             var config = new ServerConfig();
             config.ForceStopServer = true;
 
-            Assert.AreEqual(true, config.ForceStopServer);
+            Assert.Equal(true, config.ForceStopServer);
         }
 
-        [TestMethod]
+        [Fact]
         public void ForceStopServerDefaultTest()
         {
             var config = new ServerConfig();
 
-            Assert.AreEqual(false, config.ForceStopServer);
+            Assert.Equal(false, config.ForceStopServer);
         }
 
-        [TestMethod]
+        [Fact]
         public void StopServerDelayTest()
         {
             var config = new ServerConfig();
             config.StopServerDelay = 5000;
 
-            Assert.AreEqual(5000, config.StopServerDelay);
+            Assert.Equal(5000, config.StopServerDelay);
         }
 
-        [TestMethod]
+        [Fact]
         public void StopServerDelayDefaultTest()
         {
             var config = new ServerConfig();
 
-            Assert.AreEqual(30000, config.StopServerDelay);
+            Assert.Equal(30000, config.StopServerDelay);
         }
 
     }

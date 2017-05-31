@@ -1,5 +1,5 @@
 ﻿using System;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Xunit;
 using Shift.Entities;
 using Autofac;
 using Autofac.Features.ResolveAnything;
@@ -10,7 +10,7 @@ using System.Threading;
 
 namespace Shift.UnitTest
 {
-    [TestClass]
+     
     public class CacheRedisTest
     {
         JobClient jobClient;
@@ -54,14 +54,13 @@ namespace Shift.UnitTest
             this.jobDAL = container.Resolve<IJobDAL>();
         }
 
-        [TestMethod]
-        [ExpectedException(typeof(System.ArgumentNullException))]
+        [Fact]
         public void CacheNoConnectionTest()
         {
-            var jobTest = new Shift.Cache.Redis.JobCache(null);
+            var ex = Assert.Throws<ArgumentNullException>(() => { var cache = new Shift.Cache.Redis.JobCache(null); });
         }
 
-        [TestMethod]
+        [Fact]
         public void GetProgressTest()
         {
             var jobTest = new TestJob();
@@ -80,11 +79,11 @@ namespace Shift.UnitTest
             jobClient.DeleteJobs(new List<string>() { jobID });
             jobDAL.DeleteCachedProgressAsync(new List<string>() { jobID });
 
-            Assert.AreEqual(jobID, jsProgress.JobID);
-            Assert.IsTrue(jsProgress.Percent > 0);
+            Assert.Equal(jobID, jsProgress.JobID);
+            Assert.True(jsProgress.Percent > 0);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task GetProgressAsyncTest()
         {
             var jobTest = new TestJob();
@@ -103,11 +102,11 @@ namespace Shift.UnitTest
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
             await jobDAL.DeleteCachedProgressAsync(new List<string>() { jobID });
 
-            Assert.AreEqual(jobID, jsProgress.JobID);
-            Assert.IsTrue(jsProgress.Percent > 0);
+            Assert.Equal(jobID, jsProgress.JobID);
+            Assert.True(jsProgress.Percent > 0);
         }
 
-        [TestMethod]
+        [Fact]
         public void GetCachedProgressTest()
         {
             var jobTest = new TestJob();
@@ -126,11 +125,11 @@ namespace Shift.UnitTest
             jobClient.DeleteJobs(new List<string>() { jobID });
             jobDAL.DeleteCachedProgressAsync(new List<string>() { jobID });
 
-            Assert.AreEqual(jobID, jsProgress.JobID);
-            Assert.IsTrue(jsProgress.Percent > 0);
+            Assert.Equal(jobID, jsProgress.JobID);
+            Assert.True(jsProgress.Percent > 0);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task GetCachedProgressAsyncTest()
         {
             var jobTest = new TestJob();
@@ -149,11 +148,11 @@ namespace Shift.UnitTest
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
             await jobDAL.DeleteCachedProgressAsync(new List<string>() { jobID });
 
-            Assert.AreEqual(jobID, jsProgress.JobID);
-            Assert.IsTrue(jsProgress.Percent > 0);
+            Assert.Equal(jobID, jsProgress.JobID);
+            Assert.True(jsProgress.Percent > 0);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task SetCachedProgressAsyncTest()
         {
             var jobTest = new TestJob();
@@ -166,13 +165,13 @@ namespace Shift.UnitTest
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
             await jobDAL.DeleteCachedProgressAsync(jobID);
 
-            Assert.AreEqual(jobID, jsProgress.JobID);
-            Assert.AreEqual(10, jsProgress.Percent);
-            Assert.AreEqual("Test Note", jsProgress.Note);
-            Assert.AreEqual("Test Data", jsProgress.Data);
+            Assert.Equal(jobID, jsProgress.JobID);
+            Assert.Equal(10, jsProgress.Percent);
+            Assert.Equal("Test Note", jsProgress.Note);
+            Assert.Equal("Test Data", jsProgress.Data);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task SetCachedProgressErrorAsyncTest()
         {
             var jobTest = new TestJob();
@@ -185,12 +184,12 @@ namespace Shift.UnitTest
             await jobClient.DeleteJobsAsync(new List<string>() { jobID });
             await jobDAL.DeleteCachedProgressAsync(jobID);
 
-            Assert.AreEqual(jobID, jsProgress.JobID);
-            Assert.AreEqual(JobStatus.Error, jsProgress.Status);
-            Assert.AreEqual("Test Error", jsProgress.Error);
+            Assert.Equal(jobID, jsProgress.JobID);
+            Assert.Equal(JobStatus.Error, jsProgress.Status);
+            Assert.Equal("Test Error", jsProgress.Error);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task DeleteCachedProgressAsyncTest()
         {
             var jobTest = new TestJob();
@@ -203,10 +202,10 @@ namespace Shift.UnitTest
             await jobDAL.DeleteCachedProgressAsync(jobID);
             var jsProgress = await jobDAL.GetCachedProgressAsync(jobID);
 
-            Assert.IsNull(jsProgress);
+            Assert.Null(jsProgress);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task DeleteCachedProgressAsyncMultipleJobsTest()
         {
             var jobTest = new TestJob();
@@ -222,8 +221,8 @@ namespace Shift.UnitTest
             var jsProgress = await jobDAL.GetCachedProgressAsync(jobID);
             var jsProgress2 = await jobDAL.GetCachedProgressAsync(jobID2);
 
-            Assert.IsNull(jsProgress);
-            Assert.IsNull(jsProgress2);
+            Assert.Null(jsProgress);
+            Assert.Null(jsProgress2);
         }
     }
 }

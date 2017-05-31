@@ -1,5 +1,5 @@
 ﻿using System;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Xunit;
 using Shift.Entities;
 using System.Collections.Generic;
 using System.Configuration;
@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace Shift.UnitTest.DataLayer
 {
-    [TestClass]
+
     public class JobCacheRedisTest
     {
         private static AppSettingsReader appSettingsReader = new AppSettingsReader();
@@ -25,7 +25,7 @@ namespace Shift.UnitTest.DataLayer
             this.jobCache = new JobCache(configurationString);
         }
 
-        [TestMethod]
+        [Fact]
         public void GetCachedProgressTest()
         {
             var jobID = "1Test";
@@ -37,14 +37,14 @@ namespace Shift.UnitTest.DataLayer
             var jobProgress = jobCache.GetCachedProgress(jobID);
             jobCache.DeleteCachedProgressAsync(jobID).GetAwaiter().GetResult();
 
-            Assert.IsNotNull(jobProgress);
-            Assert.AreEqual(jobID, jobProgress.JobID);
-            Assert.AreEqual(percent, jobProgress.Percent);
-            Assert.AreEqual(note, jobProgress.Note);
-            Assert.AreEqual(data, jobProgress.Data);
+            Assert.NotNull(jobProgress);
+            Assert.Equal(jobID, jobProgress.JobID);
+            Assert.Equal(percent, jobProgress.Percent);
+            Assert.Equal(note, jobProgress.Note);
+            Assert.Equal(data, jobProgress.Data);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task GetCachedProgressAsyncTest()
         {
             var jobID = "1Test";
@@ -56,14 +56,14 @@ namespace Shift.UnitTest.DataLayer
             var jobProgress = await jobCache.GetCachedProgressAsync(jobID);
             await jobCache.DeleteCachedProgressAsync(jobID);
 
-            Assert.IsNotNull(jobProgress);
-            Assert.AreEqual(jobID, jobProgress.JobID);
-            Assert.AreEqual(percent, jobProgress.Percent);
-            Assert.AreEqual(note, jobProgress.Note);
-            Assert.AreEqual(data, jobProgress.Data);
+            Assert.NotNull(jobProgress);
+            Assert.Equal(jobID, jobProgress.JobID);
+            Assert.Equal(percent, jobProgress.Percent);
+            Assert.Equal(note, jobProgress.Note);
+            Assert.Equal(data, jobProgress.Data);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task SetCachedProgressAsyncTest()
         {
             var jobID = "1Test";
@@ -75,14 +75,14 @@ namespace Shift.UnitTest.DataLayer
             var jobProgress = await jobCache.GetCachedProgressAsync(jobID);
             await jobCache.DeleteCachedProgressAsync(jobID);
 
-            Assert.IsNotNull(jobProgress);
-            Assert.AreEqual(jobID, jobProgress.JobID);
-            Assert.AreEqual(percent, jobProgress.Percent);
-            Assert.AreEqual(note, jobProgress.Note);
-            Assert.AreEqual(data, jobProgress.Data);
+            Assert.NotNull(jobProgress);
+            Assert.Equal(jobID, jobProgress.JobID);
+            Assert.Equal(percent, jobProgress.Percent);
+            Assert.Equal(note, jobProgress.Note);
+            Assert.Equal(data, jobProgress.Data);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task SetCachedProgressStatusAsyncTest()
         {
             var jobID = "1Test";
@@ -102,15 +102,15 @@ namespace Shift.UnitTest.DataLayer
             var jobProgress = await jobCache.GetCachedProgressAsync(jobID);
             await jobCache.DeleteCachedProgressAsync(jobID);
 
-            Assert.IsNotNull(jobProgress);
-            Assert.AreEqual(jobID, jobProgress.JobID);
-            Assert.AreEqual(percent, jobProgress.Percent);
-            Assert.AreEqual(note, jobProgress.Note);
-            Assert.AreEqual(data, jobProgress.Data);
-            Assert.AreEqual(JobStatus.Stopped, jobProgress.Status);
+            Assert.NotNull(jobProgress);
+            Assert.Equal(jobID, jobProgress.JobID);
+            Assert.Equal(percent, jobProgress.Percent);
+            Assert.Equal(note, jobProgress.Note);
+            Assert.Equal(data, jobProgress.Data);
+            Assert.Equal(JobStatus.Stopped, jobProgress.Status);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task SetCachedProgressErrorAsyncTest()
         {
             var jobID = "1Test";
@@ -131,16 +131,16 @@ namespace Shift.UnitTest.DataLayer
             var jobProgress = await jobCache.GetCachedProgressAsync(jobID);
             await jobCache.DeleteCachedProgressAsync(jobID);
 
-            Assert.IsNotNull(jobProgress);
-            Assert.AreEqual(jobID, jobProgress.JobID);
-            Assert.AreEqual(percent, jobProgress.Percent);
-            Assert.AreEqual(note, jobProgress.Note);
-            Assert.AreEqual(data, jobProgress.Data);
-            Assert.AreEqual(JobStatus.Error, jobProgress.Status);
-            Assert.AreEqual(error, jobProgress.Error);
+            Assert.NotNull(jobProgress);
+            Assert.Equal(jobID, jobProgress.JobID);
+            Assert.Equal(percent, jobProgress.Percent);
+            Assert.Equal(note, jobProgress.Note);
+            Assert.Equal(data, jobProgress.Data);
+            Assert.Equal(JobStatus.Error, jobProgress.Status);
+            Assert.Equal(error, jobProgress.Error);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task DeleteCachedProgressAsync()
         {
             var jobID = "1Test";
@@ -162,7 +162,7 @@ namespace Shift.UnitTest.DataLayer
             Task.Delay(3000).GetAwaiter().GetResult();
             var jobProgress =await jobCache.GetCachedProgressAsync(jobID);
 
-            Assert.IsNull(jobProgress);
+            Assert.Null(jobProgress);
         }
     }
 }

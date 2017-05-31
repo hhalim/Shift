@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Configuration;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Xunit;
 using System.Threading.Tasks;
 
 namespace Shift.UnitTest
 {
-    [TestClass]
+     
     public class JobServerTest
     {
         private string connectionString;
@@ -17,15 +17,13 @@ namespace Shift.UnitTest
             processID = this.ToString();
         }
 
-        [TestMethod]
-        [ExpectedException(typeof(System.ArgumentNullException))]
+        [Fact]
         public void JobServerConfigNullTest()
         {
-            var jobServer = new JobServer(null);
+            var ex = Assert.Throws<ArgumentNullException>(() => { var jobServer = new JobServer(null); });
         }
 
-        [TestMethod]
-        [ExpectedException(typeof(System.ArgumentNullException))]
+        [Fact]
         public void JobServerStorageModeNullTest()
         {
             var config = new ServerConfig();
@@ -33,12 +31,11 @@ namespace Shift.UnitTest
             config.DBConnectionString = connectionString;
             config.ProcessID = processID;
 
-            var jobServer = new JobServer(config);
+            var ex = Assert.Throws<ArgumentNullException>(() => { var jobServer = new JobServer(config); });
         }
 
-        [TestMethod]
-        [ExpectedException(typeof(System.ArgumentNullException))]
-        public void JobServerProcessIDNullTest()
+        [Fact]
+        public void JobServerProcessIDTest()
         {
             var config = new ServerConfig();
             config.StorageMode = "redis";
@@ -46,10 +43,11 @@ namespace Shift.UnitTest
             config.ProcessID = "";
 
             var jobServer = new JobServer(config);
+
+            Assert.NotNull(config.ProcessID);
         }
 
-        [TestMethod]
-        [ExpectedException(typeof(System.ArgumentNullException))]
+        [Fact]
         public void JobServerDBConnectionStringNullTest()
         {
             var config = new ServerConfig();
@@ -57,11 +55,10 @@ namespace Shift.UnitTest
             config.DBConnectionString = "";
             config.ProcessID = processID;
 
-            var jobServer = new JobServer(config);
+            var ex = Assert.Throws<ArgumentNullException>(() => { var jobServer = new JobServer(config); });
         }
 
-        [TestMethod]
-        [ExpectedException(typeof(System.ArgumentNullException))]
+        [Fact]
         public void JobServerCacheConfigurationStringNullTest()
         {
             var config = new ServerConfig();
@@ -71,11 +68,11 @@ namespace Shift.UnitTest
             config.UseCache = true;
             config.CacheConfigurationString = "";
 
-            var jobServer = new JobServer(config);
+            var ex = Assert.Throws<ArgumentNullException>(() => { var jobServer = new JobServer(config); });
         }
 
         //Should get no Exception
-        [TestMethod]
+        [Fact]
         public void JobServerMaxRunnableJobsZeroTest()
         {
             var config = new ServerConfig();
@@ -85,10 +82,10 @@ namespace Shift.UnitTest
             config.MaxRunnableJobs = 0;
 
             var jobServer = new JobServer(config);
-            Assert.IsTrue(true);
+            Assert.True(true);
         }
 
-        [TestMethod]
+        [Fact]
         public void RunServerTest()
         {
             var config = new ServerConfig();
@@ -99,10 +96,10 @@ namespace Shift.UnitTest
 
             var jobServer = new JobServer(config);
             jobServer.RunServer();
-            Assert.IsTrue(true);
+            Assert.True(true);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task RunServerAsyncTest()
         {
             var config = new ServerConfig();
@@ -113,10 +110,10 @@ namespace Shift.UnitTest
 
             var jobServer = new JobServer(config);
             await jobServer.RunServerAsync();
-            Assert.IsTrue(true);
+            Assert.True(true);
         }
 
-        [TestMethod]
+        [Fact]
         public void StopServerTest()
         {
             var config = new ServerConfig();
@@ -129,10 +126,10 @@ namespace Shift.UnitTest
 
             var jobServer = new JobServer(config);
             jobServer.StopServer();
-            Assert.IsTrue(true);
+            Assert.True(true);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task StopServerAsyncTest()
         {
             var config = new ServerConfig();
@@ -145,10 +142,10 @@ namespace Shift.UnitTest
 
             var jobServer = new JobServer(config);
             await jobServer.StopServerAsync();
-            Assert.IsTrue(true);
+            Assert.True(true);
         }
 
-        [TestMethod]
+        [Fact]
         public void StopServerWaitForAllRunningJobsTest()
         {
             var config = new ServerConfig();
@@ -161,11 +158,11 @@ namespace Shift.UnitTest
 
             var jobServer = new JobServer(config);
             jobServer.StopServer();
-            Assert.IsTrue(true);
+            Assert.True(true);
         }
 
 
-        [TestMethod]
+        [Fact]
         public async Task StopServerWaitForAllRunningJobsAsyncTest()
         {
             var config = new ServerConfig();
@@ -178,7 +175,7 @@ namespace Shift.UnitTest
 
             var jobServer = new JobServer(config);
             await jobServer.StopServerAsync();
-            Assert.IsTrue(true);
+            Assert.True(true);
         }
     }
 }

@@ -2,12 +2,12 @@
 using System.Text;
 using System.Collections.Generic;
 using System.Configuration;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Xunit;
 using Shift.Entities;
 
 namespace Shift.UnitTest
 {
-    [TestClass]
+     
     public class SqlJobClientTest
     {
         JobClient jobClient;
@@ -24,78 +24,78 @@ namespace Shift.UnitTest
             jobClient = new JobClient(config);
         }
 
-        [TestMethod]
+        [Fact]
         public void GetJobInvalidTest()
         {
             var job = jobClient.GetJob("-123");
 
-            Assert.IsNull(job);
+            Assert.Null(job);
         }
 
-        [TestMethod]
+        [Fact]
         public void GetJobValidTest()
         {
             var jobID = jobClient.Add(AppID, () => Console.WriteLine("Hello Test"));
             var job = jobClient.GetJob(jobID);
             jobClient.DeleteJobs(new List<string>() { jobID });
 
-            Assert.IsNotNull(job);
-            Assert.AreEqual(jobID, job.JobID);
+            Assert.NotNull(job);
+            Assert.Equal(jobID, job.JobID);
         }
 
-        [TestMethod]
+        [Fact]
         public void AddJobTest1()
         {
             var jobID = jobClient.Add(() => Console.WriteLine("Hello Test"));
             var job = jobClient.GetJob(jobID);
             jobClient.DeleteJobs(new List<string>() { jobID });
 
-            Assert.IsNotNull(job);
-            Assert.AreEqual(jobID, job.JobID);
+            Assert.NotNull(job);
+            Assert.Equal(jobID, job.JobID);
         }
 
-        [TestMethod]
+        [Fact]
         public void AddJobTest2()
         {
             var jobID = jobClient.Add(AppID, () => Console.WriteLine("Hello Test"));
             var job = jobClient.GetJob(jobID);
             jobClient.DeleteJobs(new List<string>() { jobID });
 
-            Assert.IsNotNull(job);
-            Assert.AreEqual(jobID, job.JobID);
-            Assert.AreEqual(AppID, job.AppID);
+            Assert.NotNull(job);
+            Assert.Equal(jobID, job.JobID);
+            Assert.Equal(AppID, job.AppID);
         }
 
-        [TestMethod]
+        [Fact]
         public void AddJobTest3()
         {
             var jobID = jobClient.Add(AppID, "-123", "TestJobType", () => Console.WriteLine("Hello Test"));
             var job = jobClient.GetJob(jobID);
             jobClient.DeleteJobs(new List<string>() { jobID });
 
-            Assert.IsNotNull(job);
-            Assert.AreEqual(jobID, job.JobID);
-            Assert.AreEqual(AppID, job.AppID);
-            Assert.AreEqual("-123", job.UserID);
-            Assert.AreEqual("TestJobType", job.JobType);
+            Assert.NotNull(job);
+            Assert.Equal(jobID, job.JobID);
+            Assert.Equal(AppID, job.AppID);
+            Assert.Equal("-123", job.UserID);
+            Assert.Equal("TestJobType", job.JobType);
         }
 
-        [TestMethod]
+        [Fact]
         public void AddJobTest4()
         {
             var jobID = jobClient.Add(AppID, "-123", "TestJobType", "Test.JobName", () => Console.WriteLine("Hello Test"));
             var job = jobClient.GetJob(jobID);
             jobClient.DeleteJobs(new List<string>() { jobID });
 
-            Assert.IsNotNull(job);
-            Assert.AreEqual(jobID, job.JobID);
-            Assert.AreEqual(AppID, job.AppID);
-            Assert.AreEqual("-123", job.UserID);
-            Assert.AreEqual("TestJobType", job.JobType);
-            Assert.AreEqual("Test.JobName", job.JobName);
+            Assert.NotNull(job);
+            Assert.Equal(jobID, job.JobID);
+            Assert.Equal(AppID, job.AppID);
+            Assert.Equal("-123", job.UserID);
+            Assert.Equal("TestJobType", job.JobType);
+            Assert.Equal("Test.JobName", job.JobName);
         }
 
-        [TestMethod]
+        [Fact]
         public void UpdateJobTest1()
         {
             var jobID = jobClient.Add(AppID, () => Console.WriteLine("Hello Test"));
@@ -103,11 +103,11 @@ namespace Shift.UnitTest
             var job = jobClient.GetJob(jobID);
             jobClient.DeleteJobs(new List<string>() { jobID });
 
-            Assert.IsNotNull(job);
-            Assert.AreEqual("[\"\\\"Hello Test Updated\\\"\"]", job.Parameters);
+            Assert.NotNull(job);
+            Assert.Equal("[\"\\\"Hello Test Updated\\\"\"]", job.Parameters);
         }
 
-        [TestMethod]
+        [Fact]
         public void UpdateJobTest2()
         {
             var jobID = jobClient.Add(AppID, () => Console.WriteLine("Hello Test"));
@@ -115,12 +115,12 @@ namespace Shift.UnitTest
             var job = jobClient.GetJob(jobID);
             jobClient.DeleteJobs(new List<string>() { jobID });
 
-            Assert.IsNotNull(job);
-            Assert.AreEqual("TestAppIDUpdated", job.AppID);
-            Assert.AreEqual("[\"\\\"Hello Test Updated\\\"\"]", job.Parameters);
+            Assert.NotNull(job);
+            Assert.Equal("TestAppIDUpdated", job.AppID);
+            Assert.Equal("[\"\\\"Hello Test Updated\\\"\"]", job.Parameters);
         }
 
-        [TestMethod]
+        [Fact]
         public void UpdateJobTest3()
         {
             var jobID = jobClient.Add(AppID, "-123", "TestJobType", "Test.JobName", () => Console.WriteLine("Hello Test"));
@@ -128,15 +128,15 @@ namespace Shift.UnitTest
             var job = jobClient.GetJob(jobID);
             jobClient.DeleteJobs(new List<string>() { jobID });
 
-            Assert.IsNotNull(job);
-            Assert.AreEqual("TestAppIDUpdated", job.AppID);
-            Assert.AreEqual("-222", job.UserID);
-            Assert.AreEqual("TestJobTypeUpdated", job.JobType);
-            Assert.AreEqual("Test.JobNameUpdated", job.JobName);
-            Assert.AreEqual("[\"\\\"Hello Test Updated\\\"\"]", job.Parameters);
+            Assert.NotNull(job);
+            Assert.Equal("TestAppIDUpdated", job.AppID);
+            Assert.Equal("-222", job.UserID);
+            Assert.Equal("TestJobTypeUpdated", job.JobType);
+            Assert.Equal("Test.JobNameUpdated", job.JobName);
+            Assert.Equal("[\"\\\"Hello Test Updated\\\"\"]", job.Parameters);
         }
 
-        [TestMethod]
+        [Fact]
         public void SetCommandStopTest()
         {
             var jobID = jobClient.Add(AppID, () => Console.WriteLine("Hello Test"));
@@ -144,11 +144,11 @@ namespace Shift.UnitTest
             var job = jobClient.GetJob(jobID);
             jobClient.DeleteJobs(new List<string>() { jobID });
 
-            Assert.IsNotNull(job);
-            Assert.AreEqual(JobCommand.Stop, job.Command);
+            Assert.NotNull(job);
+            Assert.Equal(JobCommand.Stop, job.Command);
         }
 
-        [TestMethod]
+        [Fact]
         public void SetCommandRunNowTest()
         {
             var jobID = jobClient.Add(AppID, () => Console.WriteLine("Hello Test"));
@@ -156,23 +156,23 @@ namespace Shift.UnitTest
             var job = jobClient.GetJob(jobID);
             jobClient.DeleteJobs(new List<string>() { jobID });
 
-            Assert.IsNotNull(job);
-            Assert.AreEqual(JobCommand.RunNow, job.Command);
+            Assert.NotNull(job);
+            Assert.Equal(JobCommand.RunNow, job.Command);
         }
 
-        [TestMethod]
+        [Fact]
         public void GetJobViewTest()
         {
             var jobID = jobClient.Add(AppID, () => Console.WriteLine("Hello Test"));
             var jobView = jobClient.GetJobView(jobID);
             jobClient.DeleteJobs(new List<string>() { jobID });
 
-            Assert.IsNotNull(jobView);
-            Assert.AreEqual(jobID, jobView.JobID);
-            Assert.IsInstanceOfType(jobView, typeof(JobView));
+            Assert.NotNull(jobView);
+            Assert.Equal(jobID, jobView.JobID);
+            Assert.IsType<JobView>(jobView);
         }
 
-        [TestMethod]
+        [Fact]
         public void GetJobViewsTest()
         {
             var jobID = jobClient.Add(AppID, () => Console.WriteLine("Hello Test"));
@@ -180,21 +180,21 @@ namespace Shift.UnitTest
             var jobViews = jobClient.GetJobViews(0, 10);
             jobClient.DeleteJobs(new List<string>() { jobID, jobID2 });
 
-            Assert.IsInstanceOfType(jobViews, typeof(JobViewList));
-            Assert.IsNotNull(jobViews);
-            Assert.IsNotNull(jobViews.Items);
-            Assert.IsTrue(jobViews.Items.Count > 0);
-            Assert.IsTrue(jobViews.Total > 0);
+            Assert.IsType<JobViewList>(jobViews);
+            Assert.NotNull(jobViews);
+            Assert.NotNull(jobViews.Items);
+            Assert.True(jobViews.Items.Count > 0);
+            Assert.True(jobViews.Total > 0);
         }
 
-        [TestMethod]
+        [Fact]
         public void ResetJobsTest()
         {
             var jobID = jobClient.Add(AppID, () => Console.WriteLine("Hello Test"));
             jobClient.SetCommandStop(new List<string> { jobID });
             var job = jobClient.GetJob(jobID);
-            Assert.IsNotNull(job);
-            Assert.AreEqual(JobCommand.Stop, job.Command); //ensure it is set to 'stop' command
+            Assert.NotNull(job);
+            Assert.Equal(JobCommand.Stop, job.Command); //ensure it is set to 'stop' command
 
             //try to reset
             jobClient.ResetJobs(new List<string> { jobID });
@@ -202,45 +202,45 @@ namespace Shift.UnitTest
 
             jobClient.DeleteJobs(new List<string>() { jobID });
 
-            Assert.IsNotNull(job);
-            Assert.IsTrue(string.IsNullOrWhiteSpace(job.Command));
+            Assert.NotNull(job);
+            Assert.True(string.IsNullOrWhiteSpace(job.Command));
         }
 
-        [TestMethod]
+        [Fact]
         public void DeleteJobsTest()
         {
             var jobID = jobClient.Add(AppID, () => Console.WriteLine("Hello Test"));
             var job = jobClient.GetJob(jobID);
-            Assert.IsNotNull(job); //ensure it exists
+            Assert.NotNull(job); //ensure it exists
 
             //try to delete
             jobClient.DeleteJobs(new List<string> { jobID });
             job = jobClient.GetJob(jobID);
 
-            Assert.IsNull(job);
+            Assert.Null(job);
         }
 
-        [TestMethod]
+        [Fact]
         public void GetJobStatusCountTest()
         {
             var jobID = jobClient.Add(AppID, () => Console.WriteLine("Hello Test"));
             var statusCount = jobClient.GetJobStatusCount(AppID, null);
             jobClient.DeleteJobs(new List<string> { jobID });
 
-            Assert.IsNotNull(statusCount); 
-            Assert.IsTrue(statusCount.Count > 0);
+            Assert.NotNull(statusCount); 
+            Assert.True(statusCount.Count > 0);
         }
 
-        [TestMethod]
+        [Fact]
         public void GetProgressTest()
         {
             var jobID = jobClient.Add(AppID, () => Console.WriteLine("Hello Test"));
             var progress = jobClient.GetProgress(jobID);
             jobClient.DeleteJobs(new List<string> { jobID });
 
-            Assert.IsNotNull(progress);
-            Assert.IsInstanceOfType(progress, typeof(JobStatusProgress));
-            Assert.AreEqual(jobID, progress.JobID);
+            Assert.NotNull(progress);
+            Assert.IsType<JobStatusProgress>(progress);
+            Assert.Equal(jobID, progress.JobID);
         }
 
         public void GetCachedProgressTest()
