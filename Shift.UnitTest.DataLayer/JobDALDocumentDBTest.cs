@@ -410,6 +410,27 @@ namespace Shift.UnitTest.DataLayer
         }
 
         [Fact]
+        public void ClaimJobsToRunByMaxNumTest()
+        {
+            var job = new Job
+            {
+                AppID = AppID,
+                Created = DateTime.Now,
+                Status = null,
+                ProcessID = null
+            };
+            job = jobDAL.SetJob(job);
+            Assert.True(!string.IsNullOrWhiteSpace(job.JobID));
+
+            var jobs = jobDAL.ClaimJobsToRun(processID, 10);
+
+            jobDAL.Delete(new List<string> { job.JobID });
+
+            var jobIDs = jobs.Select(j => j.JobID).ToList();
+            Assert.True(jobIDs.Contains(job.JobID));
+        }
+
+        [Fact]
         public void ClaimJobsToRunTest()
         {
             var job = new Job
