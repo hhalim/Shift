@@ -7,11 +7,11 @@ Shift background or long running jobs into reliable and durable workers out of y
 - Out of band processing of long running jobs. 
 - Ability to stop, reset, and restart long running jobs.
 - Auto removal of older jobs.
+- Scale out with multiple Shift servers to run large number of jobs.
+- Redis persistent storage by default. Other supported storage built-in: MongoDB, Microsoft SQL server, Azure DocumentDB. 
 - Optional progress tracking for each running jobs.
-- Scale out with multiple shift servers to run large number of jobs.
 - Optional encryption for serialized data.
-- Redis persistent storage by default. Other supported storage: MongoDB, Microsoft SQL server, Azure DocumentDB. 
-- Run Shift Server in your own .NET apps, Azure WebJobs, or Windows services. Check out the [Shift.WinService](https://github.com/hhalim/Shift.WinService) and [Shift.WebJob](https://github.com/hhalim/Shift.WebJob) projects.
+- Run Shift Server in your own .NET apps, Azure WebJobs, or Windows services. Check out the [Shift.WinService](https://github.com/hhalim/Shift.WinService) and [Shift.WebJob](https://github.com/hhalim/Shift.WebJob) sample projects.
 
 The client component allows client apps to add jobs and send commands to Shift server to stop, delete, reset, and run jobs.
 
@@ -31,9 +31,9 @@ var jobID = jobClient.Add("Shift.Demo.Client", () => job.Start("Hello World", pr
 
 The server component checks for available jobs through polling, using first-in, first-out (FIFO) queue method. The server is a simple .NET library and needs to run inside a .NET app, Azure WebJob, or Windows service. 
 
-Two deployable and runnable server apps projects are also provided as a starting point:
+Two sample server projects are also provided as a starting point:
 - [Shift.WinService](https://github.com/hhalim/Shift.WinService) is the standalone Windows service server component, multiple services can be installed in the same server. 
-- [Shift.WebJob](https://github.com/hhalim/Shift.WebJob) is the Azure WebJob component that can be easily deployed to Azure cloud environment, multiple web jobs can also be deployed to multiple App Services. 
+- [Shift.WebJob](https://github.com/hhalim/Shift.WebJob) is the Azure WebJob component that can be easily deployed to Azure cloud environment, multiple web jobs can also be deployed to multiple Azure App Services. 
 
 ## Demos
 Please check out the demo apps first to provide better understanding on how to integrate Shift into your own .NET application. There is the ASP.NET MVC demo that shows Shift client and server running in the same ASP.Net process, and the simpler console Shift client and server apps demo. The console apps are two separate projects that demonstrate the client and the server working in two different processes.
