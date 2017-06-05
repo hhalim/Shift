@@ -64,6 +64,11 @@ namespace Shift
             jobDAL = container.Resolve<IJobDAL>();
         }
 
+        public JobClient(IJobDAL jobDAL)
+        {
+            this.jobDAL = jobDAL;
+        }
+
         #region Clients access
         //Provides the clients to submit jobs or commands for jobs
 

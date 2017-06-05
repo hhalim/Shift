@@ -601,6 +601,8 @@ namespace Shift.UnitTest.DataLayer
             Assert.Equal(data, job.Data);
         }
 
+        //Test with no Cache, so GetProgress hits the DB instead.
+        //For cache see JobDALSqlCacheTest and JobCacheRedisTest.
         [Fact]
         public void GetProgressTest()
         {

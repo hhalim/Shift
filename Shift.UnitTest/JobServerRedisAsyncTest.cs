@@ -7,17 +7,18 @@ using Autofac;
 using Autofac.Features.ResolveAnything;
 
 using Shift.Entities;
+using System.Threading.Tasks;
 
 namespace Shift.UnitTest
 {
      
-    public class RedisJobServerTest
+    public class JobServerRedisAsyncTest
     {
         JobClient jobClient;
         JobServer jobServer;
         private const string AppID = "TestAppID";
 
-        public RedisJobServerTest()
+        public JobServerRedisAsyncTest()
         {
             var appSettingsReader = new AppSettingsReader();
 
@@ -42,91 +43,91 @@ namespace Shift.UnitTest
         }
 
         [Fact]
-        public void RunJobsSelectedTest()
+        public async Task RunJobsSelectedTest()
         {
-            var jobID = jobClient.Add(AppID, () => Console.WriteLine("Hello Test"));
-            var job = jobClient.GetJob(jobID);
+            var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
+            var job = await jobClient.GetJobAsync(jobID);
 
             Assert.NotNull(job);
             Assert.Equal(jobID, job.JobID);
 
             //run job
-            jobServer.RunJobs(new List<string> { jobID });
+            await jobServer.RunJobsAsync(new List<string> { jobID });
             Thread.Sleep(5000);
 
-            job = jobClient.GetJob(jobID);
-            jobClient.DeleteJobs(new List<string>() { jobID });
+            job = await jobClient.GetJobAsync(jobID);
+            await jobClient.DeleteJobsAsync(new List<string>() { jobID });
             Assert.Equal(JobStatus.Completed, job.Status);
         }
 
 
         [Fact]
-        public void StopJobsNonRunningTest()
+        public async Task StopJobsNonRunningTest()
         {
-            var jobID = jobClient.Add(AppID, () => Console.WriteLine("Hello Test"));
-            jobClient.SetCommandStop(new List<string> { jobID });
-            var job = jobClient.GetJob(jobID);
+            var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
+            await jobClient.SetCommandStopAsync(new List<string> { jobID });
+            var job = await jobClient.GetJobAsync(jobID);
 
             Assert.NotNull(job);
             Assert.Equal(JobCommand.Stop, job.Command);
 
-            jobServer.StopJobs(); //stop non-running job
+            await jobServer.StopJobsAsync(); //stop non-running job
             Thread.Sleep(5000);
 
-            job = jobClient.GetJob(jobID);
-            jobClient.DeleteJobs(new List<string>() { jobID });
+            job = await jobClient.GetJobAsync(jobID);
+            await jobClient.DeleteJobsAsync(new List<string>() { jobID });
             Assert.Equal(JobStatus.Stopped, job.Status);
         }
 
         [Fact]
-        public void StopJobsRunningTest()
+        public async Task StopJobsRunningTest()
         {
             var jobTest = new TestJob();
             var progress = new SynchronousProgress<ProgressInfo>(); 
             var token = (new CancellationTokenSource()).Token; 
-            var jobID = jobClient.Add(AppID, () => jobTest.Start("Hello World", progress, token));
+            var jobID = await jobClient.AddAsync(AppID, () => jobTest.Start("Hello World", progress, token));
 
             //run job
-            jobServer.RunJobs(new List<string> { jobID });
+            await jobServer.RunJobsAsync(new List<string> { jobID });
             Thread.Sleep(1000);
 
-            var job = jobClient.GetJob(jobID);
+            var job = await jobClient.GetJobAsync(jobID);
             Assert.NotNull(job);
             Assert.Equal(JobStatus.Running, job.Status);
 
-            jobClient.SetCommandStop(new List<string> { jobID });
-            jobServer.StopJobs(); //stop running job
+            await jobClient.SetCommandStopAsync(new List<string> { jobID });
+            await jobServer.StopJobsAsync(); //stop running job
             Thread.Sleep(3000);
 
-            job = jobClient.GetJob(jobID);
-            jobClient.DeleteJobs(new List<string>() { jobID });
+            job = await jobClient.GetJobAsync(jobID);
+            await jobClient.DeleteJobsAsync(new List<string>() { jobID });
             Assert.Equal(JobStatus.Stopped, job.Status);
         }
 
         [Fact]
-        public void CleanUpTest()
+        public async Task CleanUpTest()
         {
             //Test StopJobs with CleanUp() calls
 
             var jobTest = new TestJob();
             var progress = new SynchronousProgress<ProgressInfo>(); 
             var token = (new CancellationTokenSource()).Token; 
-            var jobID = jobClient.Add(AppID, () => jobTest.Start("Hello World", progress, token));
+            var jobID = await jobClient.AddAsync(AppID, () => jobTest.Start("Hello World", progress, token));
 
             //run job
-            jobServer.RunJobs(new List<string> { jobID });
+            await jobServer.RunJobsAsync(new List<string> { jobID });
             Thread.Sleep(1000);
 
-            var job = jobClient.GetJob(jobID);
+            var job = await jobClient.GetJobAsync(jobID);
             Assert.NotNull(job);
             Assert.Equal(JobStatus.Running, job.Status);
 
-            jobClient.SetCommandStop(new List<string> { jobID });
-            jobServer.CleanUp(); 
+            await jobClient.SetCommandStopAsync(new List<string> { jobID });
+            await jobServer.CleanUpAsync(); 
             Thread.Sleep(3000);
 
-            job = jobClient.GetJob(jobID);
-            jobClient.DeleteJobs(new List<string>() { jobID });
+            job = await jobClient.GetJobAsync(jobID);
+            await jobClient.DeleteJobsAsync(new List<string>() { jobID });
             Assert.Equal(JobStatus.Stopped, job.Status);
         }
 

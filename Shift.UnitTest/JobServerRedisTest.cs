@@ -11,25 +11,25 @@ using Shift.Entities;
 namespace Shift.UnitTest
 {
      
-    public class SqlJobServerTest
+    public class JobServerRedisTest
     {
         JobClient jobClient;
         JobServer jobServer;
-        const string AppID = "TestAppID";
+        private const string AppID = "TestAppID";
 
-        public SqlJobServerTest()
+        public JobServerRedisTest()
         {
             var appSettingsReader = new AppSettingsReader();
 
             //Configure storage connection
             var clientConfig = new ClientConfig();
-            clientConfig.DBConnectionString = appSettingsReader.GetValue("MSSqlConnectionString", typeof(string)) as string;
-            clientConfig.StorageMode = "mssql";
+            clientConfig.DBConnectionString = appSettingsReader.GetValue("RedisConnectionString", typeof(string)) as string;
+            clientConfig.StorageMode = "redis";
             jobClient = new JobClient(clientConfig);
 
             var serverConfig = new ServerConfig();
-            serverConfig.DBConnectionString = appSettingsReader.GetValue("MSSqlConnectionString", typeof(string)) as string;
-            serverConfig.StorageMode = "mssql";
+            serverConfig.DBConnectionString = appSettingsReader.GetValue("RedisConnectionString", typeof(string)) as string;
+            serverConfig.StorageMode = "redis";
             serverConfig.ProcessID = this.ToString();
             serverConfig.Workers = 1;
             serverConfig.MaxRunnableJobs = 1;
