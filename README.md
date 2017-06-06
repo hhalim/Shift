@@ -53,4 +53,6 @@ Shift uses the following open source projects:
 - [MongoDB C# Driver](https://github.com/mongodb/mongo-csharp-driver)
 - [Azure DocumentDB .NET SDK](https://github.com/Azure/azure-documentdb-dotnet)
 - [xUnit](https://github.com/xunit/xunit)
+- [Moq](https://github.com/moq/moq)
+
 
