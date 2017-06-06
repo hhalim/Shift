@@ -14,7 +14,6 @@ namespace Shift
     public class JobClient
     {
         private IJobDAL jobDAL = null;
-        public ClientConfig config = null;
         private readonly ContainerBuilder builder;
         private readonly IContainer container;
 
@@ -53,8 +52,6 @@ namespace Shift
             {
                 throw new ArgumentNullException("Unable to run without Cache configuration string.");
             }
-
-            this.config = config;
 
             builder = new ContainerBuilder();
             builder.RegisterSource(new AnyConcreteTypeNotAlreadyRegisteredSource());

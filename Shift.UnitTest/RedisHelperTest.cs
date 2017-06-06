@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using Xunit;
 using Shift.DataLayer;
 
-namespace Shift.UnitTest.DataLayer
+namespace Shift.UnitTest
 {
      
     public class RedisHelperTest
