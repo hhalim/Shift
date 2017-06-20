@@ -536,7 +536,7 @@ namespace Shift.DataLayer
             var whereQuery = "j.Created < DATEADD(hour, -@hours, GETDATE())";
 
             //build where status
-            if (statusList != null)
+            if (statusList != null && statusList.Any())
             {
                 var whereStatus = "";
                 foreach (var status in statusList)

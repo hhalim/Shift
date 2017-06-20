@@ -581,7 +581,7 @@ namespace Shift.DataLayer
             var whereQuery = string.Format("(j.Created != null AND j.Created < '{0}')", pastDate.ToString("o"));
 
             //build where status
-            if (statusList != null)
+            if (statusList != null && statusList.Any())
             {
                 var whereStatus = "";
                 foreach (var status in statusList)

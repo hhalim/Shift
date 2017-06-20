@@ -427,12 +427,12 @@ namespace Shift.DataLayer
             var blFilter = Builders<Job>.Filter;
 
             var pastDate = DateTime.Now.AddHours(-hours);
-            //WARNING: The nullable Created field filter must use j.Created != null or it will CRASH the ToList action
+            //WARNING: The null-able Created field filter must use j.Created != null or it will CRASH the ToList action
             var dateFilter = (!blFilter.Eq(j => j.Created, null) & blFilter.Lt(j => j.Created, pastDate.ToUniversalTime())); //use UTC for datetime filtering!
 
             //build where status
             FilterDefinition<Job> statusFilter = null;
-            if (statusList != null)
+            if (statusList != null && statusList.Any())
             {
                 var listFilter = new List<FilterDefinition<Job>>();
                 foreach (var status in statusList)

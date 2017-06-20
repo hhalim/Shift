@@ -616,7 +616,7 @@ namespace Shift.DataLayer
                 var hashEntry = isSync ? RedisDatabase.HashGetAll(sortedSet.Element.ToString())
                     : await RedisDatabase.HashGetAllAsync(sortedSet.Element.ToString());
                 var job = RedisHelpers.ConvertFromRedis<Job>(hashEntry);
-                if(job != null && statusList.Contains(job.Status))
+                if(job != null && (statusList == null || !statusList.Any() || statusList.Contains(job.Status)) )
                 {
                     jobIDs.Add(job.JobID);
                 }

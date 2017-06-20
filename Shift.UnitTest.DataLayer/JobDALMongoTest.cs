@@ -80,7 +80,7 @@ namespace Shift.UnitTest.DataLayer
 
         //Test auto delete older than 24 hours and Null(not started) status
         [Fact]
-        public void DeleteOldJobsNotStarted()
+        public void DeleteOldJobs_NotStarted()
         {
             var job = new Job
             {
@@ -88,7 +88,6 @@ namespace Shift.UnitTest.DataLayer
                 Created = DateTime.Now.AddHours(-48)
             };
             job = jobDAL.SetJob(job);
-            Assert.True(!string.IsNullOrWhiteSpace(job.JobID));
 
             var count = jobDAL.Delete(24, new List<JobStatus?> { null });
             var outJob = jobDAL.GetJob(job.JobID);
@@ -99,7 +98,7 @@ namespace Shift.UnitTest.DataLayer
 
         //Test auto delete older than 24 hours and with Error or Completed status
         [Fact]
-        public void DeleteOldJobsErrorAndCompletedTest()
+        public void DeleteOldJobs_ErrorAndCompletedTest()
         {
             var job = new Job
             {
@@ -109,16 +108,61 @@ namespace Shift.UnitTest.DataLayer
                 Error = "Test delete old job with status: Error"
             };
             job = jobDAL.SetJob(job);
-            var job2 = new Job();
-            job2.AppID = AppID;
-            job2.Created = DateTime.Now.AddHours(-48);
-            job2.Status = JobStatus.Completed;
-            job2.Error = "Test delete old job with status: Completed";
+
+            var job2 = new Job()
+            {
+                AppID = AppID,
+                Created = DateTime.Now.AddHours(-48),
+                Status = JobStatus.Completed,
+                Error = "Test delete old job with status: Completed"
+            };
             job2 = jobDAL.SetJob(job2);
-            Assert.True(!string.IsNullOrWhiteSpace(job.JobID));
-            Assert.True(!string.IsNullOrWhiteSpace(job2.JobID));
+
+            var job3 = new Job()
+            {
+                AppID = AppID,
+                Created = DateTime.Now.AddHours(-48),
+                Status = null
+            };
+            job3 = jobDAL.SetJob(job3);
 
             var count = jobDAL.Delete(24, new List<JobStatus?> { JobStatus.Error, JobStatus.Completed });
+            Assert.True(count > 0);
+
+            var outJob = jobDAL.GetJob(job.JobID);
+            Assert.Null(outJob);
+
+            var outJob2 = jobDAL.GetJob(job2.JobID);
+            Assert.Null(outJob2);
+
+            var outJob3 = jobDAL.GetJob(job3.JobID);
+            jobDAL.Delete(new List<string> { job3.JobID });
+            Assert.NotNull(outJob3);
+            Assert.Equal(job3.JobID, outJob3.JobID);
+        }
+
+        //Test auto delete older than 24 hours and don't care about status
+        [Fact]
+        public void DeleteOldJobs_AnyStatus()
+        {
+            var job = new Job
+            {
+                AppID = AppID,
+                Status = JobStatus.Completed,
+                Created = DateTime.Now.AddHours(-48)
+            };
+            job = jobDAL.SetJob(job);
+
+            var job2 = new Job()
+            {
+                AppID = AppID,
+                Created = DateTime.Now.AddHours(-48),
+                Status = JobStatus.Error,
+                Error = "Test delete old job with Any Status"
+            };
+            job2 = jobDAL.SetJob(job2);
+
+            var count = jobDAL.Delete(24, null);
             Assert.True(count > 0);
 
             var outJob = jobDAL.GetJob(job.JobID);

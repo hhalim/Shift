@@ -82,7 +82,7 @@ namespace Shift.UnitTest.DataLayer
 
         //Test auto delete older than 24 hours and Null(not started) status
         [Fact]
-        public async Task DeleteAsyncOldJobsNotStarted()
+        public async Task DeleteAsyncOldJobs_NotStarted()
         {
             var job = new Job
             {
@@ -90,7 +90,6 @@ namespace Shift.UnitTest.DataLayer
                 Created = DateTime.Now.AddHours(-48)
             };
             job = await jobDAL.SetJobAsync(job);
-            Assert.True(!string.IsNullOrWhiteSpace(job.JobID));
 
             var count = await jobDAL.DeleteAsync(24, new List<JobStatus?> { null });
             var outJob = await jobDAL.GetJobAsync(job.JobID);
@@ -101,7 +100,7 @@ namespace Shift.UnitTest.DataLayer
 
         //Test auto delete older than 24 hours and with Error or Completed status
         [Fact]
-        public async Task DeleteAsyncOldJobsErrorAndCompletedTest()
+        public async Task DeleteAsyncOldJobs_ErrorAndCompletedTest()
         {
             var job = new Job
             {
@@ -111,16 +110,61 @@ namespace Shift.UnitTest.DataLayer
                 Error = "Test delete old job with status: Error"
             };
             job = await jobDAL.SetJobAsync(job);
-            var job2 = new Job();
-            job2.AppID = AppID;
-            job2.Created = DateTime.Now.AddHours(-48);
-            job2.Status = JobStatus.Completed;
-            job2.Error = "Test delete old job with status: Completed";
+
+            var job2 = new Job()
+            {
+                AppID = AppID,
+                Created = DateTime.Now.AddHours(-48),
+                Status = JobStatus.Completed,
+                Error = "Test delete old job with status: Completed"
+            };
             job2 = await jobDAL.SetJobAsync(job2);
-            Assert.True(!string.IsNullOrWhiteSpace(job.JobID));
-            Assert.True(!string.IsNullOrWhiteSpace(job2.JobID));
+
+            var job3 = new Job()
+            {
+                AppID = AppID,
+                Created = DateTime.Now.AddHours(-48),
+                Status = null
+            };
+            job3 = await jobDAL.SetJobAsync(job3);
 
             var count = await jobDAL.DeleteAsync(24, new List<JobStatus?> { JobStatus.Error, JobStatus.Completed });
+            Assert.True(count > 0);
+
+            var outJob = await jobDAL.GetJobAsync(job.JobID);
+            Assert.Null(outJob);
+
+            var outJob2 = await jobDAL.GetJobAsync(job2.JobID);
+            Assert.Null(outJob2);
+
+            var outJob3 = await jobDAL.GetJobAsync(job3.JobID);
+            await jobDAL.DeleteAsync(new List<string> { job3.JobID });
+            Assert.NotNull(outJob3);
+            Assert.Equal(job3.JobID, outJob3.JobID);
+        }
+
+        //Test auto delete older than 24 hours and don't care about status
+        [Fact]
+        public async Task DeleteAsyncOldJobs_AnyStatus()
+        {
+            var job = new Job
+            {
+                AppID = AppID,
+                Status = JobStatus.Completed,
+                Created = DateTime.Now.AddHours(-48)
+            };
+            job = await jobDAL.SetJobAsync(job);
+
+            var job2 = new Job()
+            {
+                AppID = AppID,
+                Created = DateTime.Now.AddHours(-48),
+                Status = JobStatus.Error,
+                Error = "Test delete old job with Any Status"
+            };
+            job2 = await jobDAL.SetJobAsync(job2);
+
+            var count = await jobDAL.DeleteAsync(24, null);
             Assert.True(count > 0);
 
             var outJob = await jobDAL.GetJobAsync(job.JobID);
