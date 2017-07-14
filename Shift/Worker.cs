@@ -151,19 +151,19 @@ namespace Shift
             taskList[jobID] = taskInfo;
             if (isSync)
             {
-                jobTask = Task.Run(() => ExecuteJobAsync(processID, jobID, methodInfo, parameters, instance, token, isSync).GetAwaiter().GetResult(), token)
-                    .ContinueWith(t =>
+                jobTask = Task.Run(() => ExecuteJobAsync(processID, jobID, methodInfo, parameters, instance, token, isSync).ContinueWith(t =>
                     {
                         DeleteCachedProgressDelayedAsync(jobID);
-                    }, TaskContinuationOptions.ExecuteSynchronously);
+                    }, TaskContinuationOptions.ExecuteSynchronously).GetAwaiter().GetResult()
+                    , token);
             }
             else
             {
-                jobTask = Task.Run(async () => await ExecuteJobAsync(processID, jobID, methodInfo, parameters, instance, token, isSync), token)
-                    .ContinueWith(t =>
+                jobTask = Task.Run(async () => await ExecuteJobAsync(processID, jobID, methodInfo, parameters, instance, token, isSync).ContinueWith(t =>
                     {
                         DeleteCachedProgressDelayedAsync(jobID);
-                    }, TaskContinuationOptions.RunContinuationsAsynchronously);
+                    }, TaskContinuationOptions.RunContinuationsAsynchronously).ConfigureAwait(false)
+                    , token);
             }
             taskInfo.JobTask = jobTask;
             taskList[jobID] = taskInfo; //re-update with filled Task
@@ -272,9 +272,9 @@ namespace Shift
 
         private Task DeleteCachedProgressDelayedAsync(string jobID)
         {
-            return Task.Delay(60000).ContinueWith(_ =>
+            return Task.Delay(60000).ContinueWith(async _ =>
             {
-                jobDAL.DeleteCachedProgressAsync(jobID);
+                await jobDAL.DeleteCachedProgressAsync(jobID);
             }, TaskContinuationOptions.RunContinuationsAsynchronously);
         }
 
@@ -341,8 +341,13 @@ namespace Shift
                         if (!taskInfo.TokenSource.Token.IsCancellationRequested)
                         {
                             taskInfo.TokenSource.Cancel(); //attempt to cancel task
-                            Task.Run(async () => await taskInfo.JobTask)
-                                .ContinueWith(result => { taskList.Remove(jobID); }); //Don't hold the process, just run another task to wait for cancellable task
+                            //Don't hold the process, just run another task to wait for cancellable task
+                            Task.Run(async () => await taskInfo.JobTask.ConfigureAwait(false))
+                                .ContinueWith( result =>
+                                    {
+                                        taskList.Remove(jobID);
+                                    }
+                                ); 
                         }
                     }
                     else
@@ -384,8 +389,8 @@ namespace Shift
             {
                 await jobDAL.SetToStoppedAsync(jobIDs.ToList());
             }
-            jobDAL.SetCachedProgressStatusAsync(jobIDs, JobStatus.Stopped); //redis cached progress
-            jobDAL.DeleteCachedProgressAsync(jobIDs);
+            await jobDAL.SetCachedProgressStatusAsync(jobIDs, JobStatus.Stopped); //redis cached progress
+            await jobDAL.DeleteCachedProgressAsync(jobIDs);
         }
 
         /// <summary>
