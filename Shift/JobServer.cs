@@ -8,14 +8,13 @@ using System.Threading.Tasks;
 
 using Autofac;
 using Autofac.Features.ResolveAnything;
+using Shift.Entities;
 
 namespace Shift
 {
     public class JobServer
     {
         private ServerConfig config = null;
-        private readonly ContainerBuilder builder;
-        private readonly IContainer container;
         private static System.Timers.Timer timer = null;
         private static System.Timers.Timer timer2 = null;
 
@@ -61,21 +60,6 @@ namespace Shift
 
             this.config = config;
 
-            builder = new ContainerBuilder();
-            builder.RegisterSource(new AnyConcreteTypeNotAlreadyRegisteredSource());
-            RegisterAssembly.RegisterTypes(builder, config.StorageMode, config.DBConnectionString, config.UseCache, config.CacheConfigurationString, config.EncryptionKey, config.DBAuthKey);
-            container = builder.Build();
-
-            Initialize();
-        }
-
-        #region Startup
-        /// <summary>
-        /// Instantiate the data layer and loads all the referenced assemblies defined in the assembly list text file 
-        /// in Options.AssemblyListPath and Options.AssemblyBaseDir
-        /// </summary>
-        private void Initialize()
-        {
             this.workerList = new List<Worker>();
 
             //OPTIONAL: Load all EXTERNAL DLLs needed by this process
@@ -83,14 +67,21 @@ namespace Shift
             AssemblyHelpers.LoadAssemblies(config.AssemblyFolder, config.AssemblyListPath);
 
             //Create Worker
-            for(var i=1; i <= config.Workers; i++)
+            var builder = new ContainerBuilder();
+            builder.RegisterSource(new AnyConcreteTypeNotAlreadyRegisteredSource());
+            RegisterAssembly.RegisterTypes(builder, config.StorageMode, config.DBConnectionString, config.UseCache, config.CacheConfigurationString, config.EncryptionKey, config.DBAuthKey);
+            var container = builder.Build();
+            //Use lifetime scope to avoid memory leak http://docs.autofac.org/en/latest/resolve/
+            using (var scope = container.BeginLifetimeScope())
             {
-                var worker = new Worker(config, container, i);
-                workerList.Add(worker);
+                var jobDAL = scope.Resolve<IJobDAL>();
+                for (var i = 1; i <= config.Workers; i++)
+                {
+                    var worker = new Worker(config, jobDAL, i);
+                    workerList.Add(worker);
+                }
             }
         }
-
-        #endregion
 
         #region Server Run and Manage jobs
 

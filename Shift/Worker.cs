@@ -26,10 +26,10 @@ namespace Shift
         private int? autoDeletePeriod;
         private IList<JobStatus?> autoDeleteStatus;
 
-        public Worker(ServerConfig config, IContainer container, int workerID)
+        public Worker(ServerConfig config, IJobDAL jobDAL, int workerID)
         {
             taskList = new Dictionary<string, TaskInfo>();
-            jobDAL = container.Resolve<IJobDAL>();
+            this.jobDAL = jobDAL;
             this.workerID = workerID;
 
             this.workerProcessID = config.ProcessID + "-" + workerID;

@@ -14,8 +14,6 @@ namespace Shift
     public class JobClient
     {
         private IJobDAL jobDAL = null;
-        private readonly ContainerBuilder builder;
-        private readonly IContainer container;
 
         ///<summary>
         /// Initializes a new instance of JobClient class, injects data layer with connection and configuration strings.
@@ -53,12 +51,15 @@ namespace Shift
                 throw new ArgumentNullException("Unable to run without Cache configuration string.");
             }
 
-            builder = new ContainerBuilder();
+            var builder = new ContainerBuilder();
             builder.RegisterSource(new AnyConcreteTypeNotAlreadyRegisteredSource());
             RegisterAssembly.RegisterTypes(builder, config.StorageMode, config.DBConnectionString, config.UseCache, config.CacheConfigurationString, config.EncryptionKey, config.DBAuthKey);
-            container = builder.Build();
-
-            jobDAL = container.Resolve<IJobDAL>();
+            var container = builder.Build();
+            //Use lifetime scope to avoid memory leak http://docs.autofac.org/en/latest/resolve/
+            using (var scope = container.BeginLifetimeScope())
+            {
+                jobDAL = container.Resolve<IJobDAL>();
+            }
         }
 
         public JobClient(IJobDAL jobDAL)
