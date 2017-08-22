@@ -320,6 +320,77 @@ namespace Shift.DataLayer
 
             return count;
         }
+
+        /// <summary>
+        /// Flag running jobs with 'pause' command. 
+        /// </summary>
+        /// <remarks>
+        /// This works only for running jobs. The server will attempt to 'stop' jobs marked as 'stop'.
+        /// </remarks>
+        public int SetCommandPause(ICollection<string> jobIDs)
+        {
+            return SetCommandPauseAsync(jobIDs, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> SetCommandPauseAsync(ICollection<string> jobIDs)
+        {
+            return SetCommandPauseAsync(jobIDs, false);
+        }
+
+        private async Task<int> SetCommandPauseAsync(ICollection<string> jobIDs, bool isSync)
+        {
+            var count = 0;
+
+            if (jobIDs.Count == 0)
+                return count;
+
+            var collection = database.GetCollection<Job>(JobCollectionName);
+            var blFilter = Builders<Job>.Filter;
+            var filter = blFilter.In(j => j.JobID, jobIDs) & blFilter.Eq(j => j.Status, JobStatus.Running);
+            var update = Builders<Job>.Update.Set("Command", JobCommand.Pause);
+
+            var result = isSync ? collection.UpdateMany(filter, update) : await collection.UpdateManyAsync(filter, update);
+            if (result.IsAcknowledged)
+                count = (int)result.ModifiedCount;
+
+            return count;
+        }
+
+        /// <summary>
+        /// Flag paused jobs with 'continue' command. 
+        /// </summary>
+        /// <remarks>
+        /// This works only for paused jobs. The server will attempt to continue jobs marked as 'continue'.
+        /// </remarks>
+        public int SetCommandContinue(ICollection<string> jobIDs)
+        {
+            return SetCommandContinueAsync(jobIDs, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> SetCommandContinueAsync(ICollection<string> jobIDs)
+        {
+            return SetCommandContinueAsync(jobIDs, false);
+        }
+
+        private async Task<int> SetCommandContinueAsync(ICollection<string> jobIDs, bool isSync)
+        {
+            var count = 0;
+
+            if (jobIDs.Count == 0)
+                return count;
+
+            var collection = database.GetCollection<Job>(JobCollectionName);
+            var blFilter = Builders<Job>.Filter;
+            var filter = blFilter.In(j => j.JobID, jobIDs) & blFilter.Eq(j => j.Status, JobStatus.Paused);
+            var update = Builders<Job>.Update.Set("Command", JobCommand.Continue);
+
+            var result = isSync ? collection.UpdateMany(filter, update) : await collection.UpdateManyAsync(filter, update);
+            if (result.IsAcknowledged)
+                count = (int)result.ModifiedCount;
+
+            return count;
+        }
+
         #endregion
 
         #region Direct Action to Jobs
@@ -475,15 +546,42 @@ namespace Shift.DataLayer
         /// </summary>
         public int SetToStopped(ICollection<string> jobIDs)
         {
-            return SetToStoppedAsync(jobIDs, true).GetAwaiter().GetResult();
+            return SetToStatusAsync(jobIDs, JobStatus.Stopped, true).GetAwaiter().GetResult();
         }
 
         public Task<int> SetToStoppedAsync(ICollection<string> jobIDs)
         {
-            return SetToStoppedAsync(jobIDs, false);
+            return SetToStatusAsync(jobIDs, JobStatus.Stopped, false);
         }
 
-        private async Task<int> SetToStoppedAsync(ICollection<string> jobIDs, bool isSync)
+        /// <summary>
+        ///  Mark job status to JobStatus.Paused. 
+        /// </summary>
+        public int SetToPaused(ICollection<string> jobIDs)
+        {
+            return SetToStatusAsync(jobIDs, JobStatus.Paused, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> SetToPausedAsync(ICollection<string> jobIDs)
+        {
+            return SetToStatusAsync(jobIDs, JobStatus.Paused, false);
+        }
+
+        /// <summary>
+        ///  Mark job status to JobStatus.Running. 
+        ///  Used after pause to continue running job.
+        /// </summary>
+        public int SetToRunning(ICollection<string> jobIDs)
+        {
+            return SetToStatusAsync(jobIDs, JobStatus.Running, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> SetToRunningAsync(ICollection<string> jobIDs)
+        {
+            return SetToStatusAsync(jobIDs, JobStatus.Running, false);
+        }
+
+        private async Task<int> SetToStatusAsync(ICollection<string> jobIDs, JobStatus jobStatus, bool isSync)
         {
             var count = 0;
 
@@ -496,10 +594,10 @@ namespace Shift.DataLayer
             var blUpdate = Builders<Job>.Update;
             var listUpdate = new List<UpdateDefinition<Job>>();
             listUpdate.Add(blUpdate.Set<string>("Command", null));
-            listUpdate.Add(blUpdate.Set("Status", JobStatus.Stopped));
+            listUpdate.Add(blUpdate.Set("Status", jobStatus));
             var update = blUpdate.Combine(listUpdate.ToArray());
 
-            var result = isSync ? collection.UpdateMany(filter, update): await collection.UpdateManyAsync(filter, update);
+            var result = isSync ? collection.UpdateMany(filter, update) : await collection.UpdateManyAsync(filter, update);
             if (result.IsAcknowledged)
                 count = (int)result.ModifiedCount;
 
@@ -884,17 +982,17 @@ namespace Shift.DataLayer
         /// <param name="processID">process ID</param>
         /// <param name="jobID">job ID</param>
         /// <returns>Updated record count, 0 or 1 record updated</returns>
-        public int SetCompleted(string processID, string jobID)
+        public int SetToCompleted(string processID, string jobID)
         {
-            return SetCompletedAsync(processID, jobID, true).GetAwaiter().GetResult();
+            return SetToCompletedAsync(processID, jobID, true).GetAwaiter().GetResult();
         }
 
-        public Task<int> SetCompletedAsync(string processID, string jobID)
+        public Task<int> SetToCompletedAsync(string processID, string jobID)
         {
-            return SetCompletedAsync(processID, jobID, false);
+            return SetToCompletedAsync(processID, jobID, false);
         }
 
-        private async Task<int> SetCompletedAsync(string processID, string jobID, bool isSync)
+        private async Task<int> SetToCompletedAsync(string processID, string jobID, bool isSync)
         {
             var count = 0;
             var collection = database.GetCollection<Job>(JobCollectionName);

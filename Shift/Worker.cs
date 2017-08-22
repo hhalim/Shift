@@ -140,33 +140,56 @@ namespace Shift
                     return;
             }
 
-            //Don't use ConfigureWait(false), since some tasks don't have Cancellation token and must use the original context to return after completion
-            var tokenSource = new CancellationTokenSource();
-            var token = tokenSource.Token;
-
+            //Don't use ConfigureWait(false) in Task.Run(), since some tasks don't have Cancellation token and must use the original context to return after completion
             var taskInfo = new TaskInfo();
-            taskInfo.TokenSource = tokenSource;
+
+            var cancelSource = new CancellationTokenSource();
+            var cancelToken = cancelSource.Token;
+            taskInfo.CancelSource = cancelSource;
+
+            var pauseSource = new PauseTokenSource();
+            var pauseToken = pauseSource.Token;
+            if (HasPauseToken(methodInfo.GetParameters()))
+            {
+                taskInfo.PauseSource = pauseSource;
+            }
+
             //Keep track of running thread 
             //If using Task.Run(), MUST register task in TaskList right away if NOT the CleanUp() method may mark running Task as Error, because it's running but not in list!!!
             taskList[jobID] = taskInfo;
             if (isSync)
             {
-                jobTask = Task.Run(() => ExecuteJobAsync(processID, jobID, methodInfo, parameters, instance, token, isSync).ContinueWith(t =>
+                jobTask = Task.Run(() => ExecuteJobAsync(processID, jobID, methodInfo, parameters, instance, cancelToken, pauseToken, isSync).ContinueWith(t =>
                     {
                         DeleteCachedProgressDelayedAsync(jobID);
                     }, TaskContinuationOptions.ExecuteSynchronously).GetAwaiter().GetResult()
-                    , token);
+                    , cancelToken);
             }
             else
             {
-                jobTask = Task.Run(async () => await ExecuteJobAsync(processID, jobID, methodInfo, parameters, instance, token, isSync).ContinueWith(t =>
+                jobTask = Task.Run(async () => await ExecuteJobAsync(processID, jobID, methodInfo, parameters, instance, cancelToken, pauseToken, isSync).ContinueWith(t =>
                     {
                         DeleteCachedProgressDelayedAsync(jobID);
                     }, TaskContinuationOptions.RunContinuationsAsynchronously).ConfigureAwait(false)
-                    , token);
+                    , cancelToken);
             }
             taskInfo.JobTask = jobTask;
             taskList[jobID] = taskInfo; //re-update with filled Task
+        }
+
+        private bool HasPauseToken(ParameterInfo[] parameters)
+        {
+            for (var i = 0; i < parameters.Length; i++)
+            {
+                var parameter = parameters[i];
+
+                if (parameter.ParameterType.FullName.ToUpper().Contains("SHIFT.ENTITIES.PAUSETOKEN"))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private async Task<IProgress<ProgressInfo>> UpdateProgressEventAsync(string jobID, bool isSync)
@@ -201,7 +224,7 @@ namespace Shift
             return progress;
         }
 
-        private async Task ExecuteJobAsync(string processID, string jobID, MethodInfo methodInfo, string parameters, object instance, CancellationToken? token, bool isSync)
+        private async Task ExecuteJobAsync(string processID, string jobID, MethodInfo methodInfo, string parameters, object instance, CancellationToken? cancelToken, PauseToken? pauseToken, bool isSync)
         {
             try
             {
@@ -215,12 +238,17 @@ namespace Shift
                 var progress = isSync ? UpdateProgressEventAsync(jobID, true).GetAwaiter().GetResult() : await UpdateProgressEventAsync(jobID, false); //Need this to update the progress of the job's
 
                 //Invoke Method
-                if (token == null)
+                if (cancelToken == null)
                 {
-                    var tokenSource = new CancellationTokenSource(); 
-                    token = tokenSource.Token;
+                    var cancelSource = new CancellationTokenSource(); 
+                    cancelToken = cancelSource.Token;
                 }
-                var args = DALHelpers.DeserializeArguments(token.Value, progress, methodInfo, parameters);
+                if (pauseToken == null)
+                {
+                    var pauseSource = new PauseTokenSource();
+                    pauseToken = pauseSource.Token;
+                }
+                var args = DALHelpers.DeserializeArguments(cancelToken.Value, pauseToken.Value, progress, methodInfo, parameters);
                 methodInfo.Invoke(instance, args);
             }
             catch (TargetInvocationException exc)
@@ -264,9 +292,9 @@ namespace Shift
 
             //Completed successfully with no error
             if (isSync)
-                jobDAL.SetCompleted(processID, jobID);
+                jobDAL.SetToCompleted(processID, jobID);
             else
-                await jobDAL.SetCompletedAsync(processID, jobID);
+                await jobDAL.SetToCompletedAsync(processID, jobID);
             jobDAL.SetCachedProgressStatusAsync(jobID, JobStatus.Completed);
         }
 
@@ -316,8 +344,6 @@ namespace Shift
         /// Only jobs marked with "STOP" command will be acted on.
         /// ThreadMode="task" will use CancellationTokenSource.Cancel()  
         /// Make sure the jobs implement CancellationToken.IsCancellationRequested check for throwing and clean up canceled job.
-        /// ThreadMode="thread" will use Thread.Abort.
-        /// No clean up is possible when thread is aborted.
         /// </summary>
         public async Task StopJobsAsync(bool isSync)
         {
@@ -338,9 +364,9 @@ namespace Shift
                     var taskInfo = taskList.ContainsKey(jobID) ? taskList[jobID] : null;
                     if (taskInfo != null)
                     {
-                        if (!taskInfo.TokenSource.Token.IsCancellationRequested)
+                        if (!taskInfo.CancelSource.Token.IsCancellationRequested)
                         {
-                            taskInfo.TokenSource.Cancel(); //attempt to cancel task
+                            taskInfo.CancelSource.Cancel(); //attempt to cancel task
                             //Don't hold the process, just run another task to wait for cancellable task
                             Task.Run(async () => await taskInfo.JobTask.ConfigureAwait(false))
                                 .ContinueWith( result =>
@@ -454,7 +480,7 @@ namespace Shift
                         else
                             continue;
 
-                        taskInfo.TokenSource.Cancel(); //attempt to cancel
+                        taskInfo.CancelSource.Cancel(); //attempt to cancel
                         taskList.Remove(jobID);
                     }
                 }
@@ -474,7 +500,7 @@ namespace Shift
                         && taskList.ContainsKey(job.JobID))
                     {
                         var taskInfo = taskList[job.JobID];
-                        taskInfo.TokenSource.Dispose();
+                        taskInfo.CancelSource.Dispose();
                         taskList.Remove(job.JobID);
                     }
                 }
@@ -483,6 +509,117 @@ namespace Shift
 
         }
 
+
+        #region Pause
+        /// <summary>
+        /// Pause jobs.
+        /// Only jobs marked with "pause" command will be acted on.
+        /// Make sure the jobs implement PauseToken.WaitWhilePausedAsync for pausing.
+        /// </summary>
+        public async Task PauseJobsAsync(bool isSync)
+        {
+            var jobIDs = isSync ? jobDAL.GetJobIdsByProcessAndCommand(workerProcessID, JobCommand.Pause) : await jobDAL.GetJobIdsByProcessAndCommandAsync(workerProcessID, JobCommand.Pause);
+            if (isSync)
+                PauseJobsAsync(jobIDs, isSync).GetAwaiter().GetResult();
+            else
+                await PauseJobsAsync(jobIDs, isSync);
+        }
+
+        private async Task PauseJobsAsync(IReadOnlyCollection<string> jobIDs, bool isSync)
+        {
+            var notListedJobIDs = new List<string>();
+            //if not in Tasklist != running, can't be paused
+            if (taskList.Count > 0)
+            {
+                foreach (var jobID in jobIDs)
+                {
+                    var taskInfo = taskList.ContainsKey(jobID) ? taskList[jobID] : null;
+                    if (taskInfo != null && taskInfo.PauseSource != null && !taskInfo.PauseSource.Token.IsPaused)
+                    {
+                        taskInfo.PauseSource.Pause(); //pause task, if not implemented in Job, no way to know and no way to pause
+                        if (isSync)
+                        {
+                            SetToPausedAsync(new List<string>() { jobID }, isSync).GetAwaiter().GetResult();
+                        }
+                        else
+                        {
+                            await SetToPausedAsync(new List<string>() { jobID }, isSync);
+                        }
+                    }
+                }
+            }
+        }
+
+        private async Task SetToPausedAsync(IReadOnlyCollection<string> jobIDs, bool isSync)
+        {
+            if (isSync)
+            {
+                jobDAL.SetToPaused(jobIDs.ToList());
+            }
+            else
+            {
+                await jobDAL.SetToPausedAsync(jobIDs.ToList());
+            }
+            await jobDAL.SetCachedProgressStatusAsync(jobIDs, JobStatus.Paused); //redis cached progress
+            await jobDAL.DeleteCachedProgressAsync(jobIDs);
+        }
+
+        #endregion
+
+        #region Continue
+        /// <summary>
+        /// Continue jobs.
+        /// Only jobs marked with "continue" command will be acted on.
+        /// Make sure the jobs implement PauseToken.WaitWhilePausedAsync for continuing/pausing.
+        /// </summary>
+        public async Task ContinueJobsAsync(bool isSync)
+        {
+            var jobIDs = isSync ? jobDAL.GetJobIdsByProcessAndCommand(workerProcessID, JobCommand.Continue) : await jobDAL.GetJobIdsByProcessAndCommandAsync(workerProcessID, JobCommand.Continue);
+            if (isSync)
+                ContinueJobsAsync(jobIDs, isSync).GetAwaiter().GetResult();
+            else
+                await ContinueJobsAsync(jobIDs, isSync);
+        }
+
+        private async Task ContinueJobsAsync(IReadOnlyCollection<string> jobIDs, bool isSync)
+        {
+            var notListedJobIDs = new List<string>();
+            if (taskList.Count > 0)
+            {
+                foreach (var jobID in jobIDs)
+                {
+                    var taskInfo = taskList.ContainsKey(jobID) ? taskList[jobID] : null;
+                    if (taskInfo != null && taskInfo.PauseSource != null && taskInfo.PauseSource.Token.IsPaused)
+                    {
+                        taskInfo.PauseSource.Continue(); //continue running task
+                        if (isSync)
+                        {
+                            SetToRunningAsync(new List<string>() { jobID }, isSync).GetAwaiter().GetResult();
+                        }
+                        else
+                        {
+                            await SetToRunningAsync(new List<string>() { jobID }, isSync);
+                        }
+                    }
+                }
+            }
+        }
+
+        private async Task SetToRunningAsync(IReadOnlyCollection<string> jobIDs, bool isSync)
+        {
+            if (isSync)
+            {
+                jobDAL.SetToRunning(jobIDs.ToList());
+            }
+            else
+            {
+                await jobDAL.SetToRunningAsync(jobIDs.ToList());
+            }
+            await jobDAL.SetCachedProgressStatusAsync(jobIDs, JobStatus.Paused); //redis cached progress
+            await jobDAL.DeleteCachedProgressAsync(jobIDs);
+        }
+
+        #endregion
     }
 
 }

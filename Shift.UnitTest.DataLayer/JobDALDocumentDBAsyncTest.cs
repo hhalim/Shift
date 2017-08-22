@@ -401,7 +401,7 @@ namespace Shift.UnitTest.DataLayer
         }
 
         [Fact]
-        public async Task SetCompletedAsyncTest()
+        public async Task SetToCompletedAsyncTest()
         {
             var job = new Job();
             job.AppID = AppID;
@@ -411,7 +411,7 @@ namespace Shift.UnitTest.DataLayer
             job = await jobDAL.SetJobAsync(job);
             Assert.True(!string.IsNullOrWhiteSpace(job.JobID));
 
-            var count = await jobDAL.SetCompletedAsync(job.ProcessID, job.JobID);
+            var count = await jobDAL.SetToCompletedAsync(job.ProcessID, job.JobID);
             var outJob = await jobDAL.GetJobAsync(job.JobID);
 
             await jobDAL.DeleteAsync(new List<string> { job.JobID });

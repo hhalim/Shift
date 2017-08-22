@@ -10,7 +10,8 @@ namespace Shift.Entities
     public class TaskInfo
     {
         public Task JobTask { get; set; }
-        public CancellationTokenSource TokenSource { get; set; }
+        public CancellationTokenSource CancelSource { get; set; }
+        public PauseTokenSource PauseSource { get; set; }
     }
 
 }

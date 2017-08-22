@@ -15,6 +15,7 @@ namespace Shift
     {
         Running = 1,
         Completed = 2,
+        Paused = 3,
         Stopped = -1,
         Error = -99
     }
@@ -23,7 +24,7 @@ namespace Shift
     {
         public static JsonSerializerSettings Settings = new JsonSerializerSettings() {
             TypeNameHandling = TypeNameHandling.Objects,
-            TypeNameAssemblyFormat = FormatterAssemblyStyle.Simple,
+            TypeNameAssemblyFormatHandling = TypeNameAssemblyFormatHandling.Simple,
         };
     }
 

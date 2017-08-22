@@ -21,6 +21,10 @@ namespace Shift.Entities
         Task<int> SetCommandStopAsync(ICollection<string> jobIDs);
         int SetCommandRunNow(ICollection<string> jobIDs);
         Task<int> SetCommandRunNowAsync(ICollection<string> jobIDs);
+        int SetCommandPause(ICollection<string> jobIDs);
+        Task<int> SetCommandPauseAsync(ICollection<string> jobIDs);
+        int SetCommandContinue(ICollection<string> jobIDs);
+        Task<int> SetCommandContinueAsync(ICollection<string> jobIDs);
         #endregion
 
         #region Direct Action to Jobs
@@ -32,6 +36,10 @@ namespace Shift.Entities
         Task<int> DeleteAsync(int hour, ICollection<JobStatus?> statusList);
         int SetToStopped(ICollection<string> jobIDs);
         Task<int> SetToStoppedAsync(ICollection<string> jobIDs);
+        int SetToPaused(ICollection<string> jobIDs);
+        Task<int> SetToPausedAsync(ICollection<string> jobIDs);
+        int SetToRunning(ICollection<string> jobIDs);
+        Task<int> SetToRunningAsync(ICollection<string> jobIDs);
         IReadOnlyCollection<JobStatusCount> GetJobStatusCount(string appID, string userID);
         Task<IReadOnlyCollection<JobStatusCount>> GetJobStatusCountAsync(string appID, string userID);
         #endregion
@@ -58,8 +66,8 @@ namespace Shift.Entities
         Task<int> SetToRunningAsync(string processID, string jobID);
         int SetError(string processID, string jobID, string error);
         Task<int> SetErrorAsync(string processID, string jobID, string error);
-        int SetCompleted(string processID, string jobID);
-        Task<int> SetCompletedAsync(string processID, string jobID);
+        int SetToCompleted(string processID, string jobID);
+        Task<int> SetToCompletedAsync(string processID, string jobID);
         int CountRunningJobs(string processID);
         Task<int> CountRunningJobsAsync(string processID);
         IReadOnlyCollection<Job> ClaimJobsToRun(string processID, int maxNum);

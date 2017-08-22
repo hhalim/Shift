@@ -83,8 +83,7 @@ namespace Shift
             }
         }
 
-        #region Server Run and Manage jobs
-
+        #region Server Run 
         /// <summary>
         /// Run jobs server in a scheduled timer interval.
         /// </summary>
@@ -116,11 +115,15 @@ namespace Shift
                 {
                     if (isSync)
                     {
+                        PauseJobs();
+                        ContinueJobs();
                         StopJobs();
                         RunJobs();
                     }
                     else
                     {
+                        await PauseJobsAsync();
+                        await ContinueJobsAsync();
                         await StopJobsAsync();
                         await RunJobsAsync();
                     }
@@ -152,6 +155,9 @@ namespace Shift
             timer2.Start();
         }
 
+        #endregion
+
+        #region Run Jobs
         /// <summary>
         /// Pick up jobs from storage and run them.
         /// </summary>
@@ -201,7 +207,12 @@ namespace Shift
                     await worker.RunJobsAsync(jobIDs, isSync);
             }
         }
+        #endregion
 
+        #region Stop Jobs
+        /// <summary>
+        /// Stop running jobs.
+        /// </summary>
         public void StopJobs()
         {
             StopJobsAsync(true).GetAwaiter().GetResult();
@@ -222,9 +233,11 @@ namespace Shift
                     await worker.StopJobsAsync(isSync);
             }
         }
+        #endregion
 
+        #region Stop Server
         /// <summary>
-        /// Stop running jobs server.
+        /// Stop running server.
         /// </summary>
         public void StopServer()
         {
@@ -327,7 +340,9 @@ namespace Shift
             }
 
         }
+        #endregion
 
+        #region Clean Up
         /// <summary>
         /// Cleanup and synchronize running jobs and jobs table.
         /// * Job is deleted based on AutoDeletePeriod and AutoDeleteStatus settings.
@@ -357,7 +372,55 @@ namespace Shift
 
         #endregion
 
+        #region Pause / Continue Jobs
+        /// <summary>
+        /// Pause running jobs.
+        /// </summary>
+        public void PauseJobs()
+        {
+            PauseJobsAsync(true).GetAwaiter().GetResult();
+        }
 
+        public async Task PauseJobsAsync()
+        {
+            await PauseJobsAsync(false);
+        }
+
+        private async Task PauseJobsAsync(bool isSync)
+        {
+            foreach (var worker in workerList)
+            {
+                if (isSync)
+                    worker.PauseJobsAsync(isSync).GetAwaiter().GetResult();
+                else
+                    await worker.PauseJobsAsync(isSync);
+            }
+        }
+
+        /// <summary>
+        /// Continue paused jobs.
+        /// </summary>
+        public void ContinueJobs()
+        {
+            ContinueJobsAsync(true).GetAwaiter().GetResult();
+        }
+
+        public async Task ContinueJobsAsync()
+        {
+            await ContinueJobsAsync(false);
+        }
+
+        private async Task ContinueJobsAsync(bool isSync)
+        {
+            foreach (var worker in workerList)
+            {
+                if (isSync)
+                    worker.ContinueJobsAsync(isSync).GetAwaiter().GetResult();
+                else
+                    await worker.ContinueJobsAsync(isSync);
+            }
+        }
+        #endregion
 
     }
 

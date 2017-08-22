@@ -399,7 +399,7 @@ namespace Shift.UnitTest.DataLayer
         }
 
         [Fact]
-        public void SetCompletedTest()
+        public void SetToCompletedTest()
         {
             var job = new Job();
             job.AppID = AppID;
@@ -409,7 +409,7 @@ namespace Shift.UnitTest.DataLayer
             job = jobDAL.SetJob(job);
             Assert.True(!string.IsNullOrWhiteSpace(job.JobID));
 
-            var count = jobDAL.SetCompleted(job.ProcessID, job.JobID);
+            var count = jobDAL.SetToCompleted(job.ProcessID, job.JobID);
             var outJob = jobDAL.GetJob(job.JobID);
 
             jobDAL.Delete(new List<string> { job.JobID });

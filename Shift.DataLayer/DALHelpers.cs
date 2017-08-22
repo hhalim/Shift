@@ -112,7 +112,7 @@ namespace Shift.DataLayer
             return serializedArguments.ToArray();
         }
 
-        public static object[] DeserializeArguments(CancellationToken token, IProgress<ProgressInfo> progress, MethodInfo methodInfo, string rawArguments)
+        public static object[] DeserializeArguments(CancellationToken cancelToken, PauseToken pauseToken, IProgress<ProgressInfo> progress, MethodInfo methodInfo, string rawArguments)
         {
             var arguments = JsonConvert.DeserializeObject<string[]>(rawArguments, SerializerSettings.Settings);
             if (arguments.Length == 0)
@@ -127,12 +127,17 @@ namespace Shift.DataLayer
                 var argument = arguments[i];
 
                 object value = null;
-                if (parameter.ParameterType.FullName.Contains("System.IProgress")) {
+                if (parameter.ParameterType.FullName.ToUpper().Contains("SYSTEM.IPROGRESS"))
+                {
                     value = progress;
                 }
-                else if(parameter.ParameterType.FullName.Contains("System.Threading.CancellationToken")) 
+                else if(parameter.ParameterType.FullName.ToUpper().Contains("SYSTEM.THREADING.CANCELLATIONTOKEN")) 
                 {
-                    value = token;
+                    value = cancelToken;
+                }
+                else if (parameter.ParameterType.FullName.ToUpper().Contains("SHIFT.ENTITIES.PAUSETOKEN"))
+                {
+                    value = pauseToken;
                 }
                 else
                 {

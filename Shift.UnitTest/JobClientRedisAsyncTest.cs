@@ -26,6 +26,8 @@ namespace Shift.UnitTest
             jobClient = new JobClient(clientConfig);
         }
 
+        //Integration Test of Redis DB from JobClient.
+        //The JobClientTest uses Moq to mock the DB layer, this one actually uses the DB layer.
         [Fact]
         public async Task GetJob_Valid()
         {

@@ -200,7 +200,7 @@ namespace Shift
         }
 
         ///<summary>
-        /// Sets "stop" command to already running or not running jobs.
+        /// Set "stop" command to already running or not running jobs.
         ///</summary>
         ///<returns>Number of affected jobs.</returns>
         public int SetCommandStop(IList<string> jobIDs)
@@ -220,7 +220,47 @@ namespace Shift
         }
 
         ///<summary>
-        /// Sets "run-now" command to not running jobs.
+        /// Set "pause" command to running jobs.
+        ///</summary>
+        ///<returns>Number of affected jobs.</returns>
+        public int SetCommandPause(IList<string> jobIDs)
+        {
+            if (jobIDs == null || jobIDs.Count == 0)
+                return 0;
+
+            return jobDAL.SetCommandPause(jobIDs);
+        }
+
+        public Task<int> SetCommandPauseAsync(IList<string> jobIDs)
+        {
+            if (jobIDs == null || jobIDs.Count == 0)
+                return Task.FromResult(0);
+
+            return jobDAL.SetCommandPauseAsync(jobIDs);
+        }
+
+        ///<summary>
+        /// Set "continue" command to paused jobs.
+        ///</summary>
+        ///<returns>Number of affected jobs.</returns>
+        public int SetCommandContinue(IList<string> jobIDs)
+        {
+            if (jobIDs == null || jobIDs.Count == 0)
+                return 0;
+
+            return jobDAL.SetCommandContinue(jobIDs);
+        }
+
+        public Task<int> SetCommandContinueAsync(IList<string> jobIDs)
+        {
+            if (jobIDs == null || jobIDs.Count == 0)
+                return Task.FromResult(0);
+
+            return jobDAL.SetCommandContinueAsync(jobIDs);
+        }
+
+        ///<summary>
+        /// Set "run-now" command to ready to run jobs.
         ///</summary>
         ///<returns>Number of affected jobs.</returns>
         public int SetCommandRunNow(IList<string> jobIDs)

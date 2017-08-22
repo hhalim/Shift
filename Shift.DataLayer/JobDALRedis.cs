@@ -426,6 +426,116 @@ namespace Shift.DataLayer
 
             return count;
         }
+
+        /// <summary>
+        /// Flag running jobs with 'pause' command. 
+        /// </summary>
+        /// <remarks>
+        /// This works only for running jobs. The server will attempt to 'stop' jobs marked as 'stop'.
+        /// </remarks>
+        public int SetCommandPause(ICollection<string> jobIDs)
+        {
+            return SetCommandPauseAsync(jobIDs, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> SetCommandPauseAsync(ICollection<string> jobIDs)
+        {
+            return SetCommandPauseAsync(jobIDs, false);
+        }
+
+        private async Task<int> SetCommandPauseAsync(ICollection<string> jobIDs, bool isSync)
+        {
+            if (jobIDs.Count == 0)
+                return 0;
+
+            var count = 0;
+            var command = JobCommand.Pause.ToString().ToLower();
+            //var jobPauseIndex = JobCommandIndexTemplate.Replace("[command]", command);
+            var jobProcessCommand = JobCommandProcessTemplate.Replace("[command]", command);
+            foreach (var jobID in jobIDs)
+            {
+                var jobKey = JobKeyPrefix + jobID;
+
+                //Check status = running 
+                var job = isSync ? GetJob(jobID) : await GetJobAsync(jobID);
+                if (job != null && job.Status == JobStatus.Running)
+                {
+                    var trn = RedisDatabase.CreateTransaction();
+                    //trn.SetAddAsync(jobPauseIndex, jobKey); //set hash job-pause-index job:123 ""
+                    var jobProcess = jobProcessCommand.Replace("[processid]", job.ProcessID);
+                    trn.SetAddAsync(jobProcess, jobKey); //set job-[command]:[processID] job:123 ""
+                    trn.HashSetAsync(jobKey, JobFields.Command, JobCommand.Pause);
+
+                    if (isSync)
+                    {
+                        if (trn.Execute())
+                            count++;
+                    }
+                    else
+                    {
+                        if (await trn.ExecuteAsync())
+                            count++;
+                    }
+                }
+            }
+
+            return count;
+        }
+
+        /// <summary>
+        /// Flag paused jobs with 'continue' command. 
+        /// </summary>
+        /// <remarks>
+        /// This works only for paused jobs. The server will attempt to continue jobs marked as 'continue'.
+        /// </remarks>
+        public int SetCommandContinue(ICollection<string> jobIDs)
+        {
+            return SetCommandContinueAsync(jobIDs, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> SetCommandContinueAsync(ICollection<string> jobIDs)
+        {
+            return SetCommandContinueAsync(jobIDs, false);
+        }
+
+        private async Task<int> SetCommandContinueAsync(ICollection<string> jobIDs, bool isSync)
+        {
+            if (jobIDs.Count == 0)
+                return 0;
+
+            var count = 0;
+            var command = JobCommand.Continue.ToString().ToLower();
+            var jobProcessCommand = JobCommandProcessTemplate.Replace("[command]", command);
+            foreach (var jobID in jobIDs)
+            {
+                var jobKey = JobKeyPrefix + jobID;
+
+                //Check status = paused 
+                var job = isSync ? GetJob(jobID) : await GetJobAsync(jobID);
+                if (job != null && job.Status == JobStatus.Paused)
+                {
+                    var trn = RedisDatabase.CreateTransaction();
+                    //trn.SetAddAsync(jobContinueIndex, jobKey); //set hash job-continue-index job:123 ""
+                    var jobProcess = jobProcessCommand.Replace("[processid]", job.ProcessID);
+                    trn.SetAddAsync(jobProcess, jobKey); //set job-[command]:[processID] job:123 ""
+                    trn.HashSetAsync(jobKey, JobFields.Command, JobCommand.Continue);
+
+                    if (isSync)
+                    {
+                        if (trn.Execute())
+                            count++;
+                    }
+                    else
+                    {
+                        if (await trn.ExecuteAsync())
+                            count++;
+                    }
+                }
+            }
+
+            return count;
+        }
+
         #endregion
 
         #region Direct Action to Jobs
@@ -582,6 +692,7 @@ namespace Shift.DataLayer
         {
             var jobKey = JobKeyPrefix + jobID;
             trn = DeleteFromCommand(trn, JobCommand.Stop, processID, jobKey); //stop index
+            trn = DeleteFromCommand(trn, JobCommand.Pause, processID, jobKey); //pause index
             trn = DeleteFromStatus(trn, JobStatus.Running.ToString(), processID, jobKey); //running index
 
             return trn;
@@ -628,38 +739,108 @@ namespace Shift.DataLayer
         }
 
         /// <summary>
-        ///  Set job status to JobStatus.Stopped. 
+        ///  Mark job status to JobStatus.Stopped. 
         /// </summary>
         public int SetToStopped(ICollection<string> jobIDs)
         {
-            return SetToStoppedAsync(jobIDs, true).GetAwaiter().GetResult();
+            return SetToStatusAsync(jobIDs, JobStatus.Stopped, true).GetAwaiter().GetResult();
         }
 
         public Task<int> SetToStoppedAsync(ICollection<string> jobIDs)
         {
-            return SetToStoppedAsync(jobIDs, false);
+            return SetToStatusAsync(jobIDs, JobStatus.Stopped, false);
         }
 
-        private async Task<int> SetToStoppedAsync(ICollection<string> jobIDs, bool isSync)
+        /// <summary>
+        ///  Mark job status to JobStatus.Paused. 
+        /// </summary>
+        public int SetToPaused(ICollection<string> jobIDs)
+        {
+            return SetToStatusAsync(jobIDs, JobStatus.Paused, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> SetToPausedAsync(ICollection<string> jobIDs)
+        {
+            return SetToStatusAsync(jobIDs, JobStatus.Paused, false);
+        }
+
+        private async Task<int> SetToStatusAsync(ICollection<string> jobIDs, JobStatus jobStatus, bool isSync)
         {
             if (jobIDs.Count == 0)
                 return 0;
 
             var count = 0;
-            foreach( var jobID in jobIDs)
+            foreach (var jobID in jobIDs)
             {
-                var jobKey= JobKeyPrefix + jobID;
+                var jobKey = JobKeyPrefix + jobID;
 
                 var trn = RedisDatabase.CreateTransaction();
-                //set job command to empty, status to Stopped
-                trn.HashSetAsync(jobKey, new HashEntry[] { new HashEntry (JobFields.Command, ""), new HashEntry (JobFields.Status, (int)JobStatus.Stopped) });
+                //set job command to empty, status to Stopped/Paused
+                trn.HashSetAsync(jobKey, new HashEntry[] { new HashEntry(JobFields.Command, ""), new HashEntry(JobFields.Status, (int)jobStatus) });
                 trn.SortedSetRemoveAsync(JobQueue, jobKey); //remove from JobQueue
 
-                //delete from job-stop-index and job-stop:processid
+                //Delete from Command index: job-[command]-index and job-[command]:processid
+                //Delete from Running Status index: job-running:processID status
                 var job = isSync ? GetJob(jobID) : await GetJobAsync(jobID);
                 if (job != null)
                 {
                     trn = CleanUpCommandAndStatusIndex(trn, job.ProcessID, jobID);
+
+                    if (isSync)
+                    {
+                        if (trn.Execute())
+                            count++;
+                    }
+                    else
+                    {
+                        if (await trn.ExecuteAsync())
+                            count++;
+                    }
+                }
+            }
+
+            return count;
+        }
+
+
+        /// <summary>
+        ///  Mark job status to JobStatus.Running. 
+        ///  Used after pause, applied to jobs with 'continue' command.
+        /// </summary>
+        public int SetToRunning(ICollection<string> jobIDs)
+        {
+            return SetToRunningAsync(jobIDs, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> SetToRunningAsync(ICollection<string> jobIDs)
+        {
+            return SetToRunningAsync(jobIDs, false);
+        }
+
+        private async Task<int> SetToRunningAsync(ICollection<string> jobIDs, bool isSync)
+        {
+            if (jobIDs.Count == 0)
+                return 0;
+
+            var count = 0;
+            var jsRunningStatus = JobStatusProcessTemplate.Replace("[status]", JobStatus.Running.ToString().ToLower());
+            foreach (var jobID in jobIDs)
+            {
+                var jobKey = JobKeyPrefix + jobID;
+
+                var trn = RedisDatabase.CreateTransaction();
+                //set job command to empty, status to Stopped/Paused
+                trn.HashSetAsync(jobKey, new HashEntry[] { new HashEntry(JobFields.Command, ""), new HashEntry(JobFields.Status, (int)JobStatus.Running) });
+                trn.SortedSetRemoveAsync(JobQueue, jobKey); //remove from JobQueue
+
+                //Delete from Command index: job-[command]-index and job-[command]:processid
+                var job = isSync ? GetJob(jobID) : await GetJobAsync(jobID);
+                if (job != null)
+                {
+                    var jspKey = jsRunningStatus.Replace("[processid]", job.ProcessID);
+
+                    DeleteFromCommand(trn, JobCommand.Continue, job.ProcessID, jobKey); //Delete if exist from the continue index
+                    trn.SetAddAsync(jspKey, jobKey); //Add back to running status index
 
                     if (isSync)
                     {
@@ -1133,7 +1314,7 @@ namespace Shift.DataLayer
             var trn = RedisDatabase.CreateTransaction();
             trn.HashSetAsync(jobKey, new HashEntry[] { new HashEntry(JobFields.Status, (int)JobStatus.Error), new HashEntry(JobFields.Error, error) });
             trn.SortedSetRemoveAsync(JobQueue, jobKey); //Remove from queue
-            trn = CleanUpCommandAndStatusIndex(trn, processID, jobID); //Remove from all stop/running indexes
+            trn = CleanUpCommandAndStatusIndex(trn, processID, jobID); //Remove from all stop/pause/continue/running indexes
             if (isSync)
             {
                 if (trn.Execute())
@@ -1154,17 +1335,17 @@ namespace Shift.DataLayer
         /// <param name="processID">process ID</param>
         /// <param name="jobID">job ID</param>
         /// <returns>Updated record count, 0 or 1 record updated</returns>
-        public int SetCompleted(string processID, string jobID)
+        public int SetToCompleted(string processID, string jobID)
         {
-            return SetCompletedAsync(processID, jobID, true).GetAwaiter().GetResult();
+            return SetToCompletedAsync(processID, jobID, true).GetAwaiter().GetResult();
         }
 
-        public Task<int> SetCompletedAsync(string processID, string jobID)
+        public Task<int> SetToCompletedAsync(string processID, string jobID)
         {
-            return SetCompletedAsync(processID, jobID, false);
+            return SetToCompletedAsync(processID, jobID, false);
         }
 
-        private async Task<int> SetCompletedAsync(string processID, string jobID, bool isSync)
+        private async Task<int> SetToCompletedAsync(string processID, string jobID, bool isSync)
         {
             var count = 0;
 
