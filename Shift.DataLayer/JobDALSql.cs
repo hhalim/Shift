@@ -315,15 +315,15 @@ namespace Shift.DataLayer
                             SET 
                             Command = @command 
                             WHERE JobID IN @ids 
-                            AND (Status = @status OR Status IS NULL);
+                            AND (Status = @status OR Status = @paused OR Status IS NULL);
                             ";
                 if (isSync)
                 {
-                    return connection.Execute(sql, new { command = JobCommand.Stop, ids = jobIDs.ToArray(), status = JobStatus.Running });
+                    return connection.Execute(sql, new { command = JobCommand.Stop, ids = jobIDs.ToArray(), status = JobStatus.Running, paused = JobStatus.Paused });
                 }
                 else
                 {
-                    return await connection.ExecuteAsync(sql, new { command = JobCommand.Stop, ids = jobIDs.ToArray(), status = JobStatus.Running });
+                    return await connection.ExecuteAsync(sql, new { command = JobCommand.Stop, ids = jobIDs.ToArray(), status = JobStatus.Running, paused = JobStatus.Paused });
                 }
             }
         }
@@ -1226,6 +1226,45 @@ namespace Shift.DataLayer
 
             return count;
         }
+
+        /// <summary>
+        /// Set error message.
+        /// </summary>
+        /// <param name="processID">process ID</param>
+        /// <param name="jobID">job ID</param>
+        /// <param name="error">Error message</param>
+        /// <returns>Updated record count, 0 or 1 record updated</returns>
+        public int SetErrorMessage(string processID, string jobID, string error)
+        {
+            return SetErrorMessageAsync(processID, jobID, error, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> SetErrorMessageAsync(string processID, string jobID, string error)
+        {
+            return SetErrorMessageAsync(processID, jobID, error, false);
+        }
+
+        private async Task<int> SetErrorMessageAsync(string processID, string jobID, string error, bool isSync)
+        {
+            var count = 0;
+            using (var connection = new SqlConnection(connectionString))
+            {
+                connection.Open();
+
+                var sql = "UPDATE [Job] SET [Error] = @error WHERE JobID = @jobID AND ProcessID = @processID;";
+                if (isSync)
+                {
+                    count = connection.Execute(sql, new { error, jobID, processID });
+                }
+                else
+                {
+                    count = await connection.ExecuteAsync(sql, new { error, jobID, processID });
+                }
+            }
+
+            return count;
+        }
+
 
         /// <summary>
         /// Set job as completed.

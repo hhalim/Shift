@@ -66,6 +66,8 @@ namespace Shift.Entities
         Task<int> SetToRunningAsync(string processID, string jobID);
         int SetError(string processID, string jobID, string error);
         Task<int> SetErrorAsync(string processID, string jobID, string error);
+        int SetErrorMessage(string processID, string jobID, string error);
+        Task<int> SetErrorMessageAsync(string processID, string jobID, string error);
         int SetToCompleted(string processID, string jobID);
         Task<int> SetToCompletedAsync(string processID, string jobID);
         int CountRunningJobs(string processID);

@@ -1315,6 +1315,49 @@ namespace Shift.DataLayer
             trn.HashSetAsync(jobKey, new HashEntry[] { new HashEntry(JobFields.Status, (int)JobStatus.Error), new HashEntry(JobFields.Error, error) });
             trn.SortedSetRemoveAsync(JobQueue, jobKey); //Remove from queue
             trn = CleanUpCommandAndStatusIndex(trn, processID, jobID); //Remove from all stop/pause/continue/running indexes
+
+            if (isSync)
+            {
+                if (trn.Execute())
+                    count++;
+            }
+            else
+            {
+                if (await trn.ExecuteAsync())
+                    count++;
+            }
+
+            return count;
+        }
+
+        /// <summary>
+        /// Set error message.
+        /// </summary>
+        /// <param name="processID">process ID</param>
+        /// <param name="jobID">job ID</param>
+        /// <param name="error">Error message</param>
+        /// <returns>Updated record count, 0 or 1 record updated</returns>
+        public int SetErrorMessage(string processID, string jobID, string error)
+        {
+            return SetErrorMessageAsync(processID, jobID, error, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> SetErrorMessageAsync(string processID, string jobID, string error)
+        {
+            return SetErrorMessageAsync(processID, jobID, error, false);
+        }
+
+        private async Task<int> SetErrorMessageAsync(string processID, string jobID, string error, bool isSync)
+        {
+            var count = 0;
+
+            var jobKey = JobKeyPrefix + jobID;
+
+            var trn = RedisDatabase.CreateTransaction();
+            trn.HashSetAsync(jobKey, new HashEntry[] { new HashEntry(JobFields.Error, error) });
+            trn.SortedSetRemoveAsync(JobQueue, jobKey); //Remove from queue
+            trn = CleanUpCommandAndStatusIndex(trn, processID, jobID); //Remove from all stop/pause/continue/running indexes
+
             if (isSync)
             {
                 if (trn.Execute())

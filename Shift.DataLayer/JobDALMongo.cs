@@ -977,6 +977,42 @@ namespace Shift.DataLayer
         }
 
         /// <summary>
+        /// Set error message.
+        /// </summary>
+        /// <param name="processID">process ID</param>
+        /// <param name="jobID">job ID</param>
+        /// <param name="error">Error message</param>
+        /// <returns>Updated record count, 0 or 1 record updated</returns>
+        public int SetErrorMessage(string processID, string jobID, string error)
+        {
+            return SetErrorMessageAsync(processID, jobID, error, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> SetErrorMessageAsync(string processID, string jobID, string error)
+        {
+            return SetErrorMessageAsync(processID, jobID, error, false);
+        }
+
+        private async Task<int> SetErrorMessageAsync(string processID, string jobID, string error, bool isSync)
+        {
+            var count = 0;
+
+            var collection = database.GetCollection<Job>(JobCollectionName);
+            var blFilter = Builders<Job>.Filter;
+            var filter = blFilter.Eq(j => j.JobID, jobID) & blFilter.Eq(j => j.ProcessID, processID);
+            var blUpdate = Builders<Job>.Update;
+            var listUpdate = new List<UpdateDefinition<Job>>();
+            listUpdate.Add(blUpdate.Set("Error", error));
+            var update = blUpdate.Combine(listUpdate.ToArray());
+
+            var result = isSync ? collection.UpdateOne(filter, update) : await collection.UpdateOneAsync(filter, update);
+            if (result.IsAcknowledged)
+                count = (int)result.ModifiedCount;
+
+            return count;
+        }
+
+        /// <summary>
         /// Set job as completed.
         /// </summary>
         /// <param name="processID">process ID</param>

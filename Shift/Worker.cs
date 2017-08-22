@@ -10,6 +10,7 @@ using System.Reflection;
 
 using Newtonsoft.Json;
 using Shift.DataLayer;
+using System.Collections.ObjectModel;
 
 namespace Shift
 {
@@ -145,11 +146,14 @@ namespace Shift
 
             var cancelSource = new CancellationTokenSource();
             var cancelToken = cancelSource.Token;
-            taskInfo.CancelSource = cancelSource;
+            if (Helpers.HasToken(methodInfo.GetParameters(), "System.Threading.CancellationToken"))
+            {
+                taskInfo.CancelSource = cancelSource;
+            }
 
             var pauseSource = new PauseTokenSource();
             var pauseToken = pauseSource.Token;
-            if (HasPauseToken(methodInfo.GetParameters()))
+            if (Helpers.HasToken(methodInfo.GetParameters(), "Shift.Entities.PauseToken"))
             {
                 taskInfo.PauseSource = pauseSource;
             }
@@ -175,21 +179,6 @@ namespace Shift
             }
             taskInfo.JobTask = jobTask;
             taskList[jobID] = taskInfo; //re-update with filled Task
-        }
-
-        private bool HasPauseToken(ParameterInfo[] parameters)
-        {
-            for (var i = 0; i < parameters.Length; i++)
-            {
-                var parameter = parameters[i];
-
-                if (parameter.ParameterType.FullName.ToUpper().Contains("SHIFT.ENTITIES.PAUSETOKEN"))
-                {
-                    return true;
-                }
-            }
-
-            return false;
         }
 
         private async Task<IProgress<ProgressInfo>> UpdateProgressEventAsync(string jobID, bool isSync)
@@ -315,6 +304,15 @@ namespace Shift
                 return await jobDAL.SetErrorAsync(processID, jobID, error);
         }
 
+        //Only error message, not setting status = error
+        private async Task<int> SetErrorMessageAsync(string processID, string jobID, string error, bool isSync)
+        {
+            if (isSync)
+                return jobDAL.SetErrorMessage(processID, jobID, error);
+            else
+                return await jobDAL.SetErrorMessageAsync(processID, jobID, error);
+        }
+
         //Called when Server is being shut down.
         //Mark all running jobs to stop.
         public async Task SetStopAllRunningJobsAsync(bool isSync)
@@ -339,6 +337,7 @@ namespace Shift
             }
         }
 
+        #region Stop
         /// <summary>
         /// Stops jobs.
         /// Only jobs marked with "STOP" command will be acted on.
@@ -364,24 +363,48 @@ namespace Shift
                     var taskInfo = taskList.ContainsKey(jobID) ? taskList[jobID] : null;
                     if (taskInfo != null)
                     {
-                        if (!taskInfo.CancelSource.Token.IsCancellationRequested)
+                        if (taskInfo.CancelSource != null)
                         {
-                            taskInfo.CancelSource.Cancel(); //attempt to cancel task
-                            //Don't hold the process, just run another task to wait for cancellable task
-                            Task.Run(async () => await taskInfo.JobTask.ConfigureAwait(false))
-                                .ContinueWith( result =>
-                                    {
-                                        taskList.Remove(jobID);
-                                    }
-                                ); 
+                            if (!taskInfo.CancelSource.Token.IsCancellationRequested)
+                            {
+                                //Check if paused? Then un-paused/continue first, or the cancel will not be hit
+                                if (taskInfo.PauseSource != null && taskInfo.PauseSource.Token.IsPaused)
+                                    taskInfo.PauseSource.Continue();
+
+                                taskInfo.CancelSource.Cancel(); //attempt to cancel task
+
+                                //Don't hold the process, just run another task to wait for cancellable task
+                                Task.Run(async () => await taskInfo.JobTask.ConfigureAwait(false))
+                                    .ContinueWith(result =>
+                                       {
+                                           taskList.Remove(jobID);
+                                       }
+                                    );
+                            }
+                        }
+                        else
+                        {
+                            //Unable to stop method with no cancellation token
+                            var warning = "WARNING: Unable to stop job. No cancellation token exists in method.";
+                            var count = isSync ? SetErrorMessageAsync(workerProcessID, jobID, warning, isSync).GetAwaiter().GetResult()
+                                : await SetErrorMessageAsync(workerProcessID, jobID, warning, isSync);
                         }
                     }
                     else
                     {
+                        //For cases where the jobIDs are marked as stopped, but not in taskList/not running
                         nonWaitJobIDs.Add(jobID);
                     }
                 }
+            }
+            else
+            {
+                //No running tasks in taskList, then all jobIDs are nonWait
+                nonWaitJobIDs = jobIDs.ToList();
+            }
 
+            if(nonWaitJobIDs.Any())
+            {
                 //Set to stopped for nonWaitJobIDs
                 if (isSync)
                 {
@@ -390,17 +413,6 @@ namespace Shift
                 else
                 {
                     await SetToStoppedAsync(nonWaitJobIDs, false);
-                }
-            }
-            else
-            {
-                if (isSync)
-                {
-                    SetToStoppedAsync(jobIDs, true).GetAwaiter().GetResult();
-                }
-                else
-                {
-                    await SetToStoppedAsync(jobIDs, false);
                 }
             }
         }
@@ -418,11 +430,14 @@ namespace Shift
             await jobDAL.SetCachedProgressStatusAsync(jobIDs, JobStatus.Stopped); //redis cached progress
             await jobDAL.DeleteCachedProgressAsync(jobIDs);
         }
+        #endregion
 
+        #region Clean Up
         /// <summary>
         /// Cleanup and synchronize running jobs and jobs table.
         /// * Job is deleted based on AutoDeletePeriod and AutoDeleteStatus settings.
         /// * Mark job as an error, when job status is "RUNNING" in DB table, but there is no actual running thread in the related server process (Zombie Jobs).
+        /// * Mark job as an error, when job status is "PAUSED" in DB table, but there is no actual running thread in the related server process (Zombie Jobs), can't run it again.
         /// * Remove thread references in memory, when job is deleted or status in DB is: stopped, error, or completed.
         /// </summary>
         public async Task CleanUpAsync(bool isSync)
@@ -448,7 +463,7 @@ namespace Shift
                 }
             }
 
-            //Get all running process with ProcessID
+            //Get all RUNNING process from this worker ProcessID
             var jobList = isSync ? jobDAL.GetJobsByProcessAndStatus(workerProcessID, JobStatus.Running) : await jobDAL.GetJobsByProcessAndStatusAsync(workerProcessID, JobStatus.Running);
             foreach (var job in jobList)
             {
@@ -462,27 +477,47 @@ namespace Shift
                 }
             }
 
+            //Get all PAUSED process from this worker ProcessID
+            jobList = isSync ? jobDAL.GetJobsByProcessAndStatus(workerProcessID, JobStatus.Paused) : await jobDAL.GetJobsByProcessAndStatusAsync(workerProcessID, JobStatus.Paused);
+            foreach (var job in jobList)
+            {
+                if (!taskList.ContainsKey(job.JobID))
+                {
+                    //Doesn't exist anymore? 
+                    var error = "Error: No actual running job process found, unable to continue paused job. Try reset and run again.";
+                    var processID = string.IsNullOrWhiteSpace(job.ProcessID) ? workerProcessID : job.ProcessID;
+                    var count = isSync ? SetErrorAsync(processID, job.JobID, error, isSync).GetAwaiter().GetResult()
+                        : await SetErrorAsync(processID, job.JobID, error, isSync);
+                }
+            }
+
+            //Synchronize what's in taskList status and in DB
+            //Remove all non-running jobs from taskList
             if (taskList.Count > 0)
             {
                 var inDBjobIDs = new List<string>();
                 jobList = isSync ? jobDAL.GetJobs(taskList.Keys.ToList()) : await jobDAL.GetJobsAsync(taskList.Keys.ToList()); //get all jobs in taskList
 
-                // If jobs doesn't even exists in storage (zombie?), remove from taskList.
+                // If jobs doesn't even exists in storage (deleted manually?), remove from taskList.
                 inDBjobIDs = jobList.Select(j => j.JobID).ToList();
-                var taskListKeys = new List<string>(taskList.Keys); //copy keys before removal
-                foreach (var jobID in taskListKeys)
+                var removalList = new List<string>();
+                foreach (var jobID in taskList.Keys)
                 {
+                    //jobID is not in DB?
                     if (!inDBjobIDs.Contains(jobID))
                     {
-                        TaskInfo taskInfo = null;
-                        if (taskList.Keys.Contains(jobID))
-                            taskInfo = taskList[jobID];
-                        else
-                            continue;
-
-                        taskInfo.CancelSource.Cancel(); //attempt to cancel
-                        taskList.Remove(jobID);
+                        removalList.Add(jobID);
                     }
+                }
+
+                //Try to Stop/Cancel jobs and remove from taskList
+                if (isSync)
+                {
+                    StopJobsAsync(new ReadOnlyCollection<string>(removalList), isSync).GetAwaiter().GetResult();
+                }
+                else
+                {
+                    await StopJobsAsync(new ReadOnlyCollection<string>(removalList), isSync);
                 }
 
                 // For job status that is stopped, error, completed => Remove from thread list, no need to keep track of them anymore.
@@ -500,7 +535,8 @@ namespace Shift
                         && taskList.ContainsKey(job.JobID))
                     {
                         var taskInfo = taskList[job.JobID];
-                        taskInfo.CancelSource.Dispose();
+                        if (taskInfo.CancelSource != null)
+                            taskInfo.CancelSource.Dispose();
                         taskList.Remove(job.JobID);
                     }
                 }
@@ -508,7 +544,7 @@ namespace Shift
             }
 
         }
-
+        #endregion
 
         #region Pause
         /// <summary>
@@ -527,25 +563,38 @@ namespace Shift
 
         private async Task PauseJobsAsync(IReadOnlyCollection<string> jobIDs, bool isSync)
         {
-            var notListedJobIDs = new List<string>();
             //if not in Tasklist != running, can't be paused
             if (taskList.Count > 0)
             {
                 foreach (var jobID in jobIDs)
                 {
                     var taskInfo = taskList.ContainsKey(jobID) ? taskList[jobID] : null;
-                    if (taskInfo != null && taskInfo.PauseSource != null && !taskInfo.PauseSource.Token.IsPaused)
+                    if (taskInfo != null)
                     {
-                        taskInfo.PauseSource.Pause(); //pause task, if not implemented in Job, no way to know and no way to pause
-                        if (isSync)
+                        if (taskInfo.PauseSource != null)
                         {
-                            SetToPausedAsync(new List<string>() { jobID }, isSync).GetAwaiter().GetResult();
+                            if (!taskInfo.PauseSource.Token.IsPaused)
+                            {
+                                taskInfo.PauseSource.Pause(); //pause task
+                                if (isSync)
+                                {
+                                    SetToPausedAsync(new List<string>() { jobID }, isSync).GetAwaiter().GetResult();
+                                }
+                                else
+                                {
+                                    await SetToPausedAsync(new List<string>() { jobID }, isSync);
+                                }
+                            }
                         }
                         else
                         {
-                            await SetToPausedAsync(new List<string>() { jobID }, isSync);
+                            //Unable to Pause, method with no pause token
+                            var warning = "WARNING: Unable to pause job. No pause token exists in method.";
+                            var count = isSync ? SetErrorMessageAsync(workerProcessID, jobID, warning, isSync).GetAwaiter().GetResult()
+                                : await SetErrorMessageAsync(workerProcessID, jobID, warning, isSync);
+
                         }
-                    }
+                    } 
                 }
             }
         }
@@ -583,7 +632,6 @@ namespace Shift
 
         private async Task ContinueJobsAsync(IReadOnlyCollection<string> jobIDs, bool isSync)
         {
-            var notListedJobIDs = new List<string>();
             if (taskList.Count > 0)
             {
                 foreach (var jobID in jobIDs)

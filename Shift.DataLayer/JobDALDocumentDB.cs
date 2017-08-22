@@ -1289,6 +1289,7 @@ namespace Shift.DataLayer
                     response = Client.ReplaceDocumentAsync(documentUri, job).GetAwaiter().GetResult();
                 else
                     response = await Client.ReplaceDocumentAsync(documentUri, job);
+
                 if (response.StatusCode == HttpStatusCode.OK)
                     count++;
             }
@@ -1296,6 +1297,54 @@ namespace Shift.DataLayer
             return count;
         }
 
+        /// <summary>
+        /// Set error message.
+        /// </summary>
+        /// <param name="processID">process ID</param>
+        /// <param name="jobID">job ID</param>
+        /// <param name="error">Error message</param>
+        /// <returns>Updated record count, 0 or 1 record updated</returns>
+        public int SetErrorMessage(string processID, string jobID, string error)
+        {
+            return SetErrorMessageAsync(processID, jobID, error, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> SetErrorMessageAsync(string processID, string jobID, string error)
+        {
+            return SetErrorMessageAsync(processID, jobID, error, false);
+        }
+
+        private async Task<int> SetErrorMessageAsync(string processID, string jobID, string error, bool isSync)
+        {
+            var count = 0;
+
+            JobView job = null;
+            if (isSync)
+            {
+                job = GetItemAsync<JobView>(j => j.ID == jobID && j.ProcessID == processID, isSync).GetAwaiter().GetResult();
+            }
+            else
+            {
+                job = await GetItemAsync<JobView>(j => j.ID == jobID && j.ProcessID == processID, isSync);
+            }
+
+            if (job != null)
+            {
+                job.Error = error;
+
+                var documentUri = UriFactory.CreateDocumentUri(DatabaseID, CollectionID, job.JobID);
+                ResourceResponse<Document> response;
+                if (isSync)
+                    response = Client.ReplaceDocumentAsync(documentUri, job).GetAwaiter().GetResult();
+                else
+                    response = await Client.ReplaceDocumentAsync(documentUri, job);
+
+                if (response.StatusCode == HttpStatusCode.OK)
+                    count++;
+            }
+
+            return count;
+        }
         /// <summary>
         /// Set job as completed.
         /// </summary>

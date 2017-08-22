@@ -43,9 +43,7 @@ namespace Shift.DataLayer
 
             if (!method.DeclaringType.IsAssignableFrom(type))
             {
-                throw new ArgumentException(
-                    String.Format("The type `{0}` must be derived from the `{1}` type.", method.DeclaringType, type),
-                    typeParameterName);
+                throw new ArgumentException(String.Format("The type `{0}` must be derived from the `{1}` type.", method.DeclaringType, type), typeParameterName);
             }
 
             if (typeof(Task).IsAssignableFrom(method.ReturnType))
@@ -62,19 +60,16 @@ namespace Shift.DataLayer
 
             foreach (var parameter in parameters)
             {
-                // There is no guarantee that specified method will be invoked
-                // in the same process. Therefore, output parameters and parameters
-                // passed by reference are not supported.
+                if (parameter.ParameterType.IsByRef)
+                {
+                    throw new NotSupportedException("Passed by reference parameters, are not supported: no guarantee that method will be invoked in the same process.");
+                }
 
                 if (parameter.IsOut)
                 {
-                    throw new NotSupportedException("Output parameters are not supported: there is no guarantee that specified method will be invoked inside the same process.");
+                    throw new NotSupportedException("Output parameters (out) are not supported: no guarantee that method will be invoked in the same process.");
                 }
 
-                if (parameter.ParameterType.IsByRef)
-                {
-                    throw new NotSupportedException("Parameters, passed by reference, are not supported: there is no guarantee that specified method will be invoked inside the same process.");
-                }
             }
         }
 
@@ -127,15 +122,15 @@ namespace Shift.DataLayer
                 var argument = arguments[i];
 
                 object value = null;
-                if (parameter.ParameterType.FullName.ToUpper().Contains("SYSTEM.IPROGRESS"))
+                if (parameter.ParameterType.FullName.ToUpper().Contains("System.IProgress".ToUpper()))
                 {
                     value = progress;
                 }
-                else if(parameter.ParameterType.FullName.ToUpper().Contains("SYSTEM.THREADING.CANCELLATIONTOKEN")) 
+                else if(parameter.ParameterType.FullName.ToUpper().Contains("System.Threading.CancellationToken".ToUpper())) 
                 {
                     value = cancelToken;
                 }
-                else if (parameter.ParameterType.FullName.ToUpper().Contains("SHIFT.ENTITIES.PAUSETOKEN"))
+                else if (parameter.ParameterType.FullName.ToUpper().Contains("Shift.Entities.PauseToken".ToUpper()))
                 {
                     value = pauseToken;
                 }

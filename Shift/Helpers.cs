@@ -126,6 +126,18 @@ namespace Shift
 
             return normalizedPath;
         }
+
+        public static bool HasToken(ParameterInfo[] parameters, string tokenName)
+        {
+            var count = (from p in parameters
+                         where p.ParameterType.FullName.ToUpper().Contains(tokenName.ToUpper())
+                         select p).Count();
+            if (count > 0)
+                return true;
+
+            return false;
+        }
+
     }
 
 }
