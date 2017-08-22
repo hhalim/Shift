@@ -90,32 +90,6 @@ namespace Shift.UnitTest
         }
 
         [Fact]
-        public void UseCacheTest()
-        {
-            var config = new ServerConfig();
-            config.UseCache = true;
-
-            Assert.Equal(true, config.UseCache);
-        }
-
-        [Fact]
-        public void UseCacheDefaultTest()
-        {
-            var config = new ServerConfig();
-
-            Assert.Equal(false, config.UseCache);
-        }
-
-        [Fact]
-        public void CacheConfigurationStringTest()
-        {
-            var config = new ServerConfig();
-            config.CacheConfigurationString = "localhost:6370";
-
-            Assert.Equal("localhost:6370", config.CacheConfigurationString);
-        }
-
-        [Fact]
         public void EncryptionKeyTest()
         {
             var config = new ServerConfig();

@@ -195,6 +195,30 @@ namespace Shift.UnitTest.DataLayer
         }
 
         [Fact]
+        public void SetCommandPauseTest()
+        {
+            var jobID = jobDAL.Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test!"));
+            jobDAL.SetToRunning(new List<string> { jobID }); //only RUNNING jobs can be set to pause
+            jobDAL.SetCommandPause(new List<string> { jobID });
+            var job = jobDAL.GetJob(jobID);
+            jobDAL.Delete(new List<string> { jobID });
+
+            Assert.Equal(JobCommand.Pause, job.Command);
+        }
+
+        [Fact]
+        public void SetCommandContinueTest()
+        {
+            var jobID = jobDAL.Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test!"));
+            jobDAL.SetToPaused(new List<string> { jobID }); //only PAUSED jobs can be set to continue
+            jobDAL.SetCommandContinue(new List<string> { jobID });
+            var job = jobDAL.GetJob(jobID);
+            jobDAL.Delete(new List<string> { jobID });
+
+            Assert.Equal(JobCommand.Continue, job.Command);
+        }
+
+        [Fact]
         public void ResetTest()
         {
             var job = new Job
@@ -234,6 +258,58 @@ namespace Shift.UnitTest.DataLayer
             Assert.True(count == 1);
             Assert.True(string.IsNullOrWhiteSpace(outJob.Command));
             Assert.Equal(JobStatus.Stopped, outJob.Status);
+        }
+
+        //Test from Running with cmd:pause to Status:Paused
+        [Fact]
+        public void SetToPausedTest()
+        {
+            var job = new Job
+            {
+                AppID = AppID,
+                Created = DateTime.Now,
+                Command = JobCommand.Pause,
+                Status = JobStatus.Running
+            };
+            job = jobDAL.SetJob(job);
+            Assert.True(!string.IsNullOrWhiteSpace(job.JobID));
+
+            var count = jobDAL.SetToPaused(new List<string> { job.JobID });
+            var outJob = jobDAL.GetJob(job.JobID);
+
+            jobDAL.SetToStopped(new List<string> { job.JobID });
+            jobDAL.Delete(new List<string> { job.JobID });
+
+            Assert.NotNull(outJob);
+            Assert.True(count == 1);
+            Assert.True(string.IsNullOrWhiteSpace(outJob.Command));
+            Assert.Equal(JobStatus.Paused, outJob.Status);
+        }
+
+        //Test from Paused with cmd:continue to Status:Running
+        [Fact]
+        public void SetToContinueRunningTest()
+        {
+            var job = new Job
+            {
+                AppID = AppID,
+                Created = DateTime.Now,
+                Command = JobCommand.Continue,
+                Status = JobStatus.Paused
+            };
+            job = jobDAL.SetJob(job);
+            Assert.True(!string.IsNullOrWhiteSpace(job.JobID));
+
+            var count = jobDAL.SetToRunning(new List<string> { job.JobID });
+            var outJob = jobDAL.GetJob(job.JobID);
+
+            jobDAL.SetToStopped(new List<string> { job.JobID });
+            jobDAL.Delete(new List<string> { job.JobID });
+
+            Assert.NotNull(outJob);
+            Assert.True(count == 1);
+            Assert.True(string.IsNullOrWhiteSpace(outJob.Command));
+            Assert.Equal(JobStatus.Running, outJob.Status);
         }
 
         //Get Multiple jobs

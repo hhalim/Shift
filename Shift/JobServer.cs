@@ -48,11 +48,6 @@ namespace Shift
                 throw new ArgumentNullException("Unable to run without DB storage connection string.");
             }
 
-            if (config.UseCache && string.IsNullOrWhiteSpace(config.CacheConfigurationString))
-            {
-                throw new ArgumentNullException("Unable to run without Cache configuration string.");
-            }
-
             if (config.MaxRunnableJobs <= 0)
             {
                 config.MaxRunnableJobs = 100;
@@ -69,7 +64,7 @@ namespace Shift
             //Create Worker
             var builder = new ContainerBuilder();
             builder.RegisterSource(new AnyConcreteTypeNotAlreadyRegisteredSource());
-            RegisterAssembly.RegisterTypes(builder, config.StorageMode, config.DBConnectionString, config.UseCache, config.CacheConfigurationString, config.EncryptionKey, config.DBAuthKey);
+            RegisterAssembly.RegisterTypes(builder, config.StorageMode, config.DBConnectionString, config.EncryptionKey, config.DBAuthKey);
             var container = builder.Build();
             //Use lifetime scope to avoid memory leak http://docs.autofac.org/en/latest/resolve/
             using (var scope = container.BeginLifetimeScope())

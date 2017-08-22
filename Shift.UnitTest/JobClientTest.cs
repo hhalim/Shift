@@ -225,9 +225,6 @@ namespace Shift.UnitTest
 
             var mockJobDAL = new Mock<IJobDAL>();
             mockJobDAL
-                .Setup(ss => ss.DeleteCachedProgressAsync(JobID))
-                .Returns( Task.CompletedTask );
-            mockJobDAL
                 .Setup(ss => ss.Reset(new List<string>() { JobID } ))
                 .Returns(expected);
 
@@ -243,9 +240,6 @@ namespace Shift.UnitTest
             var expected = 1;
 
             var mockJobDAL = new Mock<IJobDAL>();
-            mockJobDAL
-                .Setup(ss => ss.DeleteCachedProgressAsync(JobID))
-                .Returns(Task.CompletedTask);
             mockJobDAL
                 .Setup(ss => ss.Delete(new List<string>() { JobID }))
                 .Returns(expected);
@@ -289,22 +283,6 @@ namespace Shift.UnitTest
             Assert.Equal(expected, actual);
         }
 
-        [Fact]
-        public void GetCachedProgressTest()
-        {
-            var expected = new JobStatusProgress();
-
-            var mockJobDAL = new Mock<IJobDAL>();
-            mockJobDAL
-                .Setup(ss => ss.GetCachedProgress(JobID))
-                .Returns(expected);
-
-            var jobClient = new JobClient(mockJobDAL.Object);
-            var actual = jobClient.GetCachedProgress(JobID);
-
-            Assert.IsType<JobStatusProgress>(actual);
-            Assert.Equal(expected, actual);
-        }
 
     }
 }

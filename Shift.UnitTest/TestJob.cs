@@ -10,17 +10,19 @@ namespace Shift.UnitTest
 {
     public class TestJob
     {
-        public void Start(string value, IProgress<ProgressInfo> progress, CancellationToken token)
+        public void Start(string value, IProgress<ProgressInfo> progress, CancellationToken cancelToken, PauseToken pauseToken)
         {
             var total = 10;
 
             var note = "";
             for (var i = 0; i < total; i++)
             {
-                if (token.IsCancellationRequested)
+                if (cancelToken.IsCancellationRequested)
                 {
-                    token.ThrowIfCancellationRequested(); //throw OperationCanceledException
+                    cancelToken.ThrowIfCancellationRequested(); //throw OperationCanceledException
                 }
+
+                pauseToken.WaitWhilePausedAsync().GetAwaiter().GetResult();
 
                 note += i + " - " + value + "<br/> \n";
 

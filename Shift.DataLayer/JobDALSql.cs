@@ -315,15 +315,15 @@ namespace Shift.DataLayer
                             SET 
                             Command = @command 
                             WHERE JobID IN @ids 
-                            AND (Status = @status OR Status = @paused OR Status IS NULL);
+                            AND (Status = @running OR Status = @paused OR Status IS NULL);
                             ";
                 if (isSync)
                 {
-                    return connection.Execute(sql, new { command = JobCommand.Stop, ids = jobIDs.ToArray(), status = JobStatus.Running, paused = JobStatus.Paused });
+                    return connection.Execute(sql, new { command = JobCommand.Stop, ids = jobIDs.ToArray(), running = JobStatus.Running, paused = JobStatus.Paused });
                 }
                 else
                 {
-                    return await connection.ExecuteAsync(sql, new { command = JobCommand.Stop, ids = jobIDs.ToArray(), status = JobStatus.Running, paused = JobStatus.Paused });
+                    return await connection.ExecuteAsync(sql, new { command = JobCommand.Stop, ids = jobIDs.ToArray(), running = JobStatus.Running, paused = JobStatus.Paused });
                 }
             }
         }
@@ -659,9 +659,6 @@ namespace Shift.DataLayer
                     var taskResult = await connection.QueryAsync<string>(sql, new { hours });
                     deleteIDs = taskResult.ToList();
                 }
-
-                //Delete Cached progress
-                DeleteCachedProgressAsync(deleteIDs); 
 
                 using (var trn = connection.BeginTransaction())
                 {
@@ -1117,33 +1114,6 @@ namespace Shift.DataLayer
                 }
             }
 
-            //Merge the Cached progress with the data in DB
-            foreach (JobView row in result)
-            {
-                if (row.Status == JobStatus.Running)
-                {
-                    JobStatusProgress cached = null;
-                    if (isSync)
-                    {
-                        cached = GetCachedProgress(row.JobID);
-                    }
-                    else
-                    {
-                        cached = await GetCachedProgressAsync(row.JobID); 
-                    }
-
-                    if (cached != null)
-                    {
-                        row.Status = cached.Status;
-                        row.Percent = cached.Percent;
-                        row.Note = cached.Note;
-                        row.Data = cached.Data;
-                        row.Error = cached.Error;
-                    }
-                }
-
-            }
-
             var jobViewList = new JobViewList();
             jobViewList.Total = totalCount;
             jobViewList.Items = result;
@@ -1552,9 +1522,6 @@ namespace Shift.DataLayer
 
         #endregion
 
-
-        #region Cache
-        /* Use Cache and DB to return progress */
         public JobStatusProgress GetProgress(string jobID)
         {
             return GetProgressAsync(jobID, true).GetAwaiter().GetResult();
@@ -1567,133 +1534,26 @@ namespace Shift.DataLayer
 
         private async Task<JobStatusProgress> GetProgressAsync(string jobID, bool isSync)
         {
-            JobStatusProgress jsProgress = null;
-            if (isSync)
+            JobStatusProgress jsProgress = new JobStatusProgress();
+            var jobView = isSync ? GetJobView(jobID) : await GetJobViewAsync(jobID);
+            if (jobView != null)
             {
-                jsProgress = GetCachedProgress(jobID);
+                jsProgress.JobID = jobView.JobID;
+                jsProgress.Status = jobView.Status;
+                jsProgress.Error = jobView.Error;
+                jsProgress.Percent = jobView.Percent;
+                jsProgress.Note = jobView.Note;
+                jsProgress.Data = jobView.Data;
             }
             else
             {
-                jsProgress = await GetCachedProgressAsync(jobID);
-            }
-
-            if (jsProgress == null)
-            {
-                jsProgress = new JobStatusProgress();
-                //try to get from DB
-                JobView jobView = null;
-                if (isSync)
-                {
-                    jobView = GetJobView(jobID);
-                }
-                else
-                {
-                    jobView = await GetJobViewAsync(jobID);
-                }
-                if (jobView != null)
-                {
-                    jsProgress.JobID = jobView.JobID;
-                    jsProgress.Status = jobView.Status;
-                    jsProgress.Error = jobView.Error;
-                    jsProgress.Percent = jobView.Percent;
-                    jsProgress.Note = jobView.Note;
-                    jsProgress.Data = jobView.Data;
-                }
-                else
-                {
-                    jsProgress.JobID = jobID;
-                    jsProgress.ExistsInDB = false;
-                    jsProgress.Error = "Job progress id: " +jobID + " not found!";
-                }
+                jsProgress.JobID = jobID;
+                jsProgress.ExistsInDB = false;
+                jsProgress.Error = "Job progress id: " + jobID + " not found!";
             }
 
             return jsProgress;
         }
 
-        public JobStatusProgress GetCachedProgress(string jobID)
-        {
-            if (jobCache == null)
-                return null;
-            return jobCache.GetCachedProgress(jobID);
-        }
-
-        public Task<JobStatusProgress> GetCachedProgressAsync(string jobID)
-        {
-            if (jobCache == null)
-                return Task.FromResult((JobStatusProgress)null); //Can not return null, must return Task<(object)null> http://stackoverflow.com/a/18145226/2437862
-            return jobCache.GetCachedProgressAsync(jobID);
-        }
-
-        //Set Cached progress similar to the DB SetProgress()
-        public async Task SetCachedProgressAsync(string jobID, int? percent, string note, string data)
-        {
-            if (jobCache == null)
-                return;
-
-            await jobCache.SetCachedProgressAsync(jobID, percent, note, data);
-        }
-
-        //Set cached progress status
-        public async Task SetCachedProgressStatusAsync(string jobID, JobStatus status)
-        {
-            if (jobCache == null)
-                return;
-
-            var jsProgress = await GetProgressAsync(jobID);
-            if (jsProgress != null && jsProgress.ExistsInDB)
-            {
-                //Update CACHE running/stop status only if it exists in DB
-                await jobCache.SetCachedProgressStatusAsync(jsProgress, status);
-            }
-        }
-
-        public async Task SetCachedProgressStatusAsync(IEnumerable<string> jobIDs, JobStatus status)
-        {
-            if (jobCache == null)
-                return;
-
-            var taskList = new List<Task>();
-            foreach (var jobID in jobIDs)
-            {
-                var task = SetCachedProgressStatusAsync(jobID, status);
-                taskList.Add(task);
-            }
-            await Task.WhenAll(taskList.ToArray());
-        }
-
-        //Set cached progress error
-        public async Task SetCachedProgressErrorAsync(string jobID, string error)
-        {
-            if (jobCache == null)
-                return;
-
-            var jsProgress = await GetProgressAsync(jobID);
-            await jobCache.SetCachedProgressErrorAsync(jsProgress, error);
-        }
-
-        public async Task DeleteCachedProgressAsync(string jobID)
-        {
-            if (jobCache == null)
-                return;
-
-            await jobCache.DeleteCachedProgressAsync(jobID);
-        }
-
-        public async Task DeleteCachedProgressAsync(IEnumerable<string> jobIDs)
-        {
-            if (jobCache == null)
-                return;
-
-            var taskList = new List<Task>();
-            foreach (var jobID in jobIDs)
-            {
-                var task = DeleteCachedProgressAsync(jobID);
-                taskList.Add(task);
-            }
-            await Task.WhenAll(taskList.ToArray());
-        }
-
-
-        #endregion 
     }
 }

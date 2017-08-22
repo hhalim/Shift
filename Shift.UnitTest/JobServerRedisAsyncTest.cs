@@ -43,7 +43,7 @@ namespace Shift.UnitTest
         }
 
         [Fact]
-        public async Task RunJobsSelectedTest()
+        public async Task RunJobsSelectedAsyncTest()
         {
             var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
             var job = await jobClient.GetJobAsync(jobID);
@@ -62,7 +62,7 @@ namespace Shift.UnitTest
 
 
         [Fact]
-        public async Task StopJobsNonRunningTest()
+        public async Task StopJobsNonRunningAsyncTest()
         {
             var jobID = await jobClient.AddAsync(AppID, () => Console.WriteLine("Hello Test"));
             await jobClient.SetCommandStopAsync(new List<string> { jobID });
@@ -80,12 +80,13 @@ namespace Shift.UnitTest
         }
 
         [Fact]
-        public async Task StopJobsRunningTest()
+        public async Task StopJobsRunningAsyncTest()
         {
             var jobTest = new TestJob();
-            var progress = new SynchronousProgress<ProgressInfo>(); 
-            var token = (new CancellationTokenSource()).Token; 
-            var jobID = await jobClient.AddAsync(AppID, () => jobTest.Start("Hello World", progress, token));
+            var progress = new SynchronousProgress<ProgressInfo>();
+            var cancelToken = (new CancellationTokenSource()).Token;
+            var pauseToken = (new PauseTokenSource()).Token;
+            var jobID = await jobClient.AddAsync(AppID, () => jobTest.Start("Hello World", progress, cancelToken, pauseToken));
 
             //run job
             await jobServer.RunJobsAsync(new List<string> { jobID });
@@ -105,14 +106,15 @@ namespace Shift.UnitTest
         }
 
         [Fact]
-        public async Task CleanUpTest()
+        public async Task CleanUpAsyncTest()
         {
             //Test StopJobs with CleanUp() calls
 
             var jobTest = new TestJob();
-            var progress = new SynchronousProgress<ProgressInfo>(); 
-            var token = (new CancellationTokenSource()).Token; 
-            var jobID = await jobClient.AddAsync(AppID, () => jobTest.Start("Hello World", progress, token));
+            var progress = new SynchronousProgress<ProgressInfo>();
+            var cancelToken = (new CancellationTokenSource()).Token;
+            var pauseToken = (new PauseTokenSource()).Token;
+            var jobID = await jobClient.AddAsync(AppID, () => jobTest.Start("Hello World", progress, cancelToken, pauseToken));
 
             //run job
             await jobServer.RunJobsAsync(new List<string> { jobID });
@@ -131,5 +133,68 @@ namespace Shift.UnitTest
             Assert.Equal(JobStatus.Stopped, job.Status);
         }
 
+        [Fact]
+        public async Task PauseJobsRunningAsyncTest()
+        {
+            var jobTest = new TestJob();
+            var progress = new SynchronousProgress<ProgressInfo>();
+            var cancelToken = (new CancellationTokenSource()).Token;
+            var pauseToken = (new PauseTokenSource()).Token;
+            var jobID = await jobClient.AddAsync(AppID, () => jobTest.Start("Hello World", progress, cancelToken, pauseToken));
+
+            //run job
+            await jobServer.RunJobsAsync(new List<string> { jobID });
+            Thread.Sleep(1000);
+
+            var job = await jobClient.GetJobAsync(jobID);
+            Assert.NotNull(job);
+            Assert.Equal(JobStatus.Running, job.Status);
+
+            await jobClient.SetCommandPauseAsync(new List<string> { jobID });
+            await jobServer.PauseJobsAsync(); //pause running job
+            Thread.Sleep(3000);
+
+            job = await jobClient.GetJobAsync(jobID);
+            await jobClient.SetCommandStopAsync(new List<string> { jobID });
+            await jobServer.StopJobsAsync();
+            Thread.Sleep(3000);
+            await jobClient.DeleteJobsAsync(new List<string>() { jobID });
+
+            Assert.Equal(JobStatus.Paused, job.Status);
+        }
+
+        [Fact]
+        public async Task ContinueJobsPausedAsyncTest()
+        {
+            var jobTest = new TestJob();
+            var progress = new SynchronousProgress<ProgressInfo>();
+            var cancelToken = (new CancellationTokenSource()).Token;
+            var pauseToken = (new PauseTokenSource()).Token;
+            var jobID = await jobClient.AddAsync(AppID, () => jobTest.Start("Hello World", progress, cancelToken, pauseToken));
+
+            //run job
+            await jobServer.RunJobsAsync(new List<string> { jobID });
+            Thread.Sleep(1000);
+
+            await jobClient.SetCommandPauseAsync(new List<string> { jobID });
+            await jobServer.PauseJobsAsync(); //pause running job
+            Thread.Sleep(3000);
+
+            var job = await jobClient.GetJobAsync(jobID);
+            Assert.NotNull(job);
+            Assert.Equal(JobStatus.Paused, job.Status);
+
+            await jobClient.SetCommandContinueAsync(new List<string> { jobID });
+            await jobServer.ContinueJobsAsync(); //continue paused job
+            Thread.Sleep(3000);
+
+            job = await jobClient.GetJobAsync(jobID);
+            await jobClient.SetCommandStopAsync(new List<string> { jobID });
+            await jobServer.StopJobsAsync();
+            Thread.Sleep(3000);
+            await jobClient.DeleteJobsAsync(new List<string>() { jobID });
+
+            Assert.Equal(JobStatus.Running, job.Status);
+        }
     }
 }

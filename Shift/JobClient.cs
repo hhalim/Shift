@@ -46,14 +46,9 @@ namespace Shift
 
             }
 
-            if (config.UseCache && string.IsNullOrWhiteSpace(config.CacheConfigurationString))
-            {
-                throw new ArgumentNullException("Unable to run without Cache configuration string.");
-            }
-
             var builder = new ContainerBuilder();
             builder.RegisterSource(new AnyConcreteTypeNotAlreadyRegisteredSource());
-            RegisterAssembly.RegisterTypes(builder, config.StorageMode, config.DBConnectionString, config.UseCache, config.CacheConfigurationString, config.EncryptionKey, config.DBAuthKey);
+            RegisterAssembly.RegisterTypes(builder, config.StorageMode, config.DBConnectionString, config.EncryptionKey, config.DBAuthKey);
             var container = builder.Build();
             //Use lifetime scope to avoid memory leak http://docs.autofac.org/en/latest/resolve/
             using (var scope = container.BeginLifetimeScope())
@@ -335,7 +330,6 @@ namespace Shift
             if (jobIDs == null || jobIDs.Count == 0)
                 return 0;
 
-            jobDAL.DeleteCachedProgressAsync(jobIDs);
             return jobDAL.Reset(jobIDs);
         }
 
@@ -344,7 +338,6 @@ namespace Shift
             if (jobIDs == null || jobIDs.Count == 0)
                 return Task.FromResult(0);
 
-            jobDAL.DeleteCachedProgressAsync(jobIDs);
             return jobDAL.ResetAsync(jobIDs);
         }
 
@@ -358,7 +351,6 @@ namespace Shift
             if (jobIDs == null || jobIDs.Count == 0)
                 return 0;
 
-            jobDAL.DeleteCachedProgressAsync(jobIDs);
             return jobDAL.Delete(jobIDs);
         }
 
@@ -367,7 +359,6 @@ namespace Shift
             if (jobIDs == null || jobIDs.Count == 0)
                 return Task.FromResult(0);
 
-            jobDAL.DeleteCachedProgressAsync(jobIDs);
             return jobDAL.DeleteAsync(jobIDs);
         }
 
@@ -404,20 +395,6 @@ namespace Shift
             return jobDAL.GetProgressAsync(jobID);
         }
 
-        ///<summary>
-        /// Gets the current progress of job from cache only.
-        ///</summary>
-        ///<param name="jobID"></param>
-        ///<returns>JobStatusProgress</returns>
-        public JobStatusProgress GetCachedProgress(string jobID)
-        {
-            return jobDAL.GetCachedProgress(jobID);
-        }
-
-        public Task<JobStatusProgress> GetCachedProgressAsync(string jobID)
-        {
-            return jobDAL.GetCachedProgressAsync(jobID);
-        }
         #endregion
 
 

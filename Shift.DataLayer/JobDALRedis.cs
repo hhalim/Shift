@@ -1626,9 +1626,6 @@ namespace Shift.DataLayer
 
         #endregion
 
-
-        #region Cache
-        /* Use Cache and DB to return progress */
         public JobStatusProgress GetProgress(string jobID)
         {
             return GetProgressAsync(jobID, true).GetAwaiter().GetResult();
@@ -1641,9 +1638,7 @@ namespace Shift.DataLayer
 
         private async Task<JobStatusProgress> GetProgressAsync(string jobID, bool isSync)
         {
-            //No cache, so always get direct from Redis
             var jsProgress = new JobStatusProgress();
-            //try to get from DB
             var jobView = isSync ? GetJobView(jobID) : await GetJobViewAsync(jobID);
             if (jobView != null)
             {
@@ -1664,55 +1659,5 @@ namespace Shift.DataLayer
             return jsProgress;
         }
 
-        public JobStatusProgress GetCachedProgress(string jobID)
-        {
-            return GetProgress(jobID); //no cache in pure Redis
-        }
-
-        public Task<JobStatusProgress> GetCachedProgressAsync(string jobID)
-        {
-            return GetProgressAsync(jobID); //no cache in pure Redis
-        }
-
-        //Set Cached progress similar to the DB SetProgress()
-        //Not needed in Redis
-        public async Task SetCachedProgressAsync(string jobID, int? percent, string note, string data)
-        {
-                return;
-        }
-
-        //Set cached progress status
-        //Not needed in Redis
-        public async Task SetCachedProgressStatusAsync(string jobID, JobStatus status)
-        {
-                return;
-        }
-
-        //Not needed in Redis
-        public async Task SetCachedProgressStatusAsync(IEnumerable<string> jobIDs, JobStatus status)
-        {
-                return;
-        }
-
-        //Set cached progress error
-        //Not needed in Redis
-        public async Task SetCachedProgressErrorAsync(string jobID, string error)
-        {
-                return;
-        }
-
-        //Not needed in Redis
-        public async Task DeleteCachedProgressAsync(string jobID)
-        {
-                return;
-        }
-
-        //Not needed in Redis
-        public async Task DeleteCachedProgressAsync(IEnumerable<string> jobIDs)
-        {
-                return;
-        }
-
-        #endregion 
     }
 }

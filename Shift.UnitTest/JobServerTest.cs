@@ -58,19 +58,6 @@ namespace Shift.UnitTest
             var ex = Assert.Throws<ArgumentNullException>(() => { var jobServer = new JobServer(config); });
         }
 
-        [Fact]
-        public void JobServerCacheConfigurationStringNullTest()
-        {
-            var config = new ServerConfig();
-            config.StorageMode = "redis";
-            config.DBConnectionString = connectionString;
-            config.ProcessID = processID;
-            config.UseCache = true;
-            config.CacheConfigurationString = "";
-
-            var ex = Assert.Throws<ArgumentNullException>(() => { var jobServer = new JobServer(config); });
-        }
-
         //Should get no Exception
         [Fact]
         public void JobServerMaxRunnableJobsZeroTest()

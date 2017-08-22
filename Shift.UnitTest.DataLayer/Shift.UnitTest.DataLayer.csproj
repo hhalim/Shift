@@ -81,8 +81,6 @@
     <Compile Include="JobDALMongoTest.cs" />
     <Compile Include="JobDALDocumentDBTest.cs" />
     <Compile Include="JobDALMongoAsyncTest.cs" />
-    <Compile Include="JobCacheRedisTest.cs" />
-    <Compile Include="JobDALSqlCacheTest.cs" />
     <Compile Include="JobDALSqlTest.cs" />
     <Compile Include="JobDALSqlAsyncTest.cs" />
     <Compile Include="JobDALRedisAsyncTest.cs" />
@@ -90,10 +88,6 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Shift.Cache.Redis\Shift.Cache.Redis.csproj">
-      <Project>{F43A6D1C-5AEA-470B-8B33-D8ED2C156B86}</Project>
-      <Name>Shift.Cache.Redis</Name>
-    </ProjectReference>
     <ProjectReference Include="..\Shift.DataLayer\Shift.DataLayer.csproj">
       <Project>{4e74e7c7-4ea1-425c-b467-1db4a5f99a37}</Project>
       <Name>Shift.DataLayer</Name>

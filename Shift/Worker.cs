@@ -163,19 +163,11 @@ namespace Shift
             taskList[jobID] = taskInfo;
             if (isSync)
             {
-                jobTask = Task.Run(() => ExecuteJobAsync(processID, jobID, methodInfo, parameters, instance, cancelToken, pauseToken, isSync).ContinueWith(t =>
-                    {
-                        DeleteCachedProgressDelayedAsync(jobID);
-                    }, TaskContinuationOptions.ExecuteSynchronously).GetAwaiter().GetResult()
-                    , cancelToken);
+                jobTask = Task.Run(() => ExecuteJobAsync(processID, jobID, methodInfo, parameters, instance, cancelToken, pauseToken, isSync).GetAwaiter().GetResult(), cancelToken);
             }
             else
             {
-                jobTask = Task.Run(async () => await ExecuteJobAsync(processID, jobID, methodInfo, parameters, instance, cancelToken, pauseToken, isSync).ContinueWith(t =>
-                    {
-                        DeleteCachedProgressDelayedAsync(jobID);
-                    }, TaskContinuationOptions.RunContinuationsAsynchronously).ConfigureAwait(false)
-                    , cancelToken);
+                jobTask = Task.Run(async () => await ExecuteJobAsync(processID, jobID, methodInfo, parameters, instance, cancelToken, pauseToken, isSync).ConfigureAwait(false), cancelToken);
             }
             taskInfo.JobTask = jobTask;
             taskList[jobID] = taskInfo; //re-update with filled Task
@@ -192,7 +184,6 @@ namespace Shift
             {
                 await jobDAL.SetProgressAsync(jobID, null, null, null);
             }
-            await jobDAL.SetCachedProgressAsync(jobID, null, null, null).ConfigureAwait(false);
 
             var start = DateTime.Now;
             var updateTs = this.progressDBInterval ?? new TimeSpan(0, 0, 10); //default to 10 sec interval for updating DB
@@ -200,8 +191,6 @@ namespace Shift
             //SynchronousProgress is event based and called regularly by the running job
             SynchronousProgress<ProgressInfo> progress = new SynchronousProgress<ProgressInfo>(progressInfo =>
             {
-                jobDAL.SetCachedProgressAsync(jobID, progressInfo.Percent, progressInfo.Note, progressInfo.Data).ConfigureAwait(false); //Update Cache
-
                 var diffTs = DateTime.Now - start;
                 if (diffTs >= updateTs || progressInfo.Percent >= 100)
                 {
@@ -222,7 +211,6 @@ namespace Shift
                     jobDAL.SetToRunning(processID, jobID);
                 else
                     await jobDAL.SetToRunningAsync(processID, jobID);
-                jobDAL.SetCachedProgressStatusAsync(jobID, JobStatus.Running);
 
                 var progress = isSync ? UpdateProgressEventAsync(jobID, true).GetAwaiter().GetResult() : await UpdateProgressEventAsync(jobID, false); //Need this to update the progress of the job's
 
@@ -284,20 +272,10 @@ namespace Shift
                 jobDAL.SetToCompleted(processID, jobID);
             else
                 await jobDAL.SetToCompletedAsync(processID, jobID);
-            jobDAL.SetCachedProgressStatusAsync(jobID, JobStatus.Completed);
-        }
-
-        private Task DeleteCachedProgressDelayedAsync(string jobID)
-        {
-            return Task.Delay(60000).ContinueWith(async _ =>
-            {
-                await jobDAL.DeleteCachedProgressAsync(jobID);
-            }, TaskContinuationOptions.RunContinuationsAsynchronously);
         }
 
         private async Task<int> SetErrorAsync(string processID, string jobID, string error, bool isSync)
         {
-            jobDAL.SetCachedProgressErrorAsync(jobID, error);
             if (isSync)
                 return jobDAL.SetError(processID, jobID, error);
             else
@@ -427,8 +405,6 @@ namespace Shift
             {
                 await jobDAL.SetToStoppedAsync(jobIDs.ToList());
             }
-            await jobDAL.SetCachedProgressStatusAsync(jobIDs, JobStatus.Stopped); //redis cached progress
-            await jobDAL.DeleteCachedProgressAsync(jobIDs);
         }
         #endregion
 
@@ -609,8 +585,6 @@ namespace Shift
             {
                 await jobDAL.SetToPausedAsync(jobIDs.ToList());
             }
-            await jobDAL.SetCachedProgressStatusAsync(jobIDs, JobStatus.Paused); //redis cached progress
-            await jobDAL.DeleteCachedProgressAsync(jobIDs);
         }
 
         #endregion
@@ -663,8 +637,6 @@ namespace Shift
             {
                 await jobDAL.SetToRunningAsync(jobIDs.ToList());
             }
-            await jobDAL.SetCachedProgressStatusAsync(jobIDs, JobStatus.Paused); //redis cached progress
-            await jobDAL.DeleteCachedProgressAsync(jobIDs);
         }
 
         #endregion

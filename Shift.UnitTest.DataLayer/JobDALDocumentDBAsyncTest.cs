@@ -198,6 +198,30 @@ namespace Shift.UnitTest.DataLayer
         }
 
         [Fact]
+        public async Task SetCommandPauseAsyncTest()
+        {
+            var jobID = await jobDAL.AddAsync(AppID, "", "", "", () => Console.WriteLine("Hello World Test!"));
+            await jobDAL.SetToRunningAsync(new List<string> { jobID }); //only RUNNING jobs can be set to pause
+            await jobDAL.SetCommandPauseAsync(new List<string> { jobID });
+            var job = await jobDAL.GetJobAsync(jobID);
+            await jobDAL.DeleteAsync(new List<string> { jobID });
+
+            Assert.Equal(JobCommand.Pause, job.Command);
+        }
+
+        [Fact]
+        public async Task SetCommandContinueAsyncTest()
+        {
+            var jobID = await jobDAL.AddAsync(AppID, "", "", "", () => Console.WriteLine("Hello World Test!"));
+            await jobDAL.SetToPausedAsync(new List<string> { jobID }); //only PAUSED jobs can be set to continue
+            await jobDAL.SetCommandContinueAsync(new List<string> { jobID });
+            var job = await jobDAL.GetJobAsync(jobID);
+            await jobDAL.DeleteAsync(new List<string> { jobID });
+
+            Assert.Equal(JobCommand.Continue, job.Command);
+        }
+
+        [Fact]
         public async Task ResetAsyncTest()
         {
             var job = new Job
@@ -237,6 +261,58 @@ namespace Shift.UnitTest.DataLayer
             Assert.True(count == 1);
             Assert.True(string.IsNullOrWhiteSpace(outJob.Command));
             Assert.Equal(JobStatus.Stopped, outJob.Status);
+        }
+
+        //Test from Running with cmd:pause to Status:Paused
+        [Fact]
+        public async Task SetToPausedAsyncTest()
+        {
+            var job = new Job
+            {
+                AppID = AppID,
+                Created = DateTime.Now,
+                Command = JobCommand.Pause,
+                Status = JobStatus.Running
+            };
+            job = await jobDAL.SetJobAsync(job);
+            Assert.True(!string.IsNullOrWhiteSpace(job.JobID));
+
+            var count = await jobDAL.SetToPausedAsync(new List<string> { job.JobID });
+            var outJob = await jobDAL.GetJobAsync(job.JobID);
+
+            await jobDAL.SetToStoppedAsync(new List<string> { job.JobID });
+            await jobDAL.DeleteAsync(new List<string> { job.JobID });
+
+            Assert.NotNull(outJob);
+            Assert.True(count == 1);
+            Assert.True(string.IsNullOrWhiteSpace(outJob.Command));
+            Assert.Equal(JobStatus.Paused, outJob.Status);
+        }
+
+        //Test from Paused with cmd:continue to Status:Running
+        [Fact]
+        public async Task SetToContinueRunningAsyncTest()
+        {
+            var job = new Job
+            {
+                AppID = AppID,
+                Created = DateTime.Now,
+                Command = JobCommand.Continue,
+                Status = JobStatus.Paused
+            };
+            job = await jobDAL.SetJobAsync(job);
+            Assert.True(!string.IsNullOrWhiteSpace(job.JobID));
+
+            var count = await jobDAL.SetToRunningAsync(new List<string> { job.JobID });
+            var outJob = await jobDAL.GetJobAsync(job.JobID);
+
+            await jobDAL.SetToStoppedAsync(new List<string> { job.JobID });
+            await jobDAL.DeleteAsync(new List<string> { job.JobID });
+
+            Assert.NotNull(outJob);
+            Assert.True(count == 1);
+            Assert.True(string.IsNullOrWhiteSpace(outJob.Command));
+            Assert.Equal(JobStatus.Running, outJob.Status);
         }
 
         //Get Multiple jobs

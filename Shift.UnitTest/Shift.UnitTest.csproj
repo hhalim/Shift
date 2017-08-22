@@ -100,10 +100,6 @@
     <Compile Include="JobServerTest.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Shift.Cache.Redis\Shift.Cache.Redis.csproj">
-      <Project>{f43a6d1c-5aea-470b-8b33-d8ed2c156b86}</Project>
-      <Name>Shift.Cache.Redis</Name>
-    </ProjectReference>
     <ProjectReference Include="..\Shift.DataLayer\Shift.DataLayer.csproj">
       <Project>{4E74E7C7-4EA1-425C-B467-1DB4A5F99A37}</Project>
       <Name>Shift.DataLayer</Name>

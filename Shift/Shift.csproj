@@ -77,10 +77,6 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Shift.Cache.Redis\Shift.Cache.Redis.csproj">
-      <Project>{f43a6d1c-5aea-470b-8b33-d8ed2c156b86}</Project>
-      <Name>Shift.Cache.Redis</Name>
-    </ProjectReference>
     <ProjectReference Include="..\Shift.DataLayer\Shift.DataLayer.csproj">
       <Project>{4e74e7c7-4ea1-425c-b467-1db4a5f99a37}</Project>
       <Name>Shift.DataLayer</Name>
