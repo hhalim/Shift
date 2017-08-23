@@ -5,7 +5,7 @@ Shift background or long running jobs into reliable and durable workers out of y
 - Open source and free - including commercial use.
 - Reliable and durable background and long running jobs.
 - Out of band processing of long running jobs. 
-- Ability to stop, reset, and restart long running jobs.
+- Ability to pause, stop, reset, and restart long running jobs.
 - Auto removal of older jobs.
 - Scale out with multiple Shift servers to run large number of jobs.
 - Multiple choices of persistent storage: Redis, MongoDB, Microsoft SQL server, or Azure DocumentDB. 
@@ -13,7 +13,7 @@ Shift background or long running jobs into reliable and durable workers out of y
 - Optional encryption for serialized data.
 - Run Shift Server in your own .NET apps, Azure WebJobs, or Windows services. 
 
-The client library allows client apps to add jobs and send commands to Shift server to stop, delete, reset, and run jobs.
+The client library allows client apps to add jobs and send commands to Shift server to pause, stop, delete, reset, and run jobs.
 
 A simple example of adding a job:
 ```
