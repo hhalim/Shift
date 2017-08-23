@@ -25,8 +25,9 @@ Add a long running job with cancellation token that periodically reports its pro
 ```
 var job = new TestJob();
 var progress = new SynchronousProgress<ProgressInfo>();
-var token = (new CancellationTokenSource()).Token; 
-var jobID = jobClient.Add("Shift.Demo.Client", () => job.Start("Hello World", progress, token));
+var cancelToken = (new CancellationTokenSource()).Token; 
+var pauseToken = (new PauseTokenSource()).Token;
+var jobID = jobClient.Add("Shift.Demo.Client", () => job.Start("Hello World", progress, cancelToken, pauseToken));
 ```
 
 The server component checks for available jobs through polling, using first-in, first-out (FIFO) queue method. The server is a simple .NET library and needs to run inside a .NET app, Azure WebJob, or Windows service. 
