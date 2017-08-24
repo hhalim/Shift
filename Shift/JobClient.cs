@@ -62,7 +62,7 @@ namespace Shift
             this.jobDAL = jobDAL;
         }
 
-        #region Clients access
+        #region Add Expression<action>
         //Provides the clients to submit jobs or commands for jobs
 
         /// <summary>
@@ -137,7 +137,88 @@ namespace Shift
         {
             return jobDAL.AddAsync(appID, userID, jobType, jobName, methodCall);
         }
+        #endregion 
 
+        #region Add Func<Task>
+        //Provides the clients to submit jobs or commands for jobs
+
+        /// <summary>
+        /// Add a method and parameters into the job table.
+        /// Ref and out parameters are not supported.
+        /// </summary>
+        /// <param name="methodCall">Expression body for method call </param>
+        /// <returns>JobID of the added job.</returns>
+        public string Add(Expression<Func<Task>> methodCall)
+        {
+            return jobDAL.Add(null, null, null, null, methodCall);
+        }
+
+        public Task<string> AddAsync(Expression<Func<Task>> methodCall)
+        {
+            return jobDAL.AddAsync(null, null, null, null, methodCall);
+        }
+
+        /// <summary>
+        /// Add a method and parameters into the job table.
+        /// Ref and out parameters are not supported.
+        /// </summary>
+        /// <param name="appID">Client application ID</param>
+        /// <param name="methodCall">Expression body for method call </param>
+        /// <returns>JobID of the added job.</returns>
+        public string Add(string appID, Expression<Func<Task>> methodCall)
+        {
+            return jobDAL.Add(appID, null, null, null, methodCall);
+        }
+
+        public Task<string> AddAsync(string appID, Expression<Func<Task>> methodCall)
+        {
+            return jobDAL.AddAsync(appID, null, null, null, methodCall);
+        }
+
+        /// <summary>
+        /// Add a method and parameters into the job table.
+        /// Job name defaults to class.method name.
+        /// Ref and out parameters are not supported.
+        /// </summary>
+        /// <param name="appID">Client application ID</param>
+        /// <param name="userID">User ID</param>
+        /// <param name="jobType">Job type category/group</param>
+        /// <param name="methodCall">Expression body for method call </param>
+        /// <returns>JobID of the added job.</returns>
+        public string Add(string appID, string userID, string jobType, Expression<Func<Task>> methodCall)
+        {
+            return jobDAL.Add(appID, userID, jobType, null, methodCall);
+        }
+
+        public Task<string> AddAsync(string appID, string userID, string jobType, Expression<Func<Task>> methodCall)
+        {
+            return jobDAL.AddAsync(appID, userID, jobType, null, methodCall);
+        }
+
+        /// <summary>
+        /// Add a method and parameters into the job table with a custom name.
+        /// Ref and out parameters are not supported.
+        /// </summary>
+        /// <param name="appID">Client application ID</param>
+        /// <param name="userID">User ID</param>
+        /// <param name="jobType">Job type category/group</param>
+        /// <param name="jobName">Name for this job</param>
+        /// <param name="methodCall">Expression body for method call </param>
+        /// <returns>JobID of the added job.</returns>
+        public string Add(string appID, string userID, string jobType, string jobName, Expression<Func<Task>> methodCall)
+        {
+            return jobDAL.Add(appID, userID, jobType, jobName, methodCall);
+        }
+
+        public Task<string> AddAsync(string appID, string userID, string jobType, string jobName, Expression<Func<Task>> methodCall)
+        {
+            return jobDAL.AddAsync(appID, userID, jobType, jobName, methodCall);
+        }
+
+
+        #endregion
+
+        #region Update Expression<Action>
         /// <summary>
         /// Update a job's method and parameters.
         /// Ref and out parameters are not supported.
@@ -193,6 +274,65 @@ namespace Shift
         {
             return jobDAL.UpdateAsync(jobID, appID, userID, jobType, jobName, methodCall);
         }
+        #endregion
+
+        #region Update Expression<Func<Task>>
+        /// <summary>
+        /// Update a job's method and parameters.
+        /// Ref and out parameters are not supported.
+        /// </summary>
+        /// <param name="jobID">Existing job ID</param>
+        /// <param name="methodCall">Expression body for method call </param>
+        /// <returns>Number of successfully updated job</returns>
+        public int Update(string jobID, Expression<Func<Task>> methodCall)
+        {
+            return jobDAL.Update(jobID, null, null, null, null, methodCall);
+        }
+
+        public Task<int> UpdateAsync(string jobID, Expression<Func<Task>> methodCall)
+        {
+            return jobDAL.UpdateAsync(jobID, null, null, null, null, methodCall);
+        }
+
+        /// <summary>
+        /// Update a job's method and parameters.
+        /// Ref and out parameters are not supported.
+        /// </summary>
+        /// <param name="jobID">Existing job ID</param>
+        /// <param name="appID">Client application ID</param>
+        /// <param name="methodCall">Expression body for method call </param>
+        /// <returns>Number of successfully updated job</returns>
+        public int Update(string jobID, string appID, Expression<Func<Task>> methodCall)
+        {
+            return jobDAL.Update(jobID, appID, null, null, null, methodCall);
+        }
+
+        public Task<int> UpdateAsync(string jobID, string appID, Expression<Func<Task>> methodCall)
+        {
+            return jobDAL.UpdateAsync(jobID, appID, null, null, null, methodCall);
+        }
+
+        /// <summary>
+        /// Update a job's method and parameters.
+        /// Ref and out parameters are not supported.
+        /// </summary>
+        /// <param name="jobID">Existing job ID</param>
+        /// <param name="appID">Client application ID</param>
+        /// <param name="userID">User ID</param>
+        /// <param name="jobType">Job type category/group</param>
+        /// <param name="jobName">Name for this job</param>
+        /// <param name="methodCall">Expression body for method call </param>
+        /// <returns>Number of successfully updated job</returns>
+        public int Update(string jobID, string appID, string userID, string jobType, string jobName, Expression<Func<Task>> methodCall)
+        {
+            return jobDAL.Update(jobID, appID, userID, jobType, jobName, methodCall);
+        }
+
+        public Task<int> UpdateAsync(string jobID, string appID, string userID, string jobType, string jobName, Expression<Func<Task>> methodCall)
+        {
+            return jobDAL.UpdateAsync(jobID, appID, userID, jobType, jobName, methodCall);
+        }
+        #endregion
 
         ///<summary>
         /// Set "stop" command to already running or not running jobs.
@@ -394,8 +534,6 @@ namespace Shift
         {
             return jobDAL.GetProgressAsync(jobID);
         }
-
-        #endregion
 
 
 

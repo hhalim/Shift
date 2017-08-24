@@ -12,6 +12,7 @@ using Newtonsoft.Json;
 using System.ComponentModel;
 using Shift.Entities;
 using System.Threading;
+using System.Runtime.CompilerServices;
 
 namespace Shift.DataLayer
 {
@@ -41,14 +42,14 @@ namespace Shift.DataLayer
                 throw new NotSupportedException("Global methods are not supported. Use class methods instead.");
             }
 
-            if (!method.DeclaringType.IsAssignableFrom(type))
+            if (!method.DeclaringType.GetTypeInfo().IsAssignableFrom(type.GetTypeInfo()))
             {
                 throw new ArgumentException(String.Format("The type `{0}` must be derived from the `{1}` type.", method.DeclaringType, type), typeParameterName);
             }
 
-            if (typeof(Task).IsAssignableFrom(method.ReturnType))
+            if (method.ReturnType == typeof(void) && method.GetCustomAttribute<AsyncStateMachineAttribute>() != null)
             {
-                throw new NotSupportedException("Async methods (Task) are not supported . Please make them synchronous.");
+                throw new NotSupportedException("Async void methods are not supported. Use async Task instead.");
             }
 
             var parameters = method.GetParameters();
@@ -70,7 +71,14 @@ namespace Shift.DataLayer
                     throw new NotSupportedException("Output parameters (out) are not supported: no guarantee that method will be invoked in the same process.");
                 }
 
+                var parameterTypeInfo = parameter.ParameterType.GetTypeInfo();
+
+                if (parameterTypeInfo.IsSubclassOf(typeof(Delegate)) || parameterTypeInfo.IsSubclassOf(typeof(Expression)))
+                {
+                    throw new NotSupportedException("Anonymous functions, delegates and lambda expressions aren't supported in job method parameters.");
+                }
             }
+
         }
 
         public static object GetExpressionValue(Expression expression)
@@ -94,6 +102,13 @@ namespace Shift.DataLayer
                     if (argument is DateTime)
                     {
                         value = ((DateTime)argument).ToString("o", CultureInfo.InvariantCulture);
+                    }
+                    else if (argument is CancellationToken 
+                        || argument is PauseToken 
+                        || argument is IProgress<ProgressInfo>)
+                    {
+                        //These types will be replaced during invocation with the real objects
+                        value = null;
                     }
                     else
                     {
@@ -166,16 +181,72 @@ namespace Shift.DataLayer
                     try
                     {
                         var converter = TypeDescriptor.GetConverter(type);
+
+                        if (converter.GetType() == typeof(ReferenceConverter))
+                        {
+                            throw;
+                        }
+
                         value = converter.ConvertFromInvariantString(argument);
                     }
                     catch (Exception)
                     {
-                        throw jsonException;
+                        throw;
                     }
                 }
             }
             return value;
         }
+
+        public static Job CreateJobFromExpression(string encryptionKey, string appID, string userID, string jobType, string jobName, LambdaExpression methodCall)
+        {
+            if (methodCall == null)
+                throw new ArgumentNullException("methodCall");
+
+            var callExpression = methodCall.Body as MethodCallExpression;
+            if (callExpression == null)
+            {
+                throw new ArgumentException("Expression body must be 'MethodCallExpression' type.", "methodCall");
+            }
+
+            var type = callExpression.Method.DeclaringType;
+            var methodInfo = callExpression.Method;
+            if (callExpression.Object != null)
+            {
+                var objectValue = GetExpressionValue(callExpression.Object);
+                if (objectValue == null)
+                {
+                    throw new InvalidOperationException("Expression object should be not null.");
+                }
+
+                type = objectValue.GetType();
+
+                methodInfo = type.GetNonOpenMatchingMethod(callExpression.Method.Name, callExpression.Method.GetParameters().Select(x => x.ParameterType).ToArray());
+            }
+
+            var args = callExpression.Arguments.Select(GetExpressionValue).ToArray();
+
+            if (type == null) throw new ArgumentNullException("type");
+            if (methodInfo == null) throw new ArgumentNullException("method");
+            if (args == null) throw new ArgumentNullException("args");
+
+            Validate(type, "type", methodInfo, "method", args.Length, "args");
+
+            var invokeMeta = new InvokeMeta(type, methodInfo);
+
+            //Save InvokeMeta and args
+            var job = new Job();
+            job.AppID = appID;
+            job.UserID = userID;
+            job.JobType = jobType;
+            job.JobName = string.IsNullOrWhiteSpace(jobName) ? type.Name + "." + methodInfo.Name : jobName;
+            job.InvokeMeta = JsonConvert.SerializeObject(invokeMeta, SerializerSettings.Settings);
+            job.Parameters = Helpers.Encrypt(JsonConvert.SerializeObject(SerializeArguments(args), SerializerSettings.Settings), encryptionKey); //ENCRYPT it!!!
+            job.Created = DateTime.Now;
+
+            return job;
+        }
+
 
     }
 }

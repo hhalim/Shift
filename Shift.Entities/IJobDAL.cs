@@ -12,8 +12,12 @@ namespace Shift.Entities
         #region insert/update job
         string Add(string appID, string userID, string jobType, string jobName, Expression<Action> methodCall);
         Task<string> AddAsync(string appID, string userID, string jobType, string jobName, Expression<Action> methodCall);
+        string Add(string appID, string userID, string jobType, string jobName, Expression<Func<Task>> methodCall);
+        Task<string> AddAsync(string appID, string userID, string jobType, string jobName, Expression<Func<Task>> methodCall);
         int Update(string jobID, string appID, string userID, string jobType, string jobName, Expression<Action> methodCall);
         Task<int> UpdateAsync(string jobID, string appID, string userID, string jobType, string jobName, Expression<Action> methodCall);
+        int Update(string jobID, string appID, string userID, string jobType, string jobName, Expression<Func<Task>> methodCall);
+        Task<int> UpdateAsync(string jobID, string appID, string userID, string jobType, string jobName, Expression<Func<Task>> methodCall);
         #endregion
 
         #region Set Command field

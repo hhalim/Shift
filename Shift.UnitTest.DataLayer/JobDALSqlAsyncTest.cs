@@ -80,6 +80,32 @@ namespace Shift.UnitTest.DataLayer
             Assert.Equal("JobNameUpdated", job.JobName);
         }
 
+        public async Task StartAsyncJob(string message)
+        {
+            Console.WriteLine(message);
+            await Task.Delay(1000);
+        }
+
+        [Fact]
+        public async Task AddAsyncJobAsyncTest()
+        {
+            var jobID = await jobDAL.AddAsync(AppID, "", "", "", () => StartAsyncJob("Hello World Test!"));
+            await jobDAL.DeleteAsync(new List<string> { jobID });
+            Assert.True(!string.IsNullOrWhiteSpace(jobID));
+        }
+
+        [Fact]
+        public async Task UpdateAsyncJobAsyncTest()
+        {
+            var jobID = await jobDAL.AddAsync(AppID, "", "", "", () => StartAsyncJob("Hello World Test!"));
+            var count = await jobDAL.UpdateAsync(jobID, AppID, "", "", "JobNameUpdated", () => StartAsyncJob("Updated Hello World Test!"));
+
+            var job = await jobDAL.GetJobAsync(jobID);
+            await jobDAL.DeleteAsync(new List<string> { jobID });
+            Assert.True(count > 0);
+            Assert.Equal("JobNameUpdated", job.JobName);
+        }
+
         //Test auto delete older than 24 hours and Null(not started) status
         [Fact]
         public async Task DeleteAsyncOldJobs_NotStarted()

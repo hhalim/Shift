@@ -89,53 +89,20 @@ namespace Shift.DataLayer
             return AddAsync(appID, userID, jobType, jobName, methodCall, false);
         }
 
-        private async Task<string> AddAsync(string appID, string userID, string jobType, string jobName, Expression<Action> methodCall, bool isSync)
+        public string Add(string appID, string userID, string jobType, string jobName, Expression<Func<Task>> methodCall)
         {
-            if (methodCall == null)
-                throw new ArgumentNullException("methodCall");
+            return AddAsync(appID, userID, jobType, jobName, methodCall, true).GetAwaiter().GetResult();
+        }
 
-            var callExpression = methodCall.Body as MethodCallExpression;
-            if (callExpression == null)
-            {
-                throw new ArgumentException("Expression body must be 'System.Linq.Expressions.MethodCallExpression' type.", "methodCall");
-            }
+        public Task<string> AddAsync(string appID, string userID, string jobType, string jobName, Expression<Func<Task>> methodCall)
+        {
+            return AddAsync(appID, userID, jobType, jobName, methodCall, false);
+        }
 
-            Type type;
-            if (callExpression.Object != null)
-            {
-                var value = DALHelpers.GetExpressionValue(callExpression.Object);
-                if (value == null)
-                    throw new InvalidOperationException("Expression object can not be null.");
-
-                type = value.GetType();
-            }
-            else
-            {
-                type = callExpression.Method.DeclaringType;
-            }
-
-            var methodInfo = callExpression.Method;
-            var args = callExpression.Arguments.Select(DALHelpers.GetExpressionValue).ToArray();
-
-            if (type == null) throw new ArgumentNullException("type");
-            if (methodInfo == null) throw new ArgumentNullException("method");
-            if (args == null) throw new ArgumentNullException("args");
-
-            DALHelpers.Validate(type, "type", methodInfo, "method", args.Length, "args");
-
-            var invokeMeta = new InvokeMeta(type, methodInfo);
-
-            //Save InvokeMeta and args
-            var now = DateTime.Now;
-            var job = new Job();
-            job.AppID = appID;
-            job.UserID = userID;
-            job.JobType = jobType;
-            job.JobName = string.IsNullOrWhiteSpace(jobName) ? type.Name + "." + methodInfo.Name : jobName;
-            job.InvokeMeta = JsonConvert.SerializeObject(invokeMeta, SerializerSettings.Settings);
-            job.Parameters = Helpers.Encrypt(JsonConvert.SerializeObject(DALHelpers.SerializeArguments(args), SerializerSettings.Settings), encryptionKey); //ENCRYPT it!!!
-            job.Created = now;
-            job.Score = (new DateTimeOffset(now)).ToUnixTimeSeconds();
+        private async Task<string> AddAsync(string appID, string userID, string jobType, string jobName, LambdaExpression methodCall, bool isSync)
+        {
+            var job = DALHelpers.CreateJobFromExpression(encryptionKey, appID, userID, jobType, jobName, methodCall);
+            job.Score = (new DateTimeOffset(job.Created.GetValueOrDefault())).ToUnixTimeSeconds();
 
             var collection = database.GetCollection<Job>(JobCollectionName);
             if (isSync)
@@ -159,7 +126,17 @@ namespace Shift.DataLayer
             return UpdateAsync(jobID, appID, userID, jobType, jobName, methodCall, false);
         }
 
-        private async Task<int> UpdateAsync(string jobID, string appID, string userID, string jobType, string jobName, Expression<Action> methodCall, bool isSync)
+        public int Update(string jobID, string appID, string userID, string jobType, string jobName, Expression<Func<Task>> methodCall)
+        {
+            return UpdateAsync(jobID, appID, userID, jobType, jobName, methodCall, true).GetAwaiter().GetResult();
+        }
+
+        public Task<int> UpdateAsync(string jobID, string appID, string userID, string jobType, string jobName, Expression<Func<Task>> methodCall)
+        {
+            return UpdateAsync(jobID, appID, userID, jobType, jobName, methodCall, false);
+        }
+
+        private async Task<int> UpdateAsync(string jobID, string appID, string userID, string jobType, string jobName, LambdaExpression methodCall, bool isSync)
         {
             if (methodCall == null)
                 throw new ArgumentNullException("methodCall");
@@ -273,7 +250,10 @@ namespace Shift.DataLayer
 
             var collection = database.GetCollection<Job>(JobCollectionName);
             var blFilter = Builders<Job>.Filter;
-            var filter = blFilter.In(j => j.JobID, jobIDs) & (blFilter.Eq(j => j.Status, null) | blFilter.Eq(j => j.Status, JobStatus.Running));
+            var filter = blFilter.In(j => j.JobID, jobIDs) 
+                & (blFilter.Eq(j => j.Status, null) 
+                | blFilter.Eq(j => j.Status, JobStatus.Running) 
+                | blFilter.Eq(j => j.Status, JobStatus.Paused));
             var update = Builders<Job>.Update.Set("Command", JobCommand.Stop);
 
             var result = isSync ? collection.UpdateMany(filter, update) : await collection.UpdateManyAsync(filter, update);

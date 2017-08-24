@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using Shift.DataLayer;
 using System.Configuration;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace Shift.UnitTest.DataLayer
 {
@@ -72,6 +73,32 @@ namespace Shift.UnitTest.DataLayer
         {
             var jobID = jobDAL.Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test!"));
             var count = jobDAL.Update(jobID, AppID, "", "", "JobNameUpdated", () => Console.WriteLine("Hello World Test!"));
+
+            var job = jobDAL.GetJob(jobID);
+            jobDAL.Delete(new List<string> { jobID });
+            Assert.True(count > 0);
+            Assert.Equal("JobNameUpdated", job.JobName);
+        }
+
+        public async Task StartAsyncJob(string message)
+        {
+            Console.WriteLine(message);
+            await Task.Delay(1000);
+        }
+
+        [Fact]
+        public void AddAsyncJobTest()
+        {
+            var jobID = jobDAL.Add(AppID, "", "", "", () => StartAsyncJob("Hello World Test!"));
+            jobDAL.Delete(new List<string> { jobID });
+            Assert.True(!string.IsNullOrWhiteSpace(jobID));
+        }
+
+        [Fact]
+        public void UpdateAsyncJobTest()
+        {
+            var jobID = jobDAL.Add(AppID, "", "", "", () => StartAsyncJob("Hello World Test!"));
+            var count = jobDAL.Update(jobID, AppID, "", "", "JobNameUpdated", () => StartAsyncJob("Updated Hello World Test!"));
 
             var job = jobDAL.GetJob(jobID);
             jobDAL.Delete(new List<string> { jobID });
