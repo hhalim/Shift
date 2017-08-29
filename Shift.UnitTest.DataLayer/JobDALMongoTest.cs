@@ -430,26 +430,6 @@ namespace Shift.UnitTest.DataLayer
             Assert.True(jobIDs.Contains(jobID2));
         }
 
-
-        [Fact]
-        public void GetJobViewsTest2()
-        {
-            var jobID1 = jobDAL.Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test1!"));
-            var jobID2 = jobDAL.Add(AppID, "", "", "", () => Console.WriteLine("Hello World Test2!"));
-
-            var jobs1 = jobDAL.GetJobViews(1, 1);
-            var jobs2 = jobDAL.GetJobViews(2, 1);
-            jobDAL.Delete(new List<string> { jobID1, jobID2 });
-
-            Assert.True(jobs1.Total >= 2);
-            var jobIDs1 = jobs1.Items.Select(j => j.JobID).ToList();
-            Assert.True(jobIDs1.Contains(jobID1));
-
-            Assert.True(jobs2.Total >= 2);
-            var jobIDs2 = jobs2.Items.Select(j => j.JobID).ToList();
-            Assert.True(jobIDs2.Contains(jobID2));
-        }
-
         [Fact]
         public void SetToRunningTest()
         {

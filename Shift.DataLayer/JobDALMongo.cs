@@ -32,13 +32,6 @@ namespace Shift.DataLayer
             InitMongoDB(connectionString);
         }
 
-        public JobDALMongo(string connectionString, IJobCache jobCache, string encryptionKey)
-        {
-            this.encryptionKey = encryptionKey;
-
-            InitMongoDB(connectionString);
-        }
-
         protected void InitMongoDB(string connectionString)
         {
             if (!BsonClassMap.IsClassMapRegistered(typeof(Job)))

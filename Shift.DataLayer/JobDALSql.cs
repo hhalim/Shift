@@ -18,24 +18,13 @@ namespace Shift.DataLayer
     public class JobDALSql : IJobDAL
     {
         private string connectionString;
-        private IJobCache jobCache;
         private string encryptionKey;
 
-        #region Constructor
         public JobDALSql(string connectionString, string encryptionKey)
         {
             this.connectionString = connectionString;
-            this.jobCache = null;
             this.encryptionKey = encryptionKey;
         }
-
-        public JobDALSql(string connectionString, IJobCache jobCache, string encryptionKey)
-        {
-            this.connectionString = connectionString;
-            this.jobCache = jobCache;
-            this.encryptionKey = encryptionKey;
-        }
-        #endregion
 
         #region insert/update job
         /// <summary>
