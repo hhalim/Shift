@@ -101,6 +101,70 @@ namespace Shift.UnitTest
             Assert.Equal(JobID, actualJobID);
         }
 
+        #region Add AsyncJob
+        public async Task StartAsyncJob(string message)
+        {
+            Console.WriteLine(message);
+            await Task.Delay(1000);
+        }
+
+        [Fact]
+        public void AddAsyncJobTest1()
+        {
+            var mockJobDAL = new Mock<IJobDAL>();
+            mockJobDAL
+                .Setup(ss => ss.Add(null, null, null, null, It.IsAny<Expression<Func<Task>>>()))
+                .Returns(JobID);
+
+            var jobClient = new JobClient(mockJobDAL.Object);
+            var actualJobID = jobClient.Add(() => StartAsyncJob("Hello World Test!"));
+
+            Assert.Equal(JobID, actualJobID);
+        }
+
+        [Fact]
+        public void AddAsyncJobTest2()
+        {
+            var mockJobDAL = new Mock<IJobDAL>();
+            mockJobDAL
+                .Setup(ss => ss.Add(AppID, null, null, null, It.IsAny<Expression<Func<Task>>>()))
+                .Returns(JobID);
+
+            var jobClient = new JobClient(mockJobDAL.Object);
+            var actualJobID = jobClient.Add(AppID, () => StartAsyncJob("Hello World Test!"));
+
+            Assert.Equal(JobID, actualJobID);
+        }
+
+        [Fact]
+        public void AddAsyncJobTest3()
+        {
+            var mockJobDAL = new Mock<IJobDAL>();
+            mockJobDAL
+                .Setup(ss => ss.Add(AppID, "-123", "TestJobType", null, It.IsAny<Expression<Func<Task>>>()))
+                .Returns(JobID);
+
+            var jobClient = new JobClient(mockJobDAL.Object);
+            var actualJobID = jobClient.Add(AppID, "-123", "TestJobType", () => StartAsyncJob("Hello World Test!"));
+
+            Assert.Equal(JobID, actualJobID);
+        }
+
+        [Fact]
+        public void AddAsyncJobTest4()
+        {
+            var mockJobDAL = new Mock<IJobDAL>();
+            mockJobDAL
+                .Setup(ss => ss.Add(AppID, "-123", "TestJobType", "Test.JobName", It.IsAny<Expression<Func<Task>>>()))
+                .Returns(JobID);
+
+            var jobClient = new JobClient(mockJobDAL.Object);
+            var actualJobID = jobClient.Add(AppID, "-123", "TestJobType", "Test.JobName", () => StartAsyncJob("Hello World Test!"));
+
+            Assert.Equal(JobID, actualJobID);
+        }
+        #endregion
+
         [Fact]
         public void UpdateJobTest1()
         {
@@ -148,6 +212,56 @@ namespace Shift.UnitTest
 
             Assert.Equal(expected, actual);
         }
+
+        #region Update AsyncJob
+        [Fact]
+        public void UpdateAsyncJobTest1()
+        {
+            var expected = 1;
+
+            var mockJobDAL = new Mock<IJobDAL>();
+            mockJobDAL
+                .Setup(ss => ss.Update(JobID, null, null, null, null, It.IsAny<Expression<Func<Task>>>()))
+                .Returns(expected);
+
+            var jobClient = new JobClient(mockJobDAL.Object);
+            var actual = jobClient.Update(JobID, () => StartAsyncJob("Hello Test Updated"));
+
+            Assert.Equal(expected, actual);
+        }
+
+        [Fact]
+        public void UpdateAsyncJobTest2()
+        {
+            var expected = 1;
+
+            var mockJobDAL = new Mock<IJobDAL>();
+            mockJobDAL
+                .Setup(ss => ss.Update(JobID, "TestAppIDUpdated", null, null, null, It.IsAny<Expression<Func<Task>>>()))
+                .Returns(expected);
+
+            var jobClient = new JobClient(mockJobDAL.Object);
+            var actual = jobClient.Update(JobID, "TestAppIDUpdated", () => StartAsyncJob("Hello Test Updated"));
+
+            Assert.Equal(expected, actual);
+        }
+
+        [Fact]
+        public void UpdateAsyncJobTest3()
+        {
+            var expected = 1;
+
+            var mockJobDAL = new Mock<IJobDAL>();
+            mockJobDAL
+                .Setup(ss => ss.Update(JobID, "TestAppIDUpdated", "-222", "TestJobTypeUpdated", "Test.JobNameUpdated", It.IsAny<Expression<Func<Task>>>()))
+                .Returns(expected);
+
+            var jobClient = new JobClient(mockJobDAL.Object);
+            var actual = jobClient.Update(JobID, "TestAppIDUpdated", "-222", "TestJobTypeUpdated", "Test.JobNameUpdated", () => StartAsyncJob("Hello Test Updated"));
+
+            Assert.Equal(expected, actual);
+        }
+        #endregion
 
         [Fact]
         public void SetCommandStopTest()
