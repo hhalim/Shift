@@ -8,10 +8,10 @@ Move background or long running jobs into reliable and durable processes out of 
 - Ability to pause, stop, reset, and restart long running jobs.
 - Auto removal of older jobs.
 - Scale out with multiple Shift servers to run large number of jobs.
-- Multiple choices of persistent storage: Redis, MongoDB, Microsoft SQL server, or Azure DocumentDB. 
-- Optional progress tracking for each running jobs.
+- Multiple options for persistent storage: Redis, MongoDB, Microsoft SQL server, or Azure DocumentDB. 
+- Optional detailed, customizable progress tracking for each running jobs.
 - Optional encryption for serialized data.
-- Run Shift Server in your own .NET apps, Azure WebJobs, or Windows services. 
+- Run Shift Server library in your own .NET apps, Azure WebJobs, or Windows services. Use nuget.org for easy integration.
 
 The client library allows client apps to add jobs and send commands to Shift server to pause, stop, delete, reset, and run jobs.
 
@@ -26,7 +26,7 @@ Adding a job asynchronously with even simpler job:
 var jobID = await jobClient.AddAsync(() => Console.WriteLine("Hello world!"));
 ```
 
-Add a long running job with pause and cancellation token that also reports its progress:
+Add a long running job with a pause, cancellation token, and a detailed progress:
 ```
 var job = new TestJob();
 var progress = new SynchronousProgress<ProgressInfo>();
@@ -43,7 +43,7 @@ Sample host Shift server projects are provided as a starting point:
 - [Shift.WebJob](https://github.com/hhalim/Shift.WebJob) is the Azure cloud WebJob app, multiple web jobs can also be deployed to multiple Azure App Services. 
 
 ## Demos
-Please check out the demo apps on how to integrate Shift into your own .NET application. There is the ASP.NET MVC demo that shows Shift client and server running in the same ASP.NET process, and the simpler console Shift client and server apps demo. The console apps are two separate projects that demonstrate the client and the server working in two different processes.
+Check out the demo apps on how to integrate Shift into .NET application. The ASP.NET MVC demo shows Shift client and server running in the same ASP.NET process. The simpler console Shift client and server demos are two separate projects that demonstrate a client and a server working in two different processes.
 - ASP.NET MVC demo: [Shift.Demo.Mvc](https://github.com/hhalim/Shift.Demo.Mvc)
 - ASP.NET Core MVC demo: [Shift.Demo.Mvc.Core](https://github.com/hhalim/Shift.Demo.Mvc.Core)
 - Console apps demo: [Shift.Demo.Client](https://github.com/hhalim/Shift.Demo.Client) and [Shift.Demo.Server](https://github.com/hhalim/Shift.Demo.Server)
