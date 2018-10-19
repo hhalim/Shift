@@ -1,14 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Reflection;
 using System.Collections.ObjectModel;
 
 using Newtonsoft.Json;
-using Shift;
 using Shift.DataLayer;
 using Shift.Entities;
 
@@ -300,21 +298,21 @@ namespace Shift
                 await jobDAL.SetToCompletedAsync(processID, jobID);
         }
 
-        private async Task<int> SetErrorAsync(string processID, string jobID, string error, bool isSync)
+        private Task<int> SetErrorAsync(string processID, string jobID, string error, bool isSync)
         {
             if (isSync)
-                return jobDAL.SetError(processID, jobID, error);
+                return Task.FromResult(jobDAL.SetError(processID, jobID, error));
             else
-                return await jobDAL.SetErrorAsync(processID, jobID, error);
+                return jobDAL.SetErrorAsync(processID, jobID, error);
         }
 
         //Only error message, not setting status = error
-        private async Task<int> SetErrorMessageAsync(string processID, string jobID, string error, bool isSync)
+        private Task<int> SetErrorMessageAsync(string processID, string jobID, string error, bool isSync)
         {
             if (isSync)
-                return jobDAL.SetErrorMessage(processID, jobID, error);
+                return Task.FromResult(jobDAL.SetErrorMessage(processID, jobID, error));
             else
-                return await jobDAL.SetErrorMessageAsync(processID, jobID, error);
+                return jobDAL.SetErrorMessageAsync(processID, jobID, error);
         }
 
         //Called when Server is being shut down.
