@@ -26,7 +26,7 @@ Adding a job asynchronously with even simpler job:
 var jobID = await jobClient.AddAsync(() => Console.WriteLine("Hello world!"));
 ```
 
-Add a long running job with a pause, cancellation token, and a detailed progress:
+Add a long running job with a pause, cancellation token, and progress update:
 ```
 var job = new TestJob();
 var progress = new SynchronousProgress<ProgressInfo>();
